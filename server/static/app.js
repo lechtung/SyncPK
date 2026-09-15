@@ -1,4 +1,3 @@
-// Using cookies for authentication now, no need for localStorage or manual headers.
 let tmdbApiKey = '';
 let currentLangData = {};
 let historyData = [];
@@ -10,14 +9,27 @@ let currentFilters = { type: 'all', year: 'all', month: 'all', search: '' };
 let tmdbCache = {}; // Cache to avoid duplicate API calls
 let statsCache = { movies: 0, moviesHours: 0, episodes: 0, episodesHours: 0 };
 
+// Helper to get token value
+function getAuthToken() {
+    return localStorage.getItem('syncpk_token') || "";
+}
+
+// Wrapper for fetch to ensure auth is always sent
+async function apiFetch(url, options = {}) {
+    if (!options.headers) options.headers = {};
+    let token = getAuthToken();
+    if (token) options.headers['Authorization'] = `Basic ${token}`;
+    return fetch(url, options);
+}
+
 document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
     await loadTranslations();
     await loadConfig();
     
-    // Check if cookie exists (10 years persistent)
-    if (document.cookie.includes('syncpk_token=')) {
+    // Check if token exists
+    if (getAuthToken()) {
         showDashboard();
     } else {
         document.getElementById('login-overlay').classList.remove('hidden');
@@ -148,7 +160,8 @@ async function doLogin() {
             body: JSON.stringify({ password: pwd })
         });
         if (res.ok) {
-            // The backend sets the cookie automatically now
+            const data = await res.json();
+            localStorage.setItem('syncpk_token', data.token);
             document.getElementById('login-overlay').classList.add('hidden');
             showDashboard();
         } else {
@@ -247,7 +260,7 @@ async function loadMoreHistory() {
     
     try {
         let url = `/api/history?limit=${limit}&offset=${offset}&type=${currentFilters.type}&year=${currentFilters.year}&month=${currentFilters.month}&search=${encodeURIComponent(currentFilters.search)}`;
-        let res = await fetch(url);
+        let res = await apiFetch(url);
         if (res.status === 401) { logout(); return; }
         
         let data = await res.json();
@@ -268,7 +281,7 @@ async function loadMoreHistory() {
 
 async function loadStats() {
     try {
-        let res = await fetch('/api/stats');
+        let res = await apiFetch('/api/stats');
         if (res.ok) {
             let data = await res.json();
             document.getElementById('stat-movies').textContent = data.movies_count;
@@ -284,7 +297,7 @@ function updateStatsUI() {
 }
 
 function logout() {
-    document.cookie = "syncpk_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    localStorage.removeItem('syncpk_token');
     document.getElementById('dashboard').classList.add('hidden');
     document.getElementById('login-overlay').classList.remove('hidden');
 }
@@ -459,7 +472,7 @@ window.deleteItem = function(id) {
     newYes.addEventListener('click', async () => {
         modal.classList.add('hidden');
         try {
-            let res = await fetch(`/api/history/${id}`, { method: 'DELETE' });
+            let res = await apiFetch(`/api/history/${id}`, { method: 'DELETE' });
             if (res.ok) {
                 document.getElementById(`card-${id}`).remove();
             }
@@ -508,7 +521,7 @@ document.getElementById('edit-save-btn').addEventListener('click', async () => {
     let finalDateStr = new Date(newVal).toISOString();
     
     try {
-        let res = await fetch(`/api/history/${currentEditId}`, { 
+        let res = await apiFetch(`/api/history/${currentEditId}`, { 
             method: 'PUT', 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ watched_at: finalDateStr, scope: scopeVal })
