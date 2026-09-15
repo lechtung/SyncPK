@@ -1,4 +1,4 @@
-let authToken = localStorage.getItem('syncpk_token') || '';
+// Using cookies for authentication now, no need for localStorage or manual headers.
 let tmdbApiKey = '';
 let currentLangData = {};
 let historyData = [];
@@ -16,7 +16,8 @@ async function init() {
     await loadTranslations();
     await loadConfig();
     
-    if (authToken) {
+    // Check if cookie exists (10 years persistent)
+    if (document.cookie.includes('syncpk_token=')) {
         showDashboard();
     } else {
         document.getElementById('login-overlay').classList.remove('hidden');
@@ -147,9 +148,7 @@ async function doLogin() {
             body: JSON.stringify({ password: pwd })
         });
         if (res.ok) {
-            const data = await res.json();
-            authToken = data.token;
-            localStorage.setItem('syncpk_token', authToken);
+            // The backend sets the cookie automatically now
             document.getElementById('login-overlay').classList.add('hidden');
             showDashboard();
         } else {
@@ -248,7 +247,7 @@ async function loadMoreHistory() {
     
     try {
         let url = `/api/history?limit=${limit}&offset=${offset}&type=${currentFilters.type}&year=${currentFilters.year}&month=${currentFilters.month}&search=${encodeURIComponent(currentFilters.search)}`;
-        let res = await fetch(url, { headers: { 'Authorization': `Basic ${authToken}` } });
+        let res = await fetch(url);
         if (res.status === 401) { logout(); return; }
         
         let data = await res.json();
@@ -269,7 +268,7 @@ async function loadMoreHistory() {
 
 async function loadStats() {
     try {
-        let res = await fetch('/api/stats', { headers: { 'Authorization': `Basic ${authToken}` } });
+        let res = await fetch('/api/stats');
         if (res.ok) {
             let data = await res.json();
             document.getElementById('stat-movies').textContent = data.movies_count;
@@ -285,8 +284,7 @@ function updateStatsUI() {
 }
 
 function logout() {
-    localStorage.removeItem('syncpk_token');
-    authToken = '';
+    document.cookie = "syncpk_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
     document.getElementById('dashboard').classList.add('hidden');
     document.getElementById('login-overlay').classList.remove('hidden');
 }
@@ -461,7 +459,7 @@ window.deleteItem = function(id) {
     newYes.addEventListener('click', async () => {
         modal.classList.add('hidden');
         try {
-            let res = await fetch(`/api/history/${id}`, { method: 'DELETE', headers: { 'Authorization': `Basic ${authToken}` } });
+            let res = await fetch(`/api/history/${id}`, { method: 'DELETE' });
             if (res.ok) {
                 document.getElementById(`card-${id}`).remove();
             }
@@ -512,7 +510,7 @@ document.getElementById('edit-save-btn').addEventListener('click', async () => {
     try {
         let res = await fetch(`/api/history/${currentEditId}`, { 
             method: 'PUT', 
-            headers: { 'Authorization': `Basic ${authToken}`, 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ watched_at: finalDateStr, scope: scopeVal })
         });
         if (res.ok) {

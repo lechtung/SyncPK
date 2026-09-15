@@ -171,7 +171,7 @@ pct exec $CTID -- curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB
 pct exec $CTID -- curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/locales/en.json -o /root/sync_server/static/locales/en.json
 pct exec $CTID -- curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/locales/es.json -o /root/sync_server/static/locales/es.json
 
-pct exec $CTID -- bash -c "echo -e 'fastapi\nuvicorn\nrequests\npython-dotenv' > /root/sync_server/requirements.txt"
+pct exec $CTID -- bash -c "echo -e 'fastapi\nuvicorn\nrequests\npython-dotenv\npython-multipart' > /root/sync_server/requirements.txt"
 
 echo "[Info] Configuring environment variables (.env)..."
 pct exec $CTID -- bash -c "cat << 'EOF' > /root/sync_server/.env
@@ -227,20 +227,21 @@ pct exec $CTID -- systemctl start syncpk-server syncpk-plex
 echo "[Info] Configuring MOTD..."
 pct exec $CTID -- bash -c "cat << 'EOF' > /etc/profile.d/syncpk-motd.sh
 #!/bin/bash
+source /root/sync_server/.env
 LOCAL_IP=\$(hostname -I | awk '{print \$1}')
 echo -e \"\e[32m\"
 echo \"=================================================\"
 echo \"               SyncPK Server Active              \"
 echo \"=================================================\"
 echo \" Web Dashboard: http://\$LOCAL_IP:8000\"
-echo \" Kodi Webhook:  http://\$LOCAL_IP:8000/webhook/kodi\"
-echo \" Plex Webhook:  http://\$LOCAL_IP:8000/webhook/plex\"
+echo \" Kodi Webhook:  http://\$LOCAL_IP:8000/webhook/kodi?token=\$SYNC_PASSWORD_B64\"
+echo \" Plex Webhook:  http://\$LOCAL_IP:8000/webhook/plex?token=\$SYNC_PASSWORD_B64\"
 echo \"=================================================\"
 echo -e \"\e[0m\"
 EOF"
 pct exec $CTID -- chmod +x /etc/profile.d/syncpk-motd.sh
 
-whiptail --title "Installation Completed" --msgbox "SyncPK successfully installed.\n\nWeb Dashboard: http://$CT_IP:8000\n\nPlex Webhook: http://$CT_IP:8000/webhook/plex\nKodi Webhook: http://$CT_IP:8000/webhook/kodi\n\nConfigure the Plex Webhook in your Plex server settings, and enter the IP and password in your Kodi Addon." 14 75
+whiptail --title "Installation Completed" --msgbox "SyncPK successfully installed.\n\nWeb Dashboard: http://$CT_IP:8000\n\nPlex Webhook: http://$CT_IP:8000/webhook/plex?token=$SYNC_PASSWORD_B64\nKodi Webhook: http://$CT_IP:8000/webhook/kodi?token=$SYNC_PASSWORD_B64\n\nConfigure the Plex Webhook in your Plex server settings, and enter the IP and password in your Kodi Addon." 14 75
 
 echo "Installation completed! Server IP: $CT_IP"
 

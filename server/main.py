@@ -25,16 +25,29 @@ TMDB_API_KEY = os.getenv("TMDB_API_KEY", "")
 
 plex_headers = {"Accept": "application/xml", "X-Plex-Token": PLEX_TOKEN}
 
-def verify_api_key(authorization: str = Header(None)):
+def verify_api_key(request: Request):
     if not SYNC_PASSWORD_B64:
-        return # If no password is set, allow access
+        return True
     
-    if not authorization or not authorization.startswith("Basic "):
-        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
-    
-    token = authorization.split(" ")[1]
+    # Try Header first
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Basic "):
+        token = auth_header.split(" ")[1]
+        if token == SYNC_PASSWORD_B64:
+            return True
+            
+    # Try Cookie
+    cookie_token = request.cookies.get("syncpk_token")
+    if cookie_token == SYNC_PASSWORD_B64:
+        return True
+        
+    raise HTTPException(status_code=401, detail="Unauthorized")
+
+def verify_webhook_token(token: Optional[str] = Query(None)):
+    if not SYNC_PASSWORD_B64:
+        return True
     if token != SYNC_PASSWORD_B64:
-        raise HTTPException(status_code=401, detail="Invalid API Key")
+        raise HTTPException(status_code=401, detail="Invalid webhook token")
     return True
 
 
@@ -186,7 +199,7 @@ def process_plex_payload(payload, cursor, is_bulk=False):
             
     return True
 
-@app.post("/webhook/plex", dependencies=[Depends(verify_api_key)])
+@app.post("/webhook/plex", dependencies=[Depends(verify_webhook_token)])
 async def plex_webhook(request: Request):
     form = await request.form()
     payload_str = form.get("payload")
@@ -202,7 +215,7 @@ async def plex_webhook(request: Request):
     
     return {"status": "success"}
 
-@app.post("/webhook/plex/bulk", dependencies=[Depends(verify_api_key)])
+@app.post("/webhook/plex/bulk", dependencies=[Depends(verify_webhook_token)])
 async def plex_webhook_bulk(request: Request):
     try:
         payloads = await request.json()
@@ -320,7 +333,7 @@ def process_kodi_payload(payload, cursor, is_bulk=False):
             
     return True
 
-@app.post("/webhook/kodi", dependencies=[Depends(verify_api_key)])
+@app.post("/webhook/kodi", dependencies=[Depends(verify_webhook_token)])
 async def kodi_webhook(request: Request):
     try:
         payload = await request.json()
@@ -334,7 +347,7 @@ async def kodi_webhook(request: Request):
     conn.close()
     return {"status": "success"}
     
-@app.post("/webhook/kodi/bulk", dependencies=[Depends(verify_api_key)])
+@app.post("/webhook/kodi/bulk", dependencies=[Depends(verify_webhook_token)])
 async def kodi_webhook_bulk(request: Request):
     try:
         payloads = await request.json()
@@ -423,12 +436,17 @@ def get_all_items(client: Optional[str] = Query("kodi"), date_from: Optional[str
 class LoginRequest(BaseModel):
     password: str
 
+from fastapi.responses import JSONResponse
+
 @app.post("/api/login")
 def login(req: LoginRequest):
     # The password in the frontend comes in plain text, convert it to B64 to check
     b64_pwd = base64.b64encode(req.password.encode()).decode()
     if b64_pwd == SYNC_PASSWORD_B64 or not SYNC_PASSWORD_B64:
-        return {"success": True, "token": b64_pwd}
+        response = JSONResponse({"success": True, "token": b64_pwd})
+        # Set a cookie that lasts for 10 years (315360000 seconds)
+        response.set_cookie(key="syncpk_token", value=b64_pwd, max_age=315360000, httponly=False)
+        return response
     raise HTTPException(status_code=401, detail="Invalid password")
 
 @app.get("/api/history")

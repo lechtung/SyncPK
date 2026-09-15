@@ -67,7 +67,7 @@ curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRAN
 
 # If files do not exist on GitHub yet, create dummies to prevent script failure
 if [ ! -f $INSTALL_DIR/requirements.txt ] || ! grep -q "fastapi" $INSTALL_DIR/requirements.txt; then
-    echo -e "fastapi\nuvicorn\nrequests\npython-dotenv" > $INSTALL_DIR/requirements.txt
+    echo -e "fastapi\nuvicorn\nrequests\npython-dotenv\npython-multipart" > $INSTALL_DIR/requirements.txt
 fi
 
 echo "[Info] Configuring environment variables (.env)..."
@@ -133,14 +133,14 @@ echo "================================================="
 echo "               SyncPK Server Active              "
 echo "================================================="
 echo " Web Dashboard: http://$LOCAL_IP:8000"
-echo " Kodi Webhook:  http://$LOCAL_IP:8000/webhook/kodi"
-echo " Plex Webhook:  http://$LOCAL_IP:8000/webhook/plex"
+echo " Kodi Webhook:  http://$LOCAL_IP:8000/webhook/kodi?token=$SYNC_PASSWORD_B64"
+echo " Plex Webhook:  http://$LOCAL_IP:8000/webhook/plex?token=$SYNC_PASSWORD_B64"
 echo "================================================="
 echo -e "\e[0m"
 EOF
 chmod +x /etc/profile.d/syncpk-motd.sh
 
-whiptail --title "Installation Completed" --msgbox "SyncPK successfully installed in $INSTALL_DIR.\n\nWeb Dashboard: http://$LOCAL_IP:8000\n\nPlex Webhook: http://$LOCAL_IP:8000/webhook/plex\nKodi Webhook: http://$LOCAL_IP:8000/webhook/kodi\n\nConfigure the Plex Webhook in your Plex server settings, and enter the IP and password in your Kodi Addon." 14 75
+whiptail --title "Installation Completed" --msgbox "SyncPK successfully installed in $INSTALL_DIR.\n\nWeb Dashboard: http://$LOCAL_IP:8000\n\nPlex Webhook: http://$LOCAL_IP:8000/webhook/plex?token=$SYNC_PASSWORD_B64\nKodi Webhook: http://$LOCAL_IP:8000/webhook/kodi?token=$SYNC_PASSWORD_B64\n\nConfigure the Plex Webhook in your Plex server settings, and enter the IP and password in your Kodi Addon." 14 75
 
 echo "Installation completed! Server IP: $LOCAL_IP"
 

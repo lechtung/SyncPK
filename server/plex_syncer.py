@@ -108,7 +108,10 @@ def push_all_to_server():
     if payloads:
         print(f"🚀 [FULL PUSH] Sending {len(payloads)} items to central server...")
         try:
-            r = requests.post(f"{SERVER_URL}/webhook/plex/bulk", json=payloads, headers=server_headers)
+            webhook_url = f"{SERVER_URL}/webhook/plex/bulk"
+            if SYNC_PASSWORD_B64:
+                webhook_url += f"?token={SYNC_PASSWORD_B64}"
+            r = requests.post(webhook_url, json=payloads, headers=server_headers)
             print(f"Server response: {r.status_code} - {r.text}")
         except Exception as e:
             print(f"Error sending bulk: {e}")
@@ -301,7 +304,10 @@ def push_recent_to_server(last_sync_utc_str):
     for p in payloads:
         try:
             # Send as live event so it updates dates correctly if it's a re-watch
-            requests.post(f"{SERVER_URL}/webhook/plex", json=p, headers=server_headers)
+            webhook_url = f"{SERVER_URL}/webhook/plex"
+            if SYNC_PASSWORD_B64:
+                webhook_url += f"?token={SYNC_PASSWORD_B64}"
+            requests.post(webhook_url, json=p, headers=server_headers)
         except Exception as e:
             print(f"Error sending incremental update: {e}")
     if payloads:
