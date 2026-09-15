@@ -313,11 +313,22 @@ async function fetchTMDBData(item) {
     let result = null;
     
     try {
-        // Try via external IDs first
-        let externalId = item.imdb_id || item.show_imdb_id;
-        let externalSource = 'imdb_id';
-        if (!externalId) { externalId = item.tvdb_id || item.show_tvdb_id; externalSource = 'tvdb_id'; }
-        if (!externalId) { externalId = item.tmdb_id || item.show_tmdb_id; externalSource = 'tmdb_id'; }
+        let externalId = null;
+        let externalSource = '';
+        
+        if (item.media_type === 'episode' || item.media_type === 'show') {
+            if (!externalId && item.show_imdb_id) { externalId = item.show_imdb_id; externalSource = 'imdb_id'; }
+            if (!externalId && item.show_tvdb_id) { externalId = item.show_tvdb_id; externalSource = 'tvdb_id'; }
+            if (!externalId && item.show_tmdb_id) { externalId = item.show_tmdb_id; externalSource = 'tmdb_id'; }
+            // Fallback to episode ids if show ids are missing
+            if (!externalId && item.imdb_id) { externalId = item.imdb_id; externalSource = 'imdb_id'; }
+            if (!externalId && item.tvdb_id) { externalId = item.tvdb_id; externalSource = 'tvdb_id'; }
+            if (!externalId && item.tmdb_id) { externalId = item.tmdb_id; externalSource = 'tmdb_id'; }
+        } else {
+            if (!externalId && item.imdb_id) { externalId = item.imdb_id; externalSource = 'imdb_id'; }
+            if (!externalId && item.tvdb_id) { externalId = item.tvdb_id; externalSource = 'tvdb_id'; }
+            if (!externalId && item.tmdb_id) { externalId = item.tmdb_id; externalSource = 'tmdb_id'; }
+        }
         
         let typePath = item.media_type === 'movie' ? 'movie' : 'tv';
         
@@ -333,8 +344,15 @@ async function fetchTMDBData(item) {
                 result = data;
             } else {
                 let arr = item.media_type === 'movie' ? data.movie_results : data.tv_results;
+                if (!arr || arr.length === 0) {
+                    // If it was an episode ID, it might be in tv_episode_results
+                    arr = data.tv_episode_results;
+                }
+                
                 if (arr?.length > 0) {
-                    let det = await fetch(`https://api.themoviedb.org/3/${typePath}/${arr[0].id}?api_key=${tmdbApiKey}`);
+                    // If it's a show, fetch show details. If it's an episode, we use the show_id from the episode result!
+                    let finalTargetId = arr[0].show_id ? arr[0].show_id : arr[0].id;
+                    let det = await fetch(`https://api.themoviedb.org/3/${typePath}/${finalTargetId}?api_key=${tmdbApiKey}`);
                     result = await det.json();
                 }
             }
