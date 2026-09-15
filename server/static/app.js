@@ -198,6 +198,9 @@ function populateMonthFilter() {
     const dd = menu?.closest('.c-dropdown');
     if (!menu || !dd) return;
     
+    const locale = navigator.language || navigator.languages?.[0] || 'es';
+    console.log('[SyncPK] Locale detected for months:', locale);
+    
     for (let i = 0; i < 12; i++) {
         let monthName = new Date(2000, i, 1).toLocaleDateString(navigator.language, { month: 'long' });
         monthName = monthName.charAt(0).toUpperCase() + monthName.slice(1);
