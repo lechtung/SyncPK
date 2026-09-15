@@ -38,40 +38,58 @@
             <div class="header-right">
                 <input type="text" id="search-input" data-i18n-placeholder="search_placeholder" placeholder="Search title...">
                 
-                <div class="custom-filter-wrap">
-                    <span class="custom-filter-label" data-i18n="filter_label_type">Type</span>
-                    <select id="type-filter" class="filter-select">
-                        <option value="all" data-i18n="filter_type_all">All watch history</option>
-                        <option value="movie" data-i18n="filter_type_movies">Movies</option>
-                        <option value="episode" data-i18n="filter_type_episodes">TV Shows</option>
-                    </select>
+                <div class="c-dropdown" data-filter="type">
+                    <div class="c-dropdown-trigger">
+                        <span class="c-dropdown-label" data-i18n="filter_label_type">Type</span>
+                        <div class="c-dropdown-bottom">
+                            <span class="c-dropdown-value" id="dd-type-val" data-i18n="filter_type_all">All watch history</span>
+                            <span class="c-dropdown-arrow">▾</span>
+                        </div>
+                    </div>
+                    <div class="c-dropdown-menu glass-panel">
+                        <div class="c-dropdown-item selected" data-value="all" data-i18n="filter_type_all">All watch history</div>
+                        <div class="c-dropdown-item" data-value="movie" data-i18n="filter_type_movies">Movies</div>
+                        <div class="c-dropdown-item" data-value="episode" data-i18n="filter_type_episodes">TV Shows</div>
+                    </div>
                 </div>
                 
-                <div class="custom-filter-wrap">
-                    <span class="custom-filter-label" data-i18n="filter_label_year">Year</span>
-                    <select id="year-filter" class="filter-select">
-                        <option value="all" data-i18n="filter_year_all">All</option>
+                <div class="c-dropdown" data-filter="year" id="dd-year">
+                    <div class="c-dropdown-trigger">
+                        <span class="c-dropdown-label" data-i18n="filter_label_year">Year</span>
+                        <div class="c-dropdown-bottom">
+                            <span class="c-dropdown-value" id="dd-year-val" data-i18n="filter_year_all">All</span>
+                            <span class="c-dropdown-arrow">▾</span>
+                        </div>
+                    </div>
+                    <div class="c-dropdown-menu glass-panel" id="dd-year-menu">
+                        <div class="c-dropdown-item selected" data-value="all" data-i18n="filter_year_all">All</div>
                         <!-- JS will populate years -->
-                    </select>
+                    </div>
                 </div>
                 
-                <div class="custom-filter-wrap">
-                    <span class="custom-filter-label" data-i18n="filter_label_month">Month</span>
-                    <select id="month-filter" class="filter-select">
-                    <option value="all" data-i18n="filter_month_all">All Months</option>
-                    <option value="1">Jan</option>
-                    <option value="2">Feb</option>
-                    <option value="3">Mar</option>
-                    <option value="4">Apr</option>
-                    <option value="5">May</option>
-                    <option value="6">Jun</option>
-                    <option value="7">Jul</option>
-                    <option value="8">Aug</option>
-                    <option value="9">Sep</option>
-                    <option value="10">Oct</option>
-                    <option value="11">Nov</option>
-                    <option value="12">Dec</option>
-                    </select>
+                <div class="c-dropdown" data-filter="month">
+                    <div class="c-dropdown-trigger">
+                        <span class="c-dropdown-label" data-i18n="filter_label_month">Month</span>
+                        <div class="c-dropdown-bottom">
+                            <span class="c-dropdown-value" id="dd-month-val" data-i18n="filter_month_all">All</span>
+                            <span class="c-dropdown-arrow">▾</span>
+                        </div>
+                    </div>
+                    <div class="c-dropdown-menu glass-panel">
+                        <div class="c-dropdown-item selected" data-value="all" data-i18n="filter_month_all">All</div>
+                        <div class="c-dropdown-item" data-value="1">Jan</div>
+                        <div class="c-dropdown-item" data-value="2">Feb</div>
+                        <div class="c-dropdown-item" data-value="3">Mar</div>
+                        <div class="c-dropdown-item" data-value="4">Apr</div>
+                        <div class="c-dropdown-item" data-value="5">May</div>
+                        <div class="c-dropdown-item" data-value="6">Jun</div>
+                        <div class="c-dropdown-item" data-value="7">Jul</div>
+                        <div class="c-dropdown-item" data-value="8">Aug</div>
+                        <div class="c-dropdown-item" data-value="9">Sep</div>
+                        <div class="c-dropdown-item" data-value="10">Oct</div>
+                        <div class="c-dropdown-item" data-value="11">Nov</div>
+                        <div class="c-dropdown-item" data-value="12">Dec</div>
+                    </div>
                 </div>
             </div>
         </header>

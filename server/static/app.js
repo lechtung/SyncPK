@@ -23,6 +23,7 @@ async function init() {
     }
     
     setupEventListeners();
+    initDropdowns();
     populateYearFilter();
 }
 
@@ -59,10 +60,6 @@ function setupEventListeners() {
     document.getElementById('login-btn').addEventListener('click', doLogin);
     document.getElementById('password-input').addEventListener('keypress', e => { if (e.key === 'Enter') doLogin(); });
     
-    document.getElementById('type-filter').addEventListener('change', e => { currentFilters.type = e.target.value; reloadHistory(); });
-    document.getElementById('year-filter').addEventListener('change', e => { currentFilters.year = e.target.value; reloadHistory(); });
-    document.getElementById('month-filter').addEventListener('change', e => { currentFilters.month = e.target.value; reloadHistory(); });
-    
     let searchTimeout;
     document.getElementById('search-input').addEventListener('input', e => {
         clearTimeout(searchTimeout);
@@ -72,7 +69,7 @@ function setupEventListeners() {
         }, 500);
     });
     
-    // Infinite Scroll
+    // Infinite scroll
     window.addEventListener('scroll', () => {
         if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 200) {
             loadMoreHistory();
@@ -81,6 +78,9 @@ function setupEventListeners() {
 
     // Close dropdowns on outside click
     document.addEventListener('click', e => {
+        if (!e.target.closest('.c-dropdown')) {
+            document.querySelectorAll('.c-dropdown').forEach(d => d.classList.remove('open'));
+        }
         if (!e.target.closest('.kebab-menu-btn')) {
             document.querySelectorAll('.kebab-dropdown').forEach(d => d.classList.remove('show'));
         }
@@ -88,6 +88,48 @@ function setupEventListeners() {
 
     document.getElementById('edit-cancel-btn').addEventListener('click', () => {
         document.getElementById('edit-modal').classList.add('hidden');
+    });
+}
+
+function initDropdowns() {
+    document.querySelectorAll('.c-dropdown').forEach(dd => {
+        let trigger = dd.querySelector('.c-dropdown-trigger');
+        let closeTimer;
+        
+        // Hover to open
+        dd.addEventListener('mouseenter', () => {
+            clearTimeout(closeTimer);
+            dd.classList.add('open');
+        });
+        dd.addEventListener('mouseleave', () => {
+            closeTimer = setTimeout(() => dd.classList.remove('open'), 180);
+        });
+        
+        // Click trigger also toggles
+        trigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            dd.classList.toggle('open');
+        });
+        
+        // Click items
+        dd.querySelectorAll('.c-dropdown-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                let value = item.dataset.value;
+                let filterId = dd.dataset.filter;
+                let valEl = dd.querySelector('.c-dropdown-value');
+                
+                // Update selected style
+                dd.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected'));
+                item.classList.add('selected');
+                if (valEl) valEl.textContent = item.textContent;
+                dd.classList.remove('open');
+                
+                // Update filter and reload
+                currentFilters[filterId] = value;
+                reloadHistory();
+            });
+        });
     });
 }
 
@@ -121,13 +163,32 @@ function showDashboard() {
 }
 
 function populateYearFilter() {
-    const yearSelect = document.getElementById('year-filter');
+    const menu = document.getElementById('dd-year-menu');
+    if (!menu) return;
     const currentYear = new Date().getFullYear();
     for (let i = currentYear; i >= currentYear - 10; i--) {
-        let opt = document.createElement('option');
-        opt.value = i;
-        opt.textContent = i;
-        yearSelect.appendChild(opt);
+        let item = document.createElement('div');
+        item.className = 'c-dropdown-item';
+        item.dataset.value = i;
+        item.textContent = i;
+        menu.appendChild(item);
+    }
+    // Re-init the year dropdown to wire up the new items
+    let dd = document.getElementById('dd-year');
+    if (dd) {
+        dd.querySelectorAll('.c-dropdown-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                let value = item.dataset.value;
+                dd.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected'));
+                item.classList.add('selected');
+                let valEl = dd.querySelector('.c-dropdown-value');
+                if (valEl) valEl.textContent = item.textContent;
+                dd.classList.remove('open');
+                currentFilters.year = value;
+                reloadHistory();
+            });
+        });
     }
 }
 
@@ -195,59 +256,46 @@ function logout() {
 async function fetchTMDBData(item) {
     if (!tmdbApiKey) return null;
     
-    // We try to find via IMDB ID first because it's universal
-    let externalId = item.imdb_id || item.show_imdb_id;
-    let externalSource = 'imdb_id';
-    
-    if (!externalId) {
-        externalId = item.tvdb_id || item.show_tvdb_id;
-        externalSource = 'tvdb_id';
-    }
-    if (!externalId) {
-        externalId = item.tmdb_id || item.show_tmdb_id;
-        externalSource = 'tmdb_id'; // wait, for tmdb_id we don't need /find
-    }
-    
-    if (!externalId) return null;
-
-    let cacheKey = `${externalSource}_${externalId}`;
+    let cacheKey = `${item.media_type}_${item.id}`;
     if (tmdbCache[cacheKey]) return tmdbCache[cacheKey];
-
+    
+    let result = null;
+    
     try {
+        // Try via external IDs first
+        let externalId = item.imdb_id || item.show_imdb_id;
+        let externalSource = 'imdb_id';
+        if (!externalId) { externalId = item.tvdb_id || item.show_tvdb_id; externalSource = 'tvdb_id'; }
+        if (!externalId) { externalId = item.tmdb_id || item.show_tmdb_id; externalSource = 'tmdb_id'; }
+        
         let typePath = item.media_type === 'movie' ? 'movie' : 'tv';
-        let url = "";
         
-        if (externalSource === 'tmdb_id') {
-             url = `https://api.themoviedb.org/3/${typePath}/${externalId}?api_key=${tmdbApiKey}`;
-        } else {
-             url = `https://api.themoviedb.org/3/find/${externalId}?api_key=${tmdbApiKey}&external_source=${externalSource}`;
-        }
-        
-        let res = await fetch(url);
-        let data = await res.json();
-        
-        let result = null;
-        if (externalSource !== 'tmdb_id') {
-            if (item.media_type === 'movie' && data.movie_results?.length > 0) result = data.movie_results[0];
-            else if (item.media_type === 'episode' && data.tv_results?.length > 0) result = data.tv_results[0];
+        if (externalId) {
+            let url = externalSource === 'tmdb_id'
+                ? `https://api.themoviedb.org/3/${typePath}/${externalId}?api_key=${tmdbApiKey}`
+                : `https://api.themoviedb.org/3/find/${externalId}?api_key=${tmdbApiKey}&external_source=${externalSource}`;
             
-            // To get runtime we need the specific movie/tv details call
-            if (result && result.id) {
-                let detailRes = await fetch(`https://api.themoviedb.org/3/${typePath}/${result.id}?api_key=${tmdbApiKey}`);
-                result = await detailRes.json();
+            let res = await fetch(url);
+            let data = await res.json();
+            
+            if (externalSource === 'tmdb_id') {
+                result = data;
+            } else {
+                let arr = item.media_type === 'movie' ? data.movie_results : data.tv_results;
+                if (arr?.length > 0) {
+                    let det = await fetch(`https://api.themoviedb.org/3/${typePath}/${arr[0].id}?api_key=${tmdbApiKey}`);
+                    result = await det.json();
+                }
             }
-        } else {
-            result = data;
         }
         
-        // Fallback for movies: search by title if no IDs matched
-        if (!result && item.media_type === 'movie') {
-            let searchTitle = encodeURIComponent(item.title || '');
-            let searchRes = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${tmdbApiKey}&query=${searchTitle}`);
+        // Fallback for movies: search by title (handles movies without IDs)
+        if (!result && item.media_type === 'movie' && item.title) {
+            let searchRes = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${tmdbApiKey}&query=${encodeURIComponent(item.title)}`);
             let searchData = await searchRes.json();
             if (searchData.results?.length > 0) {
-                let detailRes = await fetch(`https://api.themoviedb.org/3/movie/${searchData.results[0].id}?api_key=${tmdbApiKey}`);
-                result = await detailRes.json();
+                let det = await fetch(`https://api.themoviedb.org/3/movie/${searchData.results[0].id}?api_key=${tmdbApiKey}`);
+                result = await det.json();
             }
         }
 
@@ -402,7 +450,7 @@ document.getElementById('edit-save-btn').addEventListener('click', async () => {
 });
 
 // --- TIMELINE NAVIGATOR ---
-let currentWeekStart = null; // Monday of the currently shown week
+let currentWeekStart = null;
 
 function getWeekStart(date) {
     let d = new Date(date);
@@ -431,35 +479,26 @@ function generateTimeline(anchorDate) {
         datesWithData.add(d.toDateString());
     });
     
-    // Generate 7 days starting from Monday
+    // Generate 7 days starting from Monday - use Intl for locale-aware day/month names
     for (let i = 0; i < 7; i++) {
         let d = new Date(weekStart);
         d.setDate(weekStart.getDate() + i);
         
         let isToday = d.toDateString() === today.toDateString();
         
-        // Day of week abbreviated (Mon, Tue...)
-        let weekdayNames = currentLangData.day_names_short ||
-            ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-        let weekdayStr = weekdayNames[d.getDay()];
-        
-        // Month abbreviated
-        let monthNames = currentLangData.month_names_short ||
-            ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        let monthStr = monthNames[d.getMonth()];
-        
+        // Browser locale day and month names
+        let weekdayStr = d.toLocaleDateString(navigator.language, { weekday: 'short' }).toUpperCase();
+        let monthStr = d.toLocaleDateString(navigator.language, { month: 'short' }).toUpperCase();
         let dateNum = d.getDate();
         
         let btn = document.createElement('button');
         btn.className = 'day-btn';
         if (isToday) btn.classList.add('active');
         if (datesWithData.has(d.toDateString())) btn.classList.add('has-data');
-        
         btn.dataset.date = d.toDateString();
         
         btn.innerHTML = `<span class="d-weekday">${weekdayStr}</span><span class="d-month">${monthStr}</span><span class="d-num">${dateNum}</span><div class="d-dot"></div>`;
         
-        // Click: select and scroll to that day's group in the feed
         btn.addEventListener('click', () => {
             document.querySelectorAll('.day-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
