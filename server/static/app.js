@@ -173,6 +173,7 @@ async function doLogin() {
 }
 
 function showDashboard() {
+    document.getElementById('login-overlay').classList.add('hidden');
     document.getElementById('dashboard').classList.remove('hidden');
     reloadHistory();
     loadStats();
