@@ -59,6 +59,12 @@ SYNC_PASSWORD_B64=$(echo -n "$SYNC_PASSWORD" | base64)
 # 3. Download template and create LXC
 CTID=$(pvesh get /cluster/nextid)
 
+# Find a storage that supports templates (vztmpl)
+TEMPLATE_STORAGE=$(pvesm status -content vztmpl | awk 'NR>1 {print $1}' | head -n 1)
+if [ -z "$TEMPLATE_STORAGE" ]; then
+    error "No storage found that supports LXC templates (vztmpl)."
+fi
+
 echo "[Info] Fetching latest Debian 12 template version..."
 pveam update &>/dev/null
 LATEST_TEMPLATE=$(pveam available | grep debian-12-standard | awk '{print $2}' | sort -V | tail -n 1)
@@ -70,8 +76,8 @@ fi
 # Prepare Whiptail Options
 OPTIONS=( "1" "Download latest Debian 12 ($LATEST_TEMPLATE)" )
 
-# Fetch and sort local templates
-LOCAL_TEMPLATES=$(pvesm list $TARGET_STORAGE --content vztmpl | awk 'NR>1 {print $1}' | cut -d'/' -f2)
+# Fetch and sort local templates from TEMPLATE_STORAGE
+LOCAL_TEMPLATES=$(pvesm list $TEMPLATE_STORAGE --content vztmpl | awk 'NR>1 {print $1}' | cut -d'/' -f2)
 DEBIAN_TEMPLATES=$(echo "$LOCAL_TEMPLATES" | grep "debian" | sort -rV)
 OTHER_TEMPLATES=$(echo "$LOCAL_TEMPLATES" | grep -v "debian" | sort -rV)
 
@@ -93,11 +99,11 @@ fi
 if [ "$CHOICE" == "1" ]; then
     TEMPLATE=$LATEST_TEMPLATE
     echo "[Info] Checking if latest template is already downloaded..."
-    if pvesm list $TARGET_STORAGE --content vztmpl | grep -q "$TEMPLATE"; then
+    if pvesm list $TEMPLATE_STORAGE --content vztmpl | grep -q "$TEMPLATE"; then
         echo "[Info] Template already exists locally, skipping download."
     else
         echo "[Info] Downloading latest template..."
-        pveam download $TARGET_STORAGE $TEMPLATE &>/dev/null || error "Failed to download the template."
+        pveam download $TEMPLATE_STORAGE $TEMPLATE &>/dev/null || error "Failed to download the template."
     fi
 else
     eval "TEMPLATE=\$LOCAL_TPL_${CHOICE}"
@@ -105,7 +111,7 @@ else
 fi
 
 echo "[Info] Creating CT container $CTID..."
-pct create $CTID $TARGET_STORAGE:vztmpl/$TEMPLATE -arch amd64 -hostname syncpk -cores 1 -memory 512 -net0 name=eth0,bridge=vmbr0,ip=dhcp -unprivileged 1 -features nesting=1
+pct create $CTID $TEMPLATE_STORAGE:vztmpl/$TEMPLATE -storage $TARGET_STORAGE -arch amd64 -hostname syncpk -cores 1 -memory 512 -net0 name=eth0,bridge=vmbr0,ip=dhcp -unprivileged 1 -features nesting=1
 pct start $CTID
 
 echo "[Info] Waiting for the container to boot and get an IP..."
