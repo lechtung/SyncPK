@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<addon id="script.syncpk"
+       name="SyncPK (Plex-Kodi Local Sync)"
+       version="1.0.9"
+       provider-name="Lechtung">
+  <requires>
+    <import addon="xbmc.python" version="3.0.0"/>
+  </requires>
+  <extension point="xbmc.service" library="service.py" />
+  <extension point="xbmc.addon.metadata">
+    <summary lang="en_GB">Sincronizacion local bidireccional Kodi-Plex</summary>
+    <summary lang="en_US">Sincronizacion local bidireccional Kodi-Plex</summary>
+    <summary lang="es_ES">Sincronizacion local bidireccional Kodi-Plex</summary>
+    <description lang="en_GB">Envia webhooks al servidor SyncPK local al reproducir contenido.</description>
+    <description lang="en_US">Envia webhooks al servidor SyncPK local al reproducir contenido.</description>
+    <description lang="es_ES">Envia webhooks al servidor SyncPK local al reproducir contenido.</description>
+    <disclaimer lang="en_GB">Not tested on Android</disclaimer>
+    <disclaimer lang="es_ES">No se ha probado en Android</disclaimer>
+    <platform>all</platform>
+    <license>GPL-3.0-or-later</license>
+    <assets>
+      <icon>resources/icon.png</icon>
+    </assets>
+    <language>es</language>
+    <news>
+      v1.0.9 (09-11-26)
+      - initial version
+    </news>
+  </extension>
+</addon>

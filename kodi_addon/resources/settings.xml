@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<settings>
+    <category label="Servidor SyncPK">
+        <setting id="server_url" type="text" label="URL del Webhook (ej: http://IP:8000/webhook/kodi)" default="http://192.168.178.206:8000/webhook/kodi"/>
+        <setting id="server_password" type="text" option="hidden" label="Contraseña del Servidor (opcional)" default=""/>
+    </category>
+    <category label="Sincronización (Kodi &lt;- Servidor)">
+        <setting id="sync_on_startup" type="bool" label="Sincronizar al iniciar Kodi" default="true" />
+        <setting id="sync_interval" type="number" label="Intervalo de sincronización (minutos, 0=Desactivado)" default="15" />
+        <setting id="last_sync_date" type="text" label="Fecha última sincronización (Borrar para forzar Full Sync)" default="" />
+    </category>
+    <category label="Opciones de Reproducción">
+        <setting id="watched_percent" type="number" label="Porcentaje para considerar Visto (%)" default="80" />
+        <setting id="sync_movies" type="bool" label="Sincronizar Películas" default="true" />
+        <setting id="sync_shows" type="bool" label="Sincronizar Series" default="true" />
+    </category>
+    <category label="Avanzado">
+        <setting id="show_notifications" type="bool" label="Mostrar notificaciones en pantalla" default="false" />
+        <setting id="debug_log" type="bool" label="Modo depuración (Debug Log)" default="false" />
+    </category>
+</settings>

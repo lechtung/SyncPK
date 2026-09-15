@@ -1,0 +1,402 @@
+let authToken = localStorage.getItem('syncpk_token') || '';
+let tmdbApiKey = '';
+let currentLangData = {};
+let historyData = [];
+let offset = 0;
+let limit = 20;
+let hasMore = true;
+let isLoading = false;
+let currentFilters = { type: 'all', year: 'all', month: 'all', search: '' };
+let tmdbCache = {}; // Cache to avoid duplicate API calls
+let statsCache = { movies: 0, moviesHours: 0, episodes: 0, episodesHours: 0 };
+
+document.addEventListener('DOMContentLoaded', init);
+
+async function init() {
+    await loadTranslations();
+    await loadConfig();
+    
+    if (authToken) {
+        showDashboard();
+    } else {
+        document.getElementById('login-overlay').classList.remove('hidden');
+    }
+    
+    setupEventListeners();
+    populateYearFilter();
+}
+
+async function loadTranslations() {
+    let lang = navigator.language.split('-')[0];
+    try {
+        let res = await fetch(`locales/${lang}.json`);
+        if (!res.ok) throw new Error("Not found");
+        currentLangData = await res.json();
+    } catch (e) {
+        let res = await fetch(`locales/en.json`);
+        currentLangData = await res.json();
+    }
+    
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        let key = el.getAttribute('data-i18n');
+        if (currentLangData[key]) el.textContent = currentLangData[key];
+    });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        let key = el.getAttribute('data-i18n-placeholder');
+        if (currentLangData[key]) el.placeholder = currentLangData[key];
+    });
+}
+
+async function loadConfig() {
+    try {
+        let res = await fetch('/api/config');
+        let data = await res.json();
+        tmdbApiKey = data.tmdb_api_key;
+    } catch (e) { console.error("Error loading config", e); }
+}
+
+function setupEventListeners() {
+    document.getElementById('login-btn').addEventListener('click', doLogin);
+    document.getElementById('password-input').addEventListener('keypress', e => { if (e.key === 'Enter') doLogin(); });
+    
+    document.getElementById('type-filter').addEventListener('change', e => { currentFilters.type = e.target.value; reloadHistory(); });
+    document.getElementById('year-filter').addEventListener('change', e => { currentFilters.year = e.target.value; reloadHistory(); });
+    document.getElementById('month-filter').addEventListener('change', e => { currentFilters.month = e.target.value; reloadHistory(); });
+    
+    let searchTimeout;
+    document.getElementById('search-input').addEventListener('input', e => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            currentFilters.search = e.target.value;
+            reloadHistory();
+        }, 500);
+    });
+    
+    // Infinite Scroll
+    window.addEventListener('scroll', () => {
+        if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 200) {
+            loadMoreHistory();
+        }
+    });
+
+    // Close dropdowns on outside click
+    document.addEventListener('click', e => {
+        if (!e.target.closest('.kebab-menu-btn')) {
+            document.querySelectorAll('.kebab-dropdown').forEach(d => d.classList.remove('show'));
+        }
+    });
+
+    document.getElementById('edit-cancel-btn').addEventListener('click', () => {
+        document.getElementById('edit-modal').classList.add('hidden');
+    });
+}
+
+async function doLogin() {
+    const pwd = document.getElementById('password-input').value;
+    try {
+        const res = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: pwd })
+        });
+        if (res.ok) {
+            const data = await res.json();
+            authToken = data.token;
+            localStorage.setItem('syncpk_token', authToken);
+            document.getElementById('login-overlay').classList.add('hidden');
+            showDashboard();
+        } else {
+            document.getElementById('login-error').classList.remove('hidden');
+        }
+    } catch (e) {
+        document.getElementById('login-error').classList.remove('hidden');
+    }
+}
+
+function showDashboard() {
+    document.getElementById('dashboard').classList.remove('hidden');
+    reloadHistory();
+    loadStats();
+    generateTimeline();
+}
+
+function populateYearFilter() {
+    const yearSelect = document.getElementById('year-filter');
+    const currentYear = new Date().getFullYear();
+    for (let i = currentYear; i >= currentYear - 10; i--) {
+        let opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = i;
+        yearSelect.appendChild(opt);
+    }
+}
+
+async function reloadHistory() {
+    offset = 0;
+    hasMore = true;
+    historyData = [];
+    document.getElementById('history-feed').innerHTML = '';
+    statsCache.moviesHours = 0;
+    statsCache.episodesHours = 0;
+    await loadMoreHistory();
+}
+
+async function loadMoreHistory() {
+    if (isLoading || !hasMore) return;
+    isLoading = true;
+    document.getElementById('loading-spinner').classList.remove('hidden');
+    
+    try {
+        let url = `/api/history?limit=${limit}&offset=${offset}&type=${currentFilters.type}&year=${currentFilters.year}&month=${currentFilters.month}&search=${encodeURIComponent(currentFilters.search)}`;
+        let res = await fetch(url, { headers: { 'Authorization': `Basic ${authToken}` } });
+        if (res.status === 401) { logout(); return; }
+        
+        let data = await res.json();
+        if (data.items.length < limit) hasMore = false;
+        
+        historyData = historyData.concat(data.items);
+        offset += limit;
+        
+        await renderHistory(data.items);
+    } catch(e) {
+        console.error(e);
+    }
+    
+    isLoading = false;
+    document.getElementById('loading-spinner').classList.add('hidden');
+}
+
+async function loadStats() {
+    try {
+        let res = await fetch('/api/stats', { headers: { 'Authorization': `Basic ${authToken}` } });
+        if (res.ok) {
+            let data = await res.json();
+            document.getElementById('stat-movies').textContent = data.movies_count;
+            document.getElementById('stat-episodes').textContent = data.episodes_count;
+        }
+    } catch(e) { console.error(e); }
+}
+
+function updateStatsUI() {
+    document.getElementById('stat-movies-hours').textContent = Math.round(statsCache.moviesHours / 60) + 'h';
+    document.getElementById('stat-episodes-hours').textContent = Math.round(statsCache.episodesHours / 60) + 'h';
+    document.getElementById('stat-total-hours').textContent = Math.round((statsCache.moviesHours + statsCache.episodesHours) / 60) + 'h';
+}
+
+function logout() {
+    localStorage.removeItem('syncpk_token');
+    authToken = '';
+    document.getElementById('dashboard').classList.add('hidden');
+    document.getElementById('login-overlay').classList.remove('hidden');
+}
+
+// --- TMDB INTEGRATION ---
+async function fetchTMDBData(item) {
+    if (!tmdbApiKey) return null;
+    
+    // We try to find via IMDB ID first because it's universal
+    let externalId = item.imdb_id || item.show_imdb_id;
+    let externalSource = 'imdb_id';
+    
+    if (!externalId) {
+        externalId = item.tvdb_id || item.show_tvdb_id;
+        externalSource = 'tvdb_id';
+    }
+    if (!externalId) {
+        externalId = item.tmdb_id || item.show_tmdb_id;
+        externalSource = 'tmdb_id'; // wait, for tmdb_id we don't need /find
+    }
+    
+    if (!externalId) return null;
+
+    let cacheKey = `${externalSource}_${externalId}`;
+    if (tmdbCache[cacheKey]) return tmdbCache[cacheKey];
+
+    try {
+        let typePath = item.media_type === 'movie' ? 'movie' : 'tv';
+        let url = "";
+        
+        if (externalSource === 'tmdb_id') {
+             url = `https://api.themoviedb.org/3/${typePath}/${externalId}?api_key=${tmdbApiKey}`;
+        } else {
+             url = `https://api.themoviedb.org/3/find/${externalId}?api_key=${tmdbApiKey}&external_source=${externalSource}`;
+        }
+        
+        let res = await fetch(url);
+        let data = await res.json();
+        
+        let result = null;
+        if (externalSource !== 'tmdb_id') {
+            if (item.media_type === 'movie' && data.movie_results?.length > 0) result = data.movie_results[0];
+            else if (item.media_type === 'episode' && data.tv_results?.length > 0) result = data.tv_results[0];
+            
+            // To get runtime we need the specific movie/tv details call
+            if (result && result.id) {
+                let detailRes = await fetch(`https://api.themoviedb.org/3/${typePath}/${result.id}?api_key=${tmdbApiKey}`);
+                result = await detailRes.json();
+            }
+        } else {
+            result = data;
+        }
+
+        if (result) {
+            let finalData = {
+                poster: result.poster_path ? `https://image.tmdb.org/t/p/w500${result.poster_path}` : '',
+                backdrop: result.backdrop_path ? `https://image.tmdb.org/t/p/w1280${result.backdrop_path}` : '',
+                runtime: result.runtime || (result.episode_run_time ? result.episode_run_time[0] : 0) || 45
+            };
+            tmdbCache[cacheKey] = finalData;
+            return finalData;
+        }
+    } catch(e) { console.error("TMDB error", e); }
+    return null;
+}
+
+// --- RENDER ---
+async function renderHistory(items) {
+    const feed = document.getElementById('history-feed');
+    
+    // Group by day string
+    let grouped = {};
+    items.forEach(item => {
+        let dateObj = new Date(item.watched_at);
+        let dayString = dateObj.toLocaleDateString(navigator.language, { day: 'numeric', month: 'long', year: 'numeric' });
+        if (!grouped[dayString]) grouped[dayString] = [];
+        grouped[dayString].push(item);
+    });
+    
+    for (const [dayString, dayItems] of Object.entries(grouped)) {
+        // Find or create group container
+        let groupId = 'group-' + dayString.replace(/\s+/g, '-');
+        let groupDiv = document.getElementById(groupId);
+        let cardsGrid = null;
+        
+        if (!groupDiv) {
+            groupDiv = document.createElement('div');
+            groupDiv.className = 'history-group';
+            groupDiv.id = groupId;
+            groupDiv.innerHTML = `<div class="history-group-title">${dayString}</div><div class="cards-grid"></div>`;
+            feed.appendChild(groupDiv);
+        }
+        cardsGrid = groupDiv.querySelector('.cards-grid');
+        
+        for (const item of dayItems) {
+            // Check if card already exists
+            if (document.getElementById(`card-${item.id}`)) continue;
+            
+            let tmdbData = await fetchTMDBData(item);
+            
+            if (tmdbData) {
+                if (item.media_type === 'movie') statsCache.moviesHours += tmdbData.runtime;
+                else statsCache.episodesHours += tmdbData.runtime;
+            }
+            updateStatsUI();
+            
+            let card = document.createElement('div');
+            card.className = 'media-card';
+            card.id = `card-${item.id}`;
+            
+            let posterStyle = tmdbData && tmdbData.poster ? `background-image: url('${tmdbData.poster}')` : 'background-color: #333';
+            let bgStyle = tmdbData && tmdbData.backdrop ? `background-image: url('${tmdbData.backdrop}')` : 'background-color: #111';
+            
+            let timeStr = new Date(item.watched_at).toLocaleTimeString(navigator.language, { hour: '2-digit', minute: '2-digit' });
+            let title = item.media_type === 'movie' ? item.title : item.show_title;
+            let subtitle = item.media_type === 'movie' ? '' : `T${item.season} · E${item.episode} - ${item.title}`;
+            
+            card.innerHTML = `
+                <div class="card-bg" style="${bgStyle}"></div>
+                <div class="card-poster" style="${posterStyle}"></div>
+                <div class="card-content">
+                    <div class="card-title">${title}</div>
+                    <div class="card-subtitle">${subtitle}</div>
+                    <div class="card-time">${timeStr}</div>
+                </div>
+                <button class="kebab-menu-btn" onclick="toggleDropdown(${item.id}, event)">⋮</button>
+                <div class="kebab-dropdown glass-panel" id="dropdown-${item.id}">
+                    <div class="dropdown-item danger" onclick="deleteItem(${item.id})" data-i18n="action_delete">${currentLangData.action_delete || 'Delete'}</div>
+                    <div class="dropdown-item" onclick="openEditModal(${item.id}, '${item.watched_at}')" data-i18n="action_edit">${currentLangData.action_edit || 'Edit'}</div>
+                </div>
+            `;
+            cardsGrid.appendChild(card);
+        }
+    }
+}
+
+// --- ACTIONS ---
+window.toggleDropdown = function(id, e) {
+    e.stopPropagation();
+    document.querySelectorAll('.kebab-dropdown').forEach(d => {
+        if (d.id !== `dropdown-${id}`) d.classList.remove('show');
+    });
+    document.getElementById(`dropdown-${id}`).classList.toggle('show');
+}
+
+window.deleteItem = async function(id) {
+    if (!confirm("Are you sure?")) return;
+    try {
+        let res = await fetch(`/api/history/${id}`, { method: 'DELETE', headers: { 'Authorization': `Basic ${authToken}` } });
+        if (res.ok) {
+            document.getElementById(`card-${id}`).remove();
+        }
+    } catch(e) { console.error(e); }
+}
+
+let currentEditId = null;
+window.openEditModal = function(id, dateStr) {
+    currentEditId = id;
+    let modal = document.getElementById('edit-modal');
+    // Format to datetime-local expected format YYYY-MM-DDThh:mm
+    let d = new Date(dateStr);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    document.getElementById('edit-date-input').value = d.toISOString().slice(0, 16);
+    modal.classList.remove('hidden');
+}
+
+document.getElementById('edit-save-btn').addEventListener('click', async () => {
+    let newVal = document.getElementById('edit-date-input').value; // YYYY-MM-DDThh:mm
+    if (!newVal) return;
+    
+    // Convert back to UTC string format used by DB (or local if prefered, backend saves as string)
+    let finalDateStr = new Date(newVal).toISOString();
+    
+    try {
+        let res = await fetch(`/api/history/${currentEditId}`, { 
+            method: 'PUT', 
+            headers: { 'Authorization': `Basic ${authToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ watched_at: finalDateStr })
+        });
+        if (res.ok) {
+            document.getElementById('edit-modal').classList.add('hidden');
+            reloadHistory(); // Reload to sort properly
+        }
+    } catch(e) { console.error(e); }
+});
+
+// --- TIMELINE NAVIGATOR ---
+function generateTimeline() {
+    const selector = document.getElementById('day-selector');
+    selector.innerHTML = '';
+    
+    // Generate last 14 days
+    let today = new Date();
+    for (let i = 13; i >= 0; i--) {
+        let d = new Date(today);
+        d.setDate(d.getDate() - i);
+        
+        let dayIndex = d.getDay();
+        let dayName = currentLangData.day_names ? currentLangData.day_names[dayIndex] : d.toLocaleDateString('en', {weekday: 'short'});
+        let dateNum = d.getDate();
+        let isToday = i === 0;
+        
+        let btn = document.createElement('button');
+        btn.className = 'day-btn';
+        if (isToday) btn.classList.add('active');
+        
+        // Example check: if history contains this date, add .has-data class
+        // (In a real app you'd get activity days from /api/stats or check the loaded history)
+        btn.classList.add('has-data'); // Mock for visual
+        
+        btn.innerHTML = `<span class="d-month">${dayName}</span><span class="d-num">${dateNum}</span><div class="d-dot"></div>`;
+        selector.appendChild(btn);
+    }
+}

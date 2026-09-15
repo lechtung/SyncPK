@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SyncPK Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    
+    <!-- LOGIN OVERLAY -->
+    <div id="login-overlay" class="overlay">
+        <div class="login-box glass-panel">
+            <h2 data-i18n="login_title">SyncPK</h2>
+            <p data-i18n="login_desc">Enter your Master Password</p>
+            <input type="password" id="password-input" placeholder="Password...">
+            <button id="login-btn" data-i18n="login_btn">Login</button>
+            <p id="login-error" class="error-text hidden" data-i18n="login_error">Incorrect password</p>
+        </div>
+    </div>
+
+    <!-- MAIN DASHBOARD -->
+    <div id="dashboard" class="hidden">
+        
+        <!-- STICKY HEADER -->
+        <header class="sticky-header glass-panel">
+            <div class="header-left">
+                <h1 class="logo">SyncPK</h1>
+                <!-- DAY SELECTOR STRIP -->
+                <div class="day-selector" id="day-selector">
+                    <!-- Javascript will populate days here -->
+                </div>
+            </div>
+            
+            <div class="header-right">
+                <input type="text" id="search-input" data-i18n-placeholder="search_placeholder" placeholder="Search title...">
+                
+                <select id="type-filter">
+                    <option value="all" data-i18n="filter_type_all">All watch history</option>
+                    <option value="movie" data-i18n="filter_type_movies">Movies</option>
+                    <option value="episode" data-i18n="filter_type_episodes">TV Shows</option>
+                </select>
+                
+                <select id="year-filter">
+                    <option value="all" data-i18n="filter_year_all">All Years</option>
+                    <!-- JS will populate years -->
+                </select>
+                
+                <select id="month-filter">
+                    <option value="all" data-i18n="filter_month_all">All Months</option>
+                    <option value="1">Jan</option>
+                    <option value="2">Feb</option>
+                    <option value="3">Mar</option>
+                    <option value="4">Apr</option>
+                    <option value="5">May</option>
+                    <option value="6">Jun</option>
+                    <option value="7">Jul</option>
+                    <option value="8">Aug</option>
+                    <option value="9">Sep</option>
+                    <option value="10">Oct</option>
+                    <option value="11">Nov</option>
+                    <option value="12">Dec</option>
+                </select>
+            </div>
+        </header>
+
+        <!-- STATS SECTION -->
+        <div class="stats-container">
+            <div class="stat-card glass-panel">
+                <span class="stat-value" id="stat-movies">0</span>
+                <span class="stat-label" data-i18n="stat_movies">Movies</span>
+            </div>
+            <div class="stat-card glass-panel">
+                <span class="stat-value" id="stat-movies-hours">0h</span>
+                <span class="stat-label" data-i18n="stat_movies_hours">Movie Hours</span>
+            </div>
+            <div class="stat-card glass-panel">
+                <span class="stat-value" id="stat-episodes">0</span>
+                <span class="stat-label" data-i18n="stat_episodes">Episodes</span>
+            </div>
+            <div class="stat-card glass-panel">
+                <span class="stat-value" id="stat-episodes-hours">0h</span>
+                <span class="stat-label" data-i18n="stat_episodes_hours">TV Hours</span>
+            </div>
+            <div class="stat-card glass-panel highlight">
+                <span class="stat-value" id="stat-total-hours">0h</span>
+                <span class="stat-label" data-i18n="stat_total_hours">Total Hours</span>
+            </div>
+        </div>
+
+        <!-- HISTORY FEED -->
+        <div class="history-feed" id="history-feed">
+            <!-- JS will populate history groups here -->
+        </div>
+        
+        <div id="loading-spinner" class="spinner hidden"></div>
+
+    </div>
+
+    <!-- EDIT MODAL -->
+    <div id="edit-modal" class="overlay hidden">
+        <div class="login-box glass-panel">
+            <h3 data-i18n="edit_title">Change Watch Date</h3>
+            <input type="datetime-local" id="edit-date-input">
+            <div class="modal-buttons">
+                <button id="edit-cancel-btn" data-i18n="btn_cancel">Cancel</button>
+                <button id="edit-save-btn" data-i18n="btn_save">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
