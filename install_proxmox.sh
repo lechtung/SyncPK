@@ -98,11 +98,16 @@ if [ -z "$LATEST_TEMPLATE" ]; then
     error "Could not find a valid Debian 12 template. Please check your Proxmox internet connection."
 fi
 
-# Prepare Whiptail Options
-OPTIONS=( "1" "Download latest Debian 12 ($LATEST_TEMPLATE)" )
-
 # Fetch and sort local templates from TEMPLATE_STORAGE
 LOCAL_TEMPLATES=$(pvesm list $TEMPLATE_STORAGE --content vztmpl | awk 'NR>1 {print $1}' | cut -d'/' -f2)
+
+if echo "$LOCAL_TEMPLATES" | grep -q "$LATEST_TEMPLATE"; then
+    OPTIONS=( "1" "Use latest Debian 12 ($LATEST_TEMPLATE) [ALREADY DOWNLOADED]" )
+    LOCAL_TEMPLATES=$(echo "$LOCAL_TEMPLATES" | grep -v "$LATEST_TEMPLATE")
+else
+    OPTIONS=( "1" "Download latest Debian 12 ($LATEST_TEMPLATE)" )
+fi
+
 DEBIAN_TEMPLATES=$(echo "$LOCAL_TEMPLATES" | grep "debian" | sort -rV)
 OTHER_TEMPLATES=$(echo "$LOCAL_TEMPLATES" | grep -v "debian" | sort -rV)
 
@@ -212,7 +217,23 @@ pct exec $CTID -- systemctl daemon-reload
 pct exec $CTID -- systemctl enable syncpk-server syncpk-plex
 pct exec $CTID -- systemctl start syncpk-server syncpk-plex
 
-whiptail --title "Installation Completed" --msgbox "SyncPK installed successfully.\n\nServer deployed at IP: $CT_IP\n\nDo not forget to enter the IP ($CT_IP) and your password in the Kodi Addon settings." 12 60
+# Setup MOTD for SSH/Console login
+echo "[Info] Configuring MOTD..."
+pct exec $CTID -- bash -c "cat << 'EOF' > /etc/profile.d/syncpk-motd.sh
+#!/bin/bash
+LOCAL_IP=\$(hostname -I | awk '{print \$1}')
+echo -e \"\e[32m\"
+echo \"=================================================\"
+echo \"               SyncPK Server Active              \"
+echo \"=================================================\"
+echo \" Web Dashboard: http://\$LOCAL_IP:8000\"
+echo \" Kodi Webhook:  http://\$LOCAL_IP:8000/webhook/kodi\"
+echo \"=================================================\"
+echo -e \"\e[0m\"
+EOF"
+pct exec $CTID -- chmod +x /etc/profile.d/syncpk-motd.sh
+
+whiptail --title "Installation Completed" --msgbox "SyncPK successfully installed.\n\nWeb Dashboard: http://$CT_IP:8000\n\nDo not forget to enter the IP ($CT_IP) and your password in the Kodi Addon settings." 12 75
 
 echo "Installation completed! Server IP: $CT_IP"
 

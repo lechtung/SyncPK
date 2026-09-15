@@ -1,4 +1,6 @@
 from fastapi import FastAPI, Request, Query
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional, List
 import sqlite3
@@ -400,3 +402,9 @@ def get_all_items(client: Optional[str] = Query("kodi"), date_from: Optional[str
         
     conn.close()
     return {"movies": movies, "shows": shows_list}
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.get("/")
+def read_root():
+    return FileResponse("static/index.html")
