@@ -102,10 +102,14 @@ fi
 LOCAL_TEMPLATES=$(pvesm list $TEMPLATE_STORAGE --content vztmpl | awk 'NR>1 {print $1}' | cut -d'/' -f2)
 
 if echo "$LOCAL_TEMPLATES" | grep -q "$LATEST_TEMPLATE"; then
-    OPTIONS=( "1" "Use latest Debian 12 ($LATEST_TEMPLATE) [ALREADY DOWNLOADED]" )
+    DISP_LATEST=$LATEST_TEMPLATE
+    if [ ${#DISP_LATEST} -gt 35 ]; then DISP_LATEST="${DISP_LATEST:0:32}..."; fi
+    OPTIONS=( "1" "Use latest Debian 12 ($DISP_LATEST) [OK]" )
     LOCAL_TEMPLATES=$(echo "$LOCAL_TEMPLATES" | grep -v "$LATEST_TEMPLATE")
 else
-    OPTIONS=( "1" "Download latest Debian 12 ($LATEST_TEMPLATE)" )
+    DISP_LATEST=$LATEST_TEMPLATE
+    if [ ${#DISP_LATEST} -gt 35 ]; then DISP_LATEST="${DISP_LATEST:0:32}..."; fi
+    OPTIONS=( "1" "Download Debian 12 ($DISP_LATEST)" )
 fi
 
 DEBIAN_TEMPLATES=$(echo "$LOCAL_TEMPLATES" | grep "debian" | sort -rV)
@@ -114,7 +118,9 @@ OTHER_TEMPLATES=$(echo "$LOCAL_TEMPLATES" | grep -v "debian" | sort -rV)
 idx=2
 while read -r t; do
     if [ "$idx" -le 11 ] && [ -n "$t" ]; then
-        OPTIONS+=( "$idx" "Use local: $t" )
+        DISP_T=$t
+        if [ ${#DISP_T} -gt 45 ]; then DISP_T="${DISP_T:0:42}..."; fi
+        OPTIONS+=( "$idx" "Use local: $DISP_T" )
         eval "LOCAL_TPL_${idx}='$t'"
         idx=$((idx+1))
     fi
