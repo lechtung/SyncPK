@@ -1,7 +1,6 @@
-from fastapi import FastAPI, Request, Query, Depends, HTTPException
+from fastapi import FastAPI, Request, Query, Depends, HTTPException, Header
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
 from typing import Optional, List
 import sqlite3
@@ -12,14 +11,32 @@ import xml.etree.ElementTree as ET
 from collections import defaultdict
 import os
 import base64
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI()
-security = HTTPBasic()
 
-# --- CONFIGURACIÓN PLEX ---
-PLEX_URL = "http://192.168.178.21:32400"
-PLEX_TOKEN = "XYHZz-RvzKQzZX_TuJix"
+# --- PLEX & SECURITY CONFIGURATION ---
+PLEX_URL = os.getenv("PLEX_URL", "http://192.168.178.21:32400")
+PLEX_TOKEN = os.getenv("PLEX_TOKEN", "")
+SYNC_PASSWORD_B64 = os.getenv("SYNC_PASSWORD_B64", "")
+TMDB_API_KEY = os.getenv("TMDB_API_KEY", "")
+
 plex_headers = {"Accept": "application/xml", "X-Plex-Token": PLEX_TOKEN}
+
+def verify_api_key(authorization: str = Header(None)):
+    if not SYNC_PASSWORD_B64:
+        return # If no password is set, allow access
+    
+    if not authorization or not authorization.startswith("Basic "):
+        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+    
+    token = authorization.split(" ")[1]
+    if token != SYNC_PASSWORD_B64:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    return True
+
 
 def init_db():
     conn = sqlite3.connect("sync.db")
@@ -93,10 +110,7 @@ def process_plex_payload(payload, cursor, is_bulk=False):
     
     watched_at = watched_at_payload
     if not watched_at:
-        if is_live_event:
-            watched_at = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        else:
-            watched_at = "1970-01-01T00:00:00Z"
+        watched_at = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     
     now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     
@@ -172,7 +186,7 @@ def process_plex_payload(payload, cursor, is_bulk=False):
             
     return True
 
-@app.post("/webhook/plex")
+@app.post("/webhook/plex", dependencies=[Depends(verify_api_key)])
 async def plex_webhook(request: Request):
     form = await request.form()
     payload_str = form.get("payload")
@@ -188,7 +202,7 @@ async def plex_webhook(request: Request):
     
     return {"status": "success"}
 
-@app.post("/webhook/plex/bulk")
+@app.post("/webhook/plex/bulk", dependencies=[Depends(verify_api_key)])
 async def plex_webhook_bulk(request: Request):
     try:
         payloads = await request.json()
@@ -222,10 +236,7 @@ def process_kodi_payload(payload, cursor, is_bulk=False):
     
     watched_at = watched_at_payload
     if not watched_at:
-        if is_live_event:
-            watched_at = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        else:
-            watched_at = "1970-01-01T00:00:00Z"
+        watched_at = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         
     now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     
@@ -309,7 +320,7 @@ def process_kodi_payload(payload, cursor, is_bulk=False):
             
     return True
 
-@app.post("/webhook/kodi")
+@app.post("/webhook/kodi", dependencies=[Depends(verify_api_key)])
 async def kodi_webhook(request: Request):
     try:
         payload = await request.json()
@@ -323,7 +334,7 @@ async def kodi_webhook(request: Request):
     conn.close()
     return {"status": "success"}
     
-@app.post("/webhook/kodi/bulk")
+@app.post("/webhook/kodi/bulk", dependencies=[Depends(verify_api_key)])
 async def kodi_webhook_bulk(request: Request):
     try:
         payloads = await request.json()
@@ -344,7 +355,7 @@ async def kodi_webhook_bulk(request: Request):
     conn.close()
     return {"status": "success", "processed": count}
 
-@app.get("/sync/all-items")
+@app.get("/sync/all-items", dependencies=[Depends(verify_api_key)])
 def get_all_items(client: Optional[str] = Query("kodi"), date_from: Optional[str] = Query(None)):
     conn = sqlite3.connect("sync.db")
     conn.row_factory = sqlite3.Row
@@ -407,56 +418,41 @@ def get_all_items(client: Optional[str] = Query("kodi"), date_from: Optional[str
     conn.close()
     return {"movies": movies, "shows": shows_list}
 
-# --- WEB DASHBOARD APIs ---
-
-def verify_token(credentials: HTTPBasicCredentials = Depends(security)):
-    stored_b64 = os.environ.get("SYNC_PASSWORD_B64", "")
-    if not stored_b64:
-        return True
-    req_pwd_b64 = base64.b64encode(credentials.password.encode('utf-8')).decode('utf-8')
-    if req_pwd_b64 != stored_b64:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    return True
+# --- WEB DASHBOARD ENDPOINTS ---
 
 class LoginRequest(BaseModel):
     password: str
 
 @app.post("/api/login")
-def api_login(req: LoginRequest):
-    stored_b64 = os.environ.get("SYNC_PASSWORD_B64", "")
-    req_pwd_b64 = base64.b64encode(req.password.encode('utf-8')).decode('utf-8')
-    if req_pwd_b64 == stored_b64 or not stored_b64:
-        token = base64.b64encode(f"syncpk:{req.password}".encode('utf-8')).decode('utf-8')
-        return {"token": token}
+def login(req: LoginRequest):
+    # The password in the frontend comes in plain text, convert it to B64 to check
+    b64_pwd = base64.b64encode(req.password.encode()).decode()
+    if b64_pwd == SYNC_PASSWORD_B64 or not SYNC_PASSWORD_B64:
+        return {"success": True, "token": b64_pwd}
     raise HTTPException(status_code=401, detail="Invalid password")
 
-@app.get("/api/config")
-def api_config():
-    return {"tmdb_api_key": os.environ.get("TMDB_API_KEY", "")}
-
-@app.get("/api/stats")
-def api_stats(auth: bool = Depends(verify_token)):
-    conn = sqlite3.connect("sync.db")
-    c = conn.cursor()
-    c.execute("SELECT count(*) FROM watch_history WHERE media_type='movie'")
-    m_count = c.fetchone()[0]
-    c.execute("SELECT count(*) FROM watch_history WHERE media_type='episode'")
-    e_count = c.fetchone()[0]
-    conn.close()
-    return {"movies_count": m_count, "episodes_count": e_count}
-
 @app.get("/api/history")
-def api_history(limit: int = 20, offset: int = 0, type: str = 'all', year: str = 'all', month: str = 'all', search: str = '', auth: bool = Depends(verify_token)):
+def get_history(limit: int = 20, offset: int = 0, type: str = "all", year: str = "all", month: str = "all", search: str = "", authorization: str = Depends(verify_api_key)):
     conn = sqlite3.connect("sync.db")
     conn.row_factory = sqlite3.Row
-    c = conn.cursor()
+    cursor = conn.cursor()
     
     query = "SELECT * FROM watch_history WHERE 1=1"
     params = []
     
-    if type != 'all':
-        query += " AND media_type=?"
+    if type != "all":
+        query += " AND media_type = ?"
         params.append(type)
+    
+    if year != "all":
+        query += " AND strftime('%Y', watched_at) = ?"
+        params.append(year)
+        
+    if month != "all":
+        # Ensure two-digit format
+        month_str = str(month).zfill(2)
+        query += " AND strftime('%m', watched_at) = ?"
+        params.append(month_str)
         
     if search:
         query += " AND (title LIKE ? OR show_title LIKE ?)"
@@ -465,47 +461,58 @@ def api_history(limit: int = 20, offset: int = 0, type: str = 'all', year: str =
     query += " ORDER BY watched_at DESC LIMIT ? OFFSET ?"
     params.extend([limit, offset])
     
-    c.execute(query, params)
-    rows = [dict(r) for r in c.fetchall()]
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    
+    items = [dict(row) for row in rows]
+    conn.close()
+    return {"items": items}
+
+@app.get("/api/stats")
+def get_stats(authorization: str = Depends(verify_api_key)):
+    conn = sqlite3.connect("sync.db")
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT COUNT(*) FROM watch_history WHERE media_type = 'movie'")
+    movies_count = cursor.fetchone()[0] or 0
+    
+    cursor.execute("SELECT COUNT(*) FROM watch_history WHERE media_type = 'episode'")
+    episodes_count = cursor.fetchone()[0] or 0
+    
     conn.close()
     
-    if year != 'all' or month != 'all':
-        filtered = []
-        for r in rows:
-            dt = r.get("watched_at", "")
-            if len(dt) >= 10:
-                r_year = dt[0:4]
-                r_month = dt[5:7].lstrip('0')
-                if year != 'all' and r_year != year: continue
-                if month != 'all' and r_month != month: continue
-            filtered.append(r)
-        rows = filtered
-        
-    return {"items": rows}
+    return {
+        "movies_count": movies_count,
+        "episodes_count": episodes_count
+    }
 
 @app.delete("/api/history/{item_id}")
-def api_delete_history(item_id: int, auth: bool = Depends(verify_token)):
+def delete_history_item(item_id: int, authorization: str = Depends(verify_api_key)):
     conn = sqlite3.connect("sync.db")
-    c = conn.cursor()
-    c.execute("DELETE FROM watch_history WHERE id=?", (item_id,))
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM watch_history WHERE id = ?", (item_id,))
     conn.commit()
     conn.close()
-    return {"status": "deleted"}
+    return {"success": True}
 
-class UpdateHistoryReq(BaseModel):
+class UpdateHistoryRequest(BaseModel):
     watched_at: str
-    
+
 @app.put("/api/history/{item_id}")
-def api_update_history(item_id: int, req: UpdateHistoryReq, auth: bool = Depends(verify_token)):
+def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: str = Depends(verify_api_key)):
     conn = sqlite3.connect("sync.db")
-    c = conn.cursor()
-    c.execute("UPDATE watch_history SET watched_at=? WHERE id=?", (req.watched_at, item_id))
+    cursor = conn.cursor()
+    cursor.execute("UPDATE watch_history SET watched_at = ? WHERE id = ?", (req.watched_at, item_id))
     conn.commit()
     conn.close()
-    return {"status": "updated"}
+    return {"success": True}
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+@app.get("/api/config")
+def get_config():
+    # Only return API KEY to authenticated frontend (optional) but TMDB API_KEY is not secret
+    return {"tmdb_api_key": TMDB_API_KEY}
 
-@app.get("/")
-def read_root():
-    return FileResponse("static/index.html")
+# --- SERVE FRONTEND ---
+# Mount the static folder at the end to avoid overwriting routes /api/
+os.makedirs("static", exist_ok=True)
+app.mount("/", StaticFiles(directory="static", html=True), name="static")
