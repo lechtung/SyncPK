@@ -143,3 +143,5 @@ chmod +x /etc/profile.d/syncpk-motd.sh
 whiptail --title "Installation Completed" --msgbox "SyncPK successfully installed in $INSTALL_DIR.\n\nWeb Dashboard: http://$LOCAL_IP:8000\n\nPlex Webhook: http://$LOCAL_IP:8000/webhook/plex\nKodi Webhook: http://$LOCAL_IP:8000/webhook/kodi\n\nConfigure the Plex Webhook in your Plex server settings, and enter the IP and password in your Kodi Addon." 14 75
 
 echo "Installation completed! Server IP: $LOCAL_IP"
+
+

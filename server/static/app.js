@@ -335,14 +335,14 @@ async function fetchTMDBData(item) {
             let searchRes = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${tmdbApiKey}&query=${encodeURIComponent(cleanTitle)}&language=${lang}`);
             let searchData = await searchRes.json();
             if (searchData.results?.length > 0) {
-                let det = await fetch(`https://api.themoviedb.org/3/movie/${searchData.results[0].id}?api_key=${tmdbApiKey}&language=${lang}`);
+                let det = await fetch(`https://api.themoviedb.org/3/movie/${(searchData.results.find(r => r.poster_path) || searchData.results[0]).id}?api_key=${tmdbApiKey}&language=${lang}`);
                 result = await det.json();
             } else {
                 // If clean title fails, try exact title
                 let searchRes2 = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${tmdbApiKey}&query=${encodeURIComponent(item.title)}&language=${lang}`);
                 let searchData2 = await searchRes2.json();
                 if (searchData2.results?.length > 0) {
-                    let det2 = await fetch(`https://api.themoviedb.org/3/movie/${searchData2.results[0].id}?api_key=${tmdbApiKey}&language=${lang}`);
+                    let det2 = await fetch(`https://api.themoviedb.org/3/movie/${(searchData2.results.find(r => r.poster_path) || searchData2.results[0]).id}?api_key=${tmdbApiKey}&language=${lang}`);
                     result = await det2.json();
                 }
             }
