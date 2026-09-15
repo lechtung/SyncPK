@@ -44,14 +44,36 @@ def get_plex_libraries():
         print(f"Error getting Plex libraries: {e}")
     return []
 
+def get_real_plex_history_map():
+    # Fetch real history to get original playback dates
+    print("Fetching real playback history from Plex...")
+    history_map = {}
+    try:
+        url = f"{PLEX_URL}/status/sessions/history/all"
+        r = requests.get(url, headers=plex_headers)
+        if r.status_code == 200:
+            data = r.json()
+            sessions = data.get("MediaContainer", {}).get("Metadata", [])
+            for session in sessions:
+                rating_key = session.get("ratingKey")
+                viewed_at = session.get("viewedAt")
+                if rating_key and viewed_at:
+                    # Keep the earliest date for each item
+                    if rating_key not in history_map or viewed_at < history_map[rating_key]:
+                        history_map[rating_key] = viewed_at
+    except Exception as e:
+        print(f"Error fetching real history: {e}")
+    return history_map
+
 def push_all_to_server():
     print("Starting FULL PUSH from Plex to local server...")
     payloads = []
     
+    history_map = get_real_plex_history_map()
+    
     sections = get_plex_libraries()
     for sec_id in sections:
         try:
-            # Get all items from the library and filter in Python
             r = requests.get(f"{PLEX_URL}/library/sections/{sec_id}/all", headers=plex_headers)
             if r.status_code != 200:
                 continue
@@ -62,20 +84,17 @@ def push_all_to_server():
             for item in items:
                 m_type = item.get("type")
                 
-                # If it's a show, we request episodes
                 if m_type == "show":
                     r_eps = requests.get(f"{PLEX_URL}/library/metadata/{item['ratingKey']}/allLeaves", headers=plex_headers)
                     if r_eps.status_code == 200:
                         eps_data = r_eps.json()
                         episodes = eps_data.get("MediaContainer", {}).get("Metadata", [])
                         for ep in episodes:
-                            # We only care about watched items
                             if ep.get("viewCount", 0) > 0:
-                                payloads.append(build_payload_from_plex(ep, "episode"))
+                                payloads.append(build_payload_from_plex(ep, "episode", history_map))
                 elif m_type == "movie":
-                    # We only care about watched movies
                     if item.get("viewCount", 0) > 0:
-                        payloads.append(build_payload_from_plex(item, "movie"))
+                        payloads.append(build_payload_from_plex(item, "movie", history_map))
                     
         except Exception as e:
             print(f"Error scanning section {sec_id}: {e}")
@@ -88,11 +107,16 @@ def push_all_to_server():
         except Exception as e:
             print(f"Error sending bulk: {e}")
 
-def build_payload_from_plex(item, media_type):
+def build_payload_from_plex(item, media_type, history_map):
     # Build a payload compatible with our main.py from Plex JSON
     
     watched_at = ""
-    if item.get("lastViewedAt"):
+    rating_key = item.get("ratingKey")
+    
+    if rating_key in history_map:
+        utc_dt = datetime.datetime.utcfromtimestamp(history_map[rating_key])
+        watched_at = utc_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+    elif item.get("lastViewedAt"):
         # Convert Unix timestamp to UTC str
         utc_dt = datetime.datetime.utcfromtimestamp(item["lastViewedAt"])
         watched_at = utc_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -147,7 +171,7 @@ def match_movie(movie_data, plex_movies):
     title = movie_data.get("movie", {}).get("title", "").lower()
     for pm in plex_movies:
         if pm.get("title", "").lower() == title:
-            return pm.get("ratingKey")
+            return pm
     return None
 
 def match_show(show_data, plex_shows):
@@ -184,8 +208,12 @@ def pull_from_server_and_scrobble(date_from=None):
         plex_movies, plex_shows = get_plex_items_map()
         # Process Movies
         for m in movies:
-            r_key = match_movie(m, plex_movies)
-            if r_key:
+            matched_movie = match_movie(m, plex_movies)
+            if matched_movie:
+                if matched_movie.get("viewCount", 0) > 0:
+                    print(f"Skipping movie {m['movie']['title']} as it is already watched in Plex.")
+                    continue
+                r_key = matched_movie.get("ratingKey")
                 scrobble_url = f"{PLEX_URL}/:/scrobble?identifier=com.plexapp.plugins.library&key={r_key}"
                 sr = requests.get(scrobble_url, headers=plex_headers)
                 if sr.status_code == 200:
@@ -210,6 +238,9 @@ def pull_from_server_and_scrobble(date_from=None):
                             # Find match of the episode in Plex
                             for pep in plex_eps:
                                 if pep.get("parentIndex") == s_num and pep.get("index") == e_num:
+                                    if pep.get("viewCount", 0) > 0:
+                                        print(f"Skipping episode {s_title} T{s_num}E{e_num} as it is already watched in Plex.")
+                                        break
                                     scrobble_url = f"{PLEX_URL}/:/scrobble?identifier=com.plexapp.plugins.library&key={pep['ratingKey']}"
                                     sr = requests.get(scrobble_url, headers=plex_headers)
                                     if sr.status_code == 200:
