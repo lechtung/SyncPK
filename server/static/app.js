@@ -25,6 +25,7 @@ async function init() {
     setupEventListeners();
     initDropdowns();
     populateYearFilter();
+    populateMonthFilter();
 }
 
 async function loadTranslations() {
@@ -190,6 +191,37 @@ function populateYearFilter() {
             });
         });
     }
+}
+
+function populateMonthFilter() {
+    const menu = document.getElementById('dd-month-menu');
+    const dd = menu?.closest('.c-dropdown');
+    if (!menu || !dd) return;
+    
+    for (let i = 0; i < 12; i++) {
+        let monthName = new Date(2000, i, 1).toLocaleDateString(navigator.language, { month: 'long' });
+        monthName = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+        
+        let item = document.createElement('div');
+        item.className = 'c-dropdown-item';
+        item.dataset.value = i + 1; // months are 1-12 in our API
+        item.textContent = monthName;
+        menu.appendChild(item);
+    }
+    
+    // Wire up click events for all items including "All"
+    dd.querySelectorAll('.c-dropdown-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.stopPropagation();
+            dd.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected'));
+            item.classList.add('selected');
+            let valEl = dd.querySelector('.c-dropdown-value');
+            if (valEl) valEl.textContent = item.textContent;
+            dd.classList.remove('open');
+            currentFilters.month = item.dataset.value;
+            reloadHistory();
+        });
+    });
 }
 
 async function reloadHistory() {
