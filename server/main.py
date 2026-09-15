@@ -496,12 +496,15 @@ def get_stats(authorization: str = Depends(verify_api_key)):
     
     cursor.execute("SELECT COUNT(*) FROM watch_history WHERE media_type = 'episode'")
     episodes_count = cursor.fetchone()[0] or 0
+    cursor.execute("SELECT DISTINCT strftime('%Y', watched_at) FROM watch_history WHERE watched_at IS NOT NULL ORDER BY 1 DESC")
+    available_years = [row[0] for row in cursor.fetchall() if row[0]]
     
     conn.close()
     
     return {
         "movies_count": movies_count,
-        "episodes_count": episodes_count
+        "episodes_count": episodes_count,
+        "available_years": available_years
     }
 
 @app.delete("/api/history/{item_id}")

@@ -180,17 +180,32 @@ function showDashboard() {
     generateTimeline();
 }
 
-function populateYearFilter() {
+function populateYearFilter(years = []) {
     const menu = document.getElementById('dd-year-menu');
     if (!menu) return;
-    const currentYear = new Date().getFullYear();
-    for (let i = currentYear; i >= currentYear - 10; i--) {
+    
+    // Preserve the "All years" option
+    menu.innerHTML = '<div class="c-dropdown-item selected" data-value="all" data-i18n="filter_year_all">Todos los años</div>';
+    
+    // Restore translations if any
+    let allEl = menu.querySelector('[data-i18n="filter_year_all"]');
+    if (allEl && currentLangData['filter_year_all']) {
+        allEl.textContent = currentLangData['filter_year_all'];
+    }
+
+    if (!years || years.length === 0) {
+        const currentYear = new Date().getFullYear();
+        years = [currentYear.toString()];
+    }
+
+    years.forEach(y => {
         let item = document.createElement('div');
         item.className = 'c-dropdown-item';
-        item.dataset.value = i;
-        item.textContent = i;
+        item.dataset.value = y;
+        item.textContent = y;
         menu.appendChild(item);
-    }
+    });
+
     // Re-init the year dropdown to wire up the new items
     let dd = document.getElementById('dd-year');
     if (dd) {
@@ -287,6 +302,9 @@ async function loadStats() {
             let data = await res.json();
             document.getElementById('stat-movies').textContent = data.movies_count;
             document.getElementById('stat-episodes').textContent = data.episodes_count;
+            if (data.available_years) {
+                populateYearFilter(data.available_years);
+            }
         }
     } catch(e) { console.error(e); }
 }
