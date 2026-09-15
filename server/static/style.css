@@ -203,6 +203,9 @@ button:hover { background: var(--accent-hover); }
     text-overflow: ellipsis;
     max-width: 130px;
 }
+#editScope-val {
+    max-width: none;
+}
 .c-dropdown-arrow {
     position: absolute;
     right: 10px;
