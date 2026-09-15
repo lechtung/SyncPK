@@ -330,7 +330,8 @@ async function fetchTMDBData(item) {
         
         // Fallback for movies: search by title (handles movies without IDs)
         if (!result && item.media_type === 'movie' && item.title) {
-            let cleanTitle = item.title.replace(/[:]/g, ''); // Remove colons just in case
+            // Remove colons and normalize accents just in case TMDB search fails with them
+            let cleanTitle = item.title.replace(/[:]/g, '').normalize("NFD").replace(/[\u0300-\u036f]/g, "");
             let lang = navigator.language || 'es-ES';
             let searchRes = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${tmdbApiKey}&query=${encodeURIComponent(cleanTitle)}&language=${lang}`);
             let searchData = await searchRes.json();
