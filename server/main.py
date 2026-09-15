@@ -497,12 +497,37 @@ def delete_history_item(item_id: int, authorization: str = Depends(verify_api_ke
 
 class UpdateHistoryRequest(BaseModel):
     watched_at: str
+    scope: Optional[str] = "episode"
 
 @app.put("/api/history/{item_id}")
 def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: str = Depends(verify_api_key)):
     conn = sqlite3.connect("sync.db")
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute("UPDATE watch_history SET watched_at = ? WHERE id = ?", (req.watched_at, item_id))
+    
+    # Get original item
+    cursor.execute("SELECT * FROM watch_history WHERE id = ?", (item_id,))
+    item = cursor.fetchone()
+    
+    if not item:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Item not found")
+        
+    scope = req.scope or "episode"
+    
+    if item["media_type"] == "episode":
+        if scope == "episode":
+            cursor.execute("UPDATE watch_history SET watched_at = ? WHERE id = ?", (req.watched_at, item_id))
+        elif scope == "show":
+            cursor.execute("UPDATE watch_history SET watched_at = ? WHERE show_title = ?", (req.watched_at, item["show_title"]))
+        elif scope == "season":
+            cursor.execute("UPDATE watch_history SET watched_at = ? WHERE show_title = ? AND season = ?", (req.watched_at, item["show_title"], item["season"]))
+        elif scope == "onwards":
+            cursor.execute("UPDATE watch_history SET watched_at = ? WHERE show_title = ? AND (season > ? OR (season = ? AND episode >= ?))", (req.watched_at, item["show_title"], item["season"], item["season"], item["episode"]))
+    else:
+        # Movies only support single update
+        cursor.execute("UPDATE watch_history SET watched_at = ? WHERE id = ?", (req.watched_at, item_id))
+        
     conn.commit()
     conn.close()
     return {"success": True}

@@ -105,6 +105,12 @@
         <div class="login-box glass-panel">
             <h3 data-i18n="edit_title">Change Watch Date</h3>
             <input type="datetime-local" id="edit-date-input">
+            <select id="editScope" class="filter-select hidden">
+                <option value="episode" data-i18n="edit_scope_episode">Only this episode</option>
+                <option value="onwards" data-i18n="edit_scope_onwards">From this episode onwards</option>
+                <option value="season" data-i18n="edit_scope_season">Entire season</option>
+                <option value="show" data-i18n="edit_scope_show">Entire show</option>
+            </select>
             <div class="modal-buttons">
                 <button id="edit-cancel-btn" data-i18n="btn_cancel">Cancel</button>
                 <button id="edit-save-btn" data-i18n="btn_save">Save</button>

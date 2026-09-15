@@ -314,7 +314,7 @@ async function renderHistory(items) {
                 <button class="kebab-menu-btn" onclick="toggleDropdown(${item.id}, event)">⋮</button>
                 <div class="kebab-dropdown glass-panel" id="dropdown-${item.id}">
                     <div class="dropdown-item danger" onclick="deleteItem(${item.id})" data-i18n="action_delete">${currentLangData.action_delete || 'Delete'}</div>
-                    <div class="dropdown-item" onclick="openEditModal(${item.id}, '${item.watched_at}')" data-i18n="action_edit">${currentLangData.action_edit || 'Edit'}</div>
+                    <div class="dropdown-item" onclick="openEditModal(${item.id}, '${item.watched_at}', '${item.media_type}')" data-i18n="action_edit">${currentLangData.action_edit || 'Edit'}</div>
                 </div>
             `;
             cardsGrid.appendChild(card);
@@ -342,19 +342,32 @@ window.deleteItem = async function(id) {
 }
 
 let currentEditId = null;
-window.openEditModal = function(id, dateStr) {
+window.openEditModal = function(id, dateStr, mediaType) {
     currentEditId = id;
     let modal = document.getElementById('edit-modal');
     // Format to datetime-local expected format YYYY-MM-DDThh:mm
     let d = new Date(dateStr);
     d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
     document.getElementById('edit-date-input').value = d.toISOString().slice(0, 16);
+    
+    // Show scope selector only for episodes
+    let scopeSelect = document.getElementById('editScope');
+    if (mediaType === 'episode') {
+        scopeSelect.classList.remove('hidden');
+        scopeSelect.value = 'episode';
+    } else {
+        scopeSelect.classList.add('hidden');
+        scopeSelect.value = 'episode';
+    }
+    
     modal.classList.remove('hidden');
 }
 
 document.getElementById('edit-save-btn').addEventListener('click', async () => {
     let newVal = document.getElementById('edit-date-input').value; // YYYY-MM-DDThh:mm
     if (!newVal) return;
+    
+    let scopeVal = document.getElementById('editScope').value;
     
     // Convert back to UTC string format used by DB (or local if prefered, backend saves as string)
     let finalDateStr = new Date(newVal).toISOString();
@@ -363,7 +376,7 @@ document.getElementById('edit-save-btn').addEventListener('click', async () => {
         let res = await fetch(`/api/history/${currentEditId}`, { 
             method: 'PUT', 
             headers: { 'Authorization': `Basic ${authToken}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ watched_at: finalDateStr })
+            body: JSON.stringify({ watched_at: finalDateStr, scope: scopeVal })
         });
         if (res.ok) {
             document.getElementById('edit-modal').classList.add('hidden');

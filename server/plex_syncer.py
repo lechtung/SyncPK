@@ -63,13 +63,19 @@ def get_real_plex_history_map():
                         history_map[rating_key] = viewed_at
     except Exception as e:
         print(f"Error fetching real history: {e}")
-    return history_map
+        
+    oldest_timestamp = 946684800 # 2000-01-01
+    if history_map:
+        oldest_in_map = min(history_map.values())
+        oldest_timestamp = oldest_in_map - 86400 # 1 day before the oldest
+        
+    return history_map, oldest_timestamp
 
 def push_all_to_server():
     print("Starting FULL PUSH from Plex to local server...")
     payloads = []
     
-    history_map = get_real_plex_history_map()
+    history_map, oldest_timestamp = get_real_plex_history_map()
     
     sections = get_plex_libraries()
     for sec_id in sections:
@@ -91,10 +97,10 @@ def push_all_to_server():
                         episodes = eps_data.get("MediaContainer", {}).get("Metadata", [])
                         for ep in episodes:
                             if ep.get("viewCount", 0) > 0:
-                                payloads.append(build_payload_from_plex(ep, "episode", history_map))
+                                payloads.append(build_payload_from_plex(ep, "episode", history_map, oldest_timestamp))
                 elif m_type == "movie":
                     if item.get("viewCount", 0) > 0:
-                        payloads.append(build_payload_from_plex(item, "movie", history_map))
+                        payloads.append(build_payload_from_plex(item, "movie", history_map, oldest_timestamp))
                     
         except Exception as e:
             print(f"Error scanning section {sec_id}: {e}")
@@ -107,7 +113,7 @@ def push_all_to_server():
         except Exception as e:
             print(f"Error sending bulk: {e}")
 
-def build_payload_from_plex(item, media_type, history_map):
+def build_payload_from_plex(item, media_type, history_map, oldest_timestamp):
     # Build a payload compatible with our main.py from Plex JSON
     
     watched_at = ""
@@ -116,9 +122,9 @@ def build_payload_from_plex(item, media_type, history_map):
     if rating_key in history_map:
         utc_dt = datetime.datetime.utcfromtimestamp(history_map[rating_key])
         watched_at = utc_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
-    elif item.get("lastViewedAt"):
-        # Convert Unix timestamp to UTC str
-        utc_dt = datetime.datetime.utcfromtimestamp(item["lastViewedAt"])
+    else:
+        # Fallback to the absolute beginning of time (- 1 day) for this server
+        utc_dt = datetime.datetime.utcfromtimestamp(oldest_timestamp)
         watched_at = utc_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
         
     guids = []
