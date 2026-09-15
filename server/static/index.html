@@ -38,18 +38,26 @@
             <div class="header-right">
                 <input type="text" id="search-input" data-i18n-placeholder="search_placeholder" placeholder="Search title...">
                 
-                <select id="type-filter">
-                    <option value="all" data-i18n="filter_type_all">All watch history</option>
-                    <option value="movie" data-i18n="filter_type_movies">Movies</option>
-                    <option value="episode" data-i18n="filter_type_episodes">TV Shows</option>
-                </select>
+                <div class="custom-filter-wrap">
+                    <span class="custom-filter-label" data-i18n="filter_label_type">Type</span>
+                    <select id="type-filter" class="filter-select">
+                        <option value="all" data-i18n="filter_type_all">All watch history</option>
+                        <option value="movie" data-i18n="filter_type_movies">Movies</option>
+                        <option value="episode" data-i18n="filter_type_episodes">TV Shows</option>
+                    </select>
+                </div>
                 
-                <select id="year-filter">
-                    <option value="all" data-i18n="filter_year_all">All Years</option>
-                    <!-- JS will populate years -->
-                </select>
+                <div class="custom-filter-wrap">
+                    <span class="custom-filter-label" data-i18n="filter_label_year">Year</span>
+                    <select id="year-filter" class="filter-select">
+                        <option value="all" data-i18n="filter_year_all">All</option>
+                        <!-- JS will populate years -->
+                    </select>
+                </div>
                 
-                <select id="month-filter">
+                <div class="custom-filter-wrap">
+                    <span class="custom-filter-label" data-i18n="filter_label_month">Month</span>
+                    <select id="month-filter" class="filter-select">
                     <option value="all" data-i18n="filter_month_all">All Months</option>
                     <option value="1">Jan</option>
                     <option value="2">Feb</option>
@@ -63,7 +71,8 @@
                     <option value="10">Oct</option>
                     <option value="11">Nov</option>
                     <option value="12">Dec</option>
-                </select>
+                    </select>
+                </div>
             </div>
         </header>
 

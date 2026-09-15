@@ -158,6 +158,7 @@ async function loadMoreHistory() {
         offset += limit;
         
         await renderHistory(data.items);
+        generateTimeline(); // Refresh dots after new data
     } catch(e) {
         console.error(e);
     }
@@ -238,6 +239,17 @@ async function fetchTMDBData(item) {
         } else {
             result = data;
         }
+        
+        // Fallback for movies: search by title if no IDs matched
+        if (!result && item.media_type === 'movie') {
+            let searchTitle = encodeURIComponent(item.title || '');
+            let searchRes = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${tmdbApiKey}&query=${searchTitle}`);
+            let searchData = await searchRes.json();
+            if (searchData.results?.length > 0) {
+                let detailRes = await fetch(`https://api.themoviedb.org/3/movie/${searchData.results[0].id}?api_key=${tmdbApiKey}`);
+                result = await detailRes.json();
+            }
+        }
 
         if (result) {
             let finalData = {
@@ -275,6 +287,10 @@ async function renderHistory(items) {
             groupDiv = document.createElement('div');
             groupDiv.className = 'history-group';
             groupDiv.id = groupId;
+            // Store raw date for scroll tracking
+            if (dayItems.length > 0) {
+                groupDiv.dataset.date = new Date(dayItems[0].watched_at).toDateString();
+            }
             groupDiv.innerHTML = `<div class="history-group-title">${dayString}</div><div class="cards-grid"></div>`;
             feed.appendChild(groupDiv);
         }
@@ -386,30 +402,108 @@ document.getElementById('edit-save-btn').addEventListener('click', async () => {
 });
 
 // --- TIMELINE NAVIGATOR ---
-function generateTimeline() {
+let currentWeekStart = null; // Monday of the currently shown week
+
+function getWeekStart(date) {
+    let d = new Date(date);
+    let day = d.getDay();
+    let diff = (day === 0) ? -6 : 1 - day; // Monday = start
+    d.setDate(d.getDate() + diff);
+    d.setHours(0, 0, 0, 0);
+    return d;
+}
+
+function generateTimeline(anchorDate) {
     const selector = document.getElementById('day-selector');
     selector.innerHTML = '';
     
-    // Generate last 14 days
+    let anchor = anchorDate || new Date();
+    let weekStart = getWeekStart(anchor);
+    currentWeekStart = weekStart;
+    
     let today = new Date();
-    for (let i = 13; i >= 0; i--) {
-        let d = new Date(today);
-        d.setDate(d.getDate() - i);
+    today.setHours(0, 0, 0, 0);
+
+    // Build a set of dates that have data in historyData
+    let datesWithData = new Set();
+    historyData.forEach(item => {
+        let d = new Date(item.watched_at);
+        datesWithData.add(d.toDateString());
+    });
+    
+    // Generate 7 days starting from Monday
+    for (let i = 0; i < 7; i++) {
+        let d = new Date(weekStart);
+        d.setDate(weekStart.getDate() + i);
         
-        let dayIndex = d.getDay();
-        let dayName = currentLangData.day_names ? currentLangData.day_names[dayIndex] : d.toLocaleDateString('en', {weekday: 'short'});
+        let isToday = d.toDateString() === today.toDateString();
+        
+        // Day of week abbreviated (Mon, Tue...)
+        let weekdayNames = currentLangData.day_names_short ||
+            ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        let weekdayStr = weekdayNames[d.getDay()];
+        
+        // Month abbreviated
+        let monthNames = currentLangData.month_names_short ||
+            ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        let monthStr = monthNames[d.getMonth()];
+        
         let dateNum = d.getDate();
-        let isToday = i === 0;
         
         let btn = document.createElement('button');
         btn.className = 'day-btn';
         if (isToday) btn.classList.add('active');
+        if (datesWithData.has(d.toDateString())) btn.classList.add('has-data');
         
-        // Example check: if history contains this date, add .has-data class
-        // (In a real app you'd get activity days from /api/stats or check the loaded history)
-        btn.classList.add('has-data'); // Mock for visual
+        btn.dataset.date = d.toDateString();
         
-        btn.innerHTML = `<span class="d-month">${dayName}</span><span class="d-num">${dateNum}</span><div class="d-dot"></div>`;
+        btn.innerHTML = `<span class="d-weekday">${weekdayStr}</span><span class="d-month">${monthStr}</span><span class="d-num">${dateNum}</span><div class="d-dot"></div>`;
+        
+        // Click: select and scroll to that day's group in the feed
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.day-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            let dayString = d.toLocaleDateString(navigator.language, { day: 'numeric', month: 'long', year: 'numeric' });
+            let groupId = 'group-' + dayString.replace(/\s+/g, '-');
+            let group = document.getElementById(groupId);
+            if (group) {
+                group.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+        
         selector.appendChild(btn);
     }
 }
+
+// Update week shown in timeline as user scrolls
+window.addEventListener('scroll', () => {
+    // Find which group is currently at the top of the viewport
+    let groups = document.querySelectorAll('.history-group');
+    let visibleGroup = null;
+    groups.forEach(g => {
+        let rect = g.getBoundingClientRect();
+        if (rect.top <= 150 && rect.bottom > 0) visibleGroup = g;
+    });
+    
+    if (visibleGroup) {
+        // Parse the date from the group title element
+        let titleEl = visibleGroup.querySelector('.history-group-title');
+        if (titleEl) {
+            // Try to parse the date from the title (which is a localized string)
+            // We store a data-date on the group for reliable parsing
+            let rawDate = visibleGroup.dataset.date;
+            if (rawDate) {
+                let d = new Date(rawDate);
+                let weekStart = getWeekStart(d);
+                if (!currentWeekStart || weekStart.toDateString() !== currentWeekStart.toDateString()) {
+                    generateTimeline(d);
+                }
+                // Highlight the correct day button
+                document.querySelectorAll('.day-btn').forEach(b => {
+                    b.classList.toggle('active', b.dataset.date === d.toDateString());
+                });
+            }
+        }
+    }
+});
