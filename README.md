@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="server/static/logo.png" width="128" height="128" alt="SyncPK Logo">
+</p>
+
 # SyncPK: Two-Way Kodi & Plex Sync Server
 
 SyncPK is a self-hosted, lightweight two-way synchronization tool designed to keep your **Kodi** and **Plex** watch history perfectly aligned. 
