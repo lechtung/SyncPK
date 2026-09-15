@@ -121,12 +121,22 @@
         <div class="login-box glass-panel">
             <h3 data-i18n="edit_title">Change Watch Date</h3>
             <input type="datetime-local" id="edit-date-input">
-            <select id="editScope" class="filter-select hidden">
-                <option value="episode" data-i18n="edit_scope_episode">Only this episode</option>
-                <option value="onwards" data-i18n="edit_scope_onwards">From this episode onwards</option>
-                <option value="season" data-i18n="edit_scope_season">Entire season</option>
-                <option value="show" data-i18n="edit_scope_show">Entire show</option>
-            </select>
+            <!-- Custom scope dropdown -->
+            <div class="c-dropdown hidden" id="editScope-dd">
+                <div class="c-dropdown-trigger" id="editScope-trigger">
+                    <span class="c-dropdown-label" data-i18n="edit_scope_label">Scope</span>
+                    <div class="c-dropdown-bottom">
+                        <span class="c-dropdown-value" id="editScope-val" data-i18n="edit_scope_episode">Only this episode</span>
+                        <span class="c-dropdown-arrow">▾</span>
+                    </div>
+                </div>
+                <div class="c-dropdown-menu glass-panel" id="editScope-menu">
+                    <div class="c-dropdown-item selected" data-value="episode" data-i18n="edit_scope_episode">Only this episode</div>
+                    <div class="c-dropdown-item" data-value="onwards" data-i18n="edit_scope_onwards">From this episode onwards</div>
+                    <div class="c-dropdown-item" data-value="season" data-i18n="edit_scope_season">Entire season</div>
+                    <div class="c-dropdown-item" data-value="show" data-i18n="edit_scope_show">Entire show</div>
+                </div>
+            </div>
             <div class="modal-buttons">
                 <button id="edit-cancel-btn" data-i18n="btn_cancel">Cancel</button>
                 <button id="edit-save-btn" data-i18n="btn_save">Save</button>
@@ -134,6 +144,18 @@
         </div>
     </div>
 
+    <!-- CUSTOM CONFIRM MODAL -->
+    <div id="confirm-modal" class="overlay hidden">
+        <div class="login-box glass-panel" style="max-width:340px; text-align:center;">
+            <p id="confirm-message" style="margin-bottom:24px; color:#fff; font-size:1rem;" data-i18n="confirm_delete">Delete this item from history?</p>
+            <div class="modal-buttons">
+                <button id="confirm-no-btn" data-i18n="confirm_no">Cancel</button>
+                <button id="confirm-yes-btn" style="background:var(--danger);" data-i18n="confirm_yes">Delete</button>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html>
+

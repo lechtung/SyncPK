@@ -126,9 +126,13 @@ function initDropdowns() {
                 if (valEl) valEl.textContent = item.textContent;
                 dd.classList.remove('open');
                 
-                // Update filter and reload
-                currentFilters[filterId] = value;
-                reloadHistory();
+                // Update filter and reload if applicable
+                if (filterId) {
+                    currentFilters[filterId] = value;
+                    reloadHistory();
+                } else {
+                    dd.dataset.currentValue = value;
+                }
             });
         });
     });
@@ -430,14 +434,28 @@ window.toggleDropdown = function(id, e) {
     document.getElementById(`dropdown-${id}`).classList.toggle('show');
 }
 
-window.deleteItem = async function(id) {
-    if (!confirm("Are you sure?")) return;
-    try {
-        let res = await fetch(`/api/history/${id}`, { method: 'DELETE', headers: { 'Authorization': `Basic ${authToken}` } });
-        if (res.ok) {
-            document.getElementById(`card-${id}`).remove();
-        }
-    } catch(e) { console.error(e); }
+window.deleteItem = function(id) {
+    let modal = document.getElementById('confirm-modal');
+    modal.classList.remove('hidden');
+    let yesBtn = document.getElementById('confirm-yes-btn');
+    let noBtn = document.getElementById('confirm-no-btn');
+    
+    // Create new listeners to avoid duplicate events from previous calls
+    let newYes = yesBtn.cloneNode(true);
+    let newNo = noBtn.cloneNode(true);
+    yesBtn.parentNode.replaceChild(newYes, yesBtn);
+    noBtn.parentNode.replaceChild(newNo, noBtn);
+    
+    newNo.addEventListener('click', () => modal.classList.add('hidden'));
+    newYes.addEventListener('click', async () => {
+        modal.classList.add('hidden');
+        try {
+            let res = await fetch(`/api/history/${id}`, { method: 'DELETE', headers: { 'Authorization': `Basic ${authToken}` } });
+            if (res.ok) {
+                document.getElementById(`card-${id}`).remove();
+            }
+        } catch(e) { console.error(e); }
+    });
 }
 
 let currentEditId = null;
@@ -450,13 +468,21 @@ window.openEditModal = function(id, dateStr, mediaType) {
     document.getElementById('edit-date-input').value = d.toISOString().slice(0, 16);
     
     // Show scope selector only for episodes
-    let scopeSelect = document.getElementById('editScope');
+    let scopeSelect = document.getElementById('editScope-dd');
+    let scopeValEl = document.getElementById('editScope-val');
+    
+    // Reset selection to default (episode)
+    scopeSelect.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected'));
+    let defaultItem = scopeSelect.querySelector('.c-dropdown-item[data-value="episode"]');
+    if (defaultItem) defaultItem.classList.add('selected');
+    
     if (mediaType === 'episode') {
         scopeSelect.classList.remove('hidden');
-        scopeSelect.value = 'episode';
+        scopeSelect.dataset.currentValue = 'episode';
+        if(currentLangData.edit_scope_episode) scopeValEl.textContent = currentLangData.edit_scope_episode;
     } else {
         scopeSelect.classList.add('hidden');
-        scopeSelect.value = 'episode';
+        scopeSelect.dataset.currentValue = 'episode';
     }
     
     modal.classList.remove('hidden');
@@ -466,7 +492,8 @@ document.getElementById('edit-save-btn').addEventListener('click', async () => {
     let newVal = document.getElementById('edit-date-input').value; // YYYY-MM-DDThh:mm
     if (!newVal) return;
     
-    let scopeVal = document.getElementById('editScope').value;
+    let scopeSelect = document.getElementById('editScope-dd');
+    let scopeVal = scopeSelect.dataset.currentValue || 'episode';
     
     // Convert back to UTC string format used by DB (or local if prefered, backend saves as string)
     let finalDateStr = new Date(newVal).toISOString();
