@@ -1,6 +1,7 @@
-from fastapi import FastAPI, Request, Query
+from fastapi import FastAPI, Request, Query, Depends, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 from typing import Optional, List
 import sqlite3
@@ -9,8 +10,11 @@ import json
 import urllib.request
 import xml.etree.ElementTree as ET
 from collections import defaultdict
+import os
+import base64
 
 app = FastAPI()
+security = HTTPBasic()
 
 # --- CONFIGURACIÓN PLEX ---
 PLEX_URL = "http://192.168.178.21:32400"
@@ -402,6 +406,103 @@ def get_all_items(client: Optional[str] = Query("kodi"), date_from: Optional[str
         
     conn.close()
     return {"movies": movies, "shows": shows_list}
+
+# --- WEB DASHBOARD APIs ---
+
+def verify_token(credentials: HTTPBasicCredentials = Depends(security)):
+    stored_b64 = os.environ.get("SYNC_PASSWORD_B64", "")
+    if not stored_b64:
+        return True
+    req_pwd_b64 = base64.b64encode(credentials.password.encode('utf-8')).decode('utf-8')
+    if req_pwd_b64 != stored_b64:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return True
+
+class LoginRequest(BaseModel):
+    password: str
+
+@app.post("/api/login")
+def api_login(req: LoginRequest):
+    stored_b64 = os.environ.get("SYNC_PASSWORD_B64", "")
+    req_pwd_b64 = base64.b64encode(req.password.encode('utf-8')).decode('utf-8')
+    if req_pwd_b64 == stored_b64 or not stored_b64:
+        token = base64.b64encode(f"syncpk:{req.password}".encode('utf-8')).decode('utf-8')
+        return {"token": token}
+    raise HTTPException(status_code=401, detail="Invalid password")
+
+@app.get("/api/config")
+def api_config():
+    return {"tmdb_api_key": os.environ.get("TMDB_API_KEY", "")}
+
+@app.get("/api/stats")
+def api_stats(auth: bool = Depends(verify_token)):
+    conn = sqlite3.connect("sync.db")
+    c = conn.cursor()
+    c.execute("SELECT count(*) FROM watch_history WHERE media_type='movie'")
+    m_count = c.fetchone()[0]
+    c.execute("SELECT count(*) FROM watch_history WHERE media_type='episode'")
+    e_count = c.fetchone()[0]
+    conn.close()
+    return {"movies_count": m_count, "episodes_count": e_count}
+
+@app.get("/api/history")
+def api_history(limit: int = 20, offset: int = 0, type: str = 'all', year: str = 'all', month: str = 'all', search: str = '', auth: bool = Depends(verify_token)):
+    conn = sqlite3.connect("sync.db")
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    
+    query = "SELECT * FROM watch_history WHERE 1=1"
+    params = []
+    
+    if type != 'all':
+        query += " AND media_type=?"
+        params.append(type)
+        
+    if search:
+        query += " AND (title LIKE ? OR show_title LIKE ?)"
+        params.extend([f"%{search}%", f"%{search}%"])
+        
+    query += " ORDER BY watched_at DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+    
+    c.execute(query, params)
+    rows = [dict(r) for r in c.fetchall()]
+    conn.close()
+    
+    if year != 'all' or month != 'all':
+        filtered = []
+        for r in rows:
+            dt = r.get("watched_at", "")
+            if len(dt) >= 10:
+                r_year = dt[0:4]
+                r_month = dt[5:7].lstrip('0')
+                if year != 'all' and r_year != year: continue
+                if month != 'all' and r_month != month: continue
+            filtered.append(r)
+        rows = filtered
+        
+    return {"items": rows}
+
+@app.delete("/api/history/{item_id}")
+def api_delete_history(item_id: int, auth: bool = Depends(verify_token)):
+    conn = sqlite3.connect("sync.db")
+    c = conn.cursor()
+    c.execute("DELETE FROM watch_history WHERE id=?", (item_id,))
+    conn.commit()
+    conn.close()
+    return {"status": "deleted"}
+
+class UpdateHistoryReq(BaseModel):
+    watched_at: str
+    
+@app.put("/api/history/{item_id}")
+def api_update_history(item_id: int, req: UpdateHistoryReq, auth: bool = Depends(verify_token)):
+    conn = sqlite3.connect("sync.db")
+    c = conn.cursor()
+    c.execute("UPDATE watch_history SET watched_at=? WHERE id=?", (req.watched_at, item_id))
+    conn.commit()
+    conn.close()
+    return {"status": "updated"}
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
