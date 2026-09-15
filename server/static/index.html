@@ -38,32 +38,48 @@
             <div class="header-right">
                 <input type="text" id="search-input" data-i18n-placeholder="search_placeholder" placeholder="Search title...">
                 
-                <select id="type-filter">
-                    <option value="all" data-i18n="filter_type_all">All watch history</option>
-                    <option value="movie" data-i18n="filter_type_movies">Movies</option>
-                    <option value="episode" data-i18n="filter_type_episodes">TV Shows</option>
-                </select>
+                <div class="c-dropdown" data-filter="type">
+                    <div class="c-dropdown-trigger">
+                        <span class="c-dropdown-label" data-i18n="filter_label_type">Type</span>
+                        <div class="c-dropdown-bottom">
+                            <span class="c-dropdown-value" id="dd-type-val" data-i18n="filter_type_all">All watch history</span>
+                            <span class="c-dropdown-arrow">▾</span>
+                        </div>
+                    </div>
+                    <div class="c-dropdown-menu glass-panel">
+                        <div class="c-dropdown-item selected" data-value="all" data-i18n="filter_type_all">All watch history</div>
+                        <div class="c-dropdown-item" data-value="movie" data-i18n="filter_type_movies">Movies</div>
+                        <div class="c-dropdown-item" data-value="episode" data-i18n="filter_type_episodes">TV Shows</div>
+                    </div>
+                </div>
                 
-                <select id="year-filter">
-                    <option value="all" data-i18n="filter_year_all">All Years</option>
-                    <!-- JS will populate years -->
-                </select>
+                <div class="c-dropdown" data-filter="year" id="dd-year">
+                    <div class="c-dropdown-trigger">
+                        <span class="c-dropdown-label" data-i18n="filter_label_year">Year</span>
+                        <div class="c-dropdown-bottom">
+                            <span class="c-dropdown-value" id="dd-year-val" data-i18n="filter_year_all">All</span>
+                            <span class="c-dropdown-arrow">▾</span>
+                        </div>
+                    </div>
+                    <div class="c-dropdown-menu glass-panel" id="dd-year-menu">
+                        <div class="c-dropdown-item selected" data-value="all" data-i18n="filter_year_all">All</div>
+                        <!-- JS will populate years -->
+                    </div>
+                </div>
                 
-                <select id="month-filter">
-                    <option value="all" data-i18n="filter_month_all">All Months</option>
-                    <option value="1">Jan</option>
-                    <option value="2">Feb</option>
-                    <option value="3">Mar</option>
-                    <option value="4">Apr</option>
-                    <option value="5">May</option>
-                    <option value="6">Jun</option>
-                    <option value="7">Jul</option>
-                    <option value="8">Aug</option>
-                    <option value="9">Sep</option>
-                    <option value="10">Oct</option>
-                    <option value="11">Nov</option>
-                    <option value="12">Dec</option>
-                </select>
+                <div class="c-dropdown" data-filter="month">
+                    <div class="c-dropdown-trigger">
+                        <span class="c-dropdown-label" data-i18n="filter_label_month">Month</span>
+                        <div class="c-dropdown-bottom">
+                            <span class="c-dropdown-value" id="dd-month-val" data-i18n="filter_month_all">All</span>
+                            <span class="c-dropdown-arrow">▾</span>
+                        </div>
+                    </div>
+                    <div class="c-dropdown-menu glass-panel" id="dd-month-menu">
+                        <div class="c-dropdown-item selected" data-value="all" data-i18n="filter_month_all">All</div>
+                        <!-- JS will populate months in browser locale -->
+                    </div>
+                </div>
             </div>
         </header>
 
@@ -105,6 +121,21 @@
         <div class="login-box glass-panel">
             <h3 data-i18n="edit_title">Change Watch Date</h3>
             <input type="datetime-local" id="edit-date-input">
+            <!-- Custom scope dropdown -->
+            <div class="c-dropdown hidden" id="editScope-dd" style="margin-bottom: 24px;">
+                <div class="c-dropdown-trigger" id="editScope-trigger">
+                    <div class="c-dropdown-bottom">
+                        <span class="c-dropdown-value" id="editScope-val" data-i18n="edit_scope_episode">Only this episode</span>
+                        <span class="c-dropdown-arrow">▾</span>
+                    </div>
+                </div>
+                <div class="c-dropdown-menu glass-panel" id="editScope-menu">
+                    <div class="c-dropdown-item selected" data-value="episode" data-i18n="edit_scope_episode">Only this episode</div>
+                    <div class="c-dropdown-item" data-value="onwards" data-i18n="edit_scope_onwards">From this episode onwards</div>
+                    <div class="c-dropdown-item" data-value="season" data-i18n="edit_scope_season">Entire season</div>
+                    <div class="c-dropdown-item" data-value="show" data-i18n="edit_scope_show">Entire show</div>
+                </div>
+            </div>
             <div class="modal-buttons">
                 <button id="edit-cancel-btn" data-i18n="btn_cancel">Cancel</button>
                 <button id="edit-save-btn" data-i18n="btn_save">Save</button>
@@ -112,6 +143,18 @@
         </div>
     </div>
 
+    <!-- CUSTOM CONFIRM MODAL -->
+    <div id="confirm-modal" class="overlay hidden">
+        <div class="login-box glass-panel" style="max-width:340px; text-align:center;">
+            <p id="confirm-message" style="margin-bottom:24px; color:#fff; font-size:1rem;" data-i18n="confirm_delete">Delete this item from history?</p>
+            <div class="modal-buttons">
+                <button id="confirm-no-btn" data-i18n="confirm_no">Cancel</button>
+                <button id="confirm-yes-btn" style="background:var(--danger);" data-i18n="confirm_yes">Delete</button>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html>
+

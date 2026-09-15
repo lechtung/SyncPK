@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# --- CONFIGURACIÓN ---
+# --- CONFIGURATION ---
 PLEX_URL = os.getenv("PLEX_URL", "http://192.168.178.21:32400")
 PLEX_TOKEN = os.getenv("PLEX_TOKEN", "")
 SERVER_URL = "http://127.0.0.1:8000" # Runs in the same LXC
@@ -32,7 +32,7 @@ def save_settings(settings):
         json.dump(settings, f)
 
 def get_plex_libraries():
-    # Obtener todas las librerías de video
+    # Get all video libraries
     try:
         r = requests.get(f"{PLEX_URL}/library/sections", headers=plex_headers)
         if r.status_code == 200:
@@ -41,17 +41,45 @@ def get_plex_libraries():
             # Filter only movies and shows
             return [s["key"] for s in sections if s.get("type") in ["movie", "show"]]
     except Exception as e:
-        print(f"Error obteniendo librerías de Plex: {e}")
+        print(f"Error getting Plex libraries: {e}")
     return []
+
+def get_real_plex_history_map():
+    # Fetch real history to get original playback dates
+    print("Fetching real playback history from Plex...")
+    history_map = {}
+    try:
+        url = f"{PLEX_URL}/status/sessions/history/all"
+        r = requests.get(url, headers=plex_headers)
+        if r.status_code == 200:
+            data = r.json()
+            sessions = data.get("MediaContainer", {}).get("Metadata", [])
+            for session in sessions:
+                rating_key = session.get("ratingKey")
+                viewed_at = session.get("viewedAt")
+                if rating_key and viewed_at:
+                    # Keep the earliest date for each item
+                    if rating_key not in history_map or viewed_at < history_map[rating_key]:
+                        history_map[rating_key] = viewed_at
+    except Exception as e:
+        print(f"Error fetching real history: {e}")
+        
+    oldest_timestamp = 946684800 # 2000-01-01
+    if history_map:
+        oldest_in_map = min(history_map.values())
+        oldest_timestamp = oldest_in_map - 86400 # 1 day before the oldest
+        
+    return history_map, oldest_timestamp
 
 def push_all_to_server():
     print("Starting FULL PUSH from Plex to local server...")
     payloads = []
     
+    history_map, oldest_timestamp = get_real_plex_history_map()
+    
     sections = get_plex_libraries()
     for sec_id in sections:
         try:
-            # Obtener todos los elementos de la librería y filtramos en Python
             r = requests.get(f"{PLEX_URL}/library/sections/{sec_id}/all", headers=plex_headers)
             if r.status_code != 200:
                 continue
@@ -62,39 +90,41 @@ def push_all_to_server():
             for item in items:
                 m_type = item.get("type")
                 
-                # If it's a show, we request episodes
                 if m_type == "show":
                     r_eps = requests.get(f"{PLEX_URL}/library/metadata/{item['ratingKey']}/allLeaves", headers=plex_headers)
                     if r_eps.status_code == 200:
                         eps_data = r_eps.json()
                         episodes = eps_data.get("MediaContainer", {}).get("Metadata", [])
                         for ep in episodes:
-                            # We only care about watched items
                             if ep.get("viewCount", 0) > 0:
-                                payloads.append(build_payload_from_plex(ep, "episode"))
+                                payloads.append(build_payload_from_plex(ep, "episode", history_map, oldest_timestamp))
                 elif m_type == "movie":
-                    # We only care about watched movies
                     if item.get("viewCount", 0) > 0:
-                        payloads.append(build_payload_from_plex(item, "movie"))
+                        payloads.append(build_payload_from_plex(item, "movie", history_map, oldest_timestamp))
                     
         except Exception as e:
-            print(f"Error escaneando sección {sec_id}: {e}")
+            print(f"Error scanning section {sec_id}: {e}")
             
     if payloads:
-        print(f"🚀 [FULL PUSH] Enviando {len(payloads)} items al servidor central...")
+        print(f"🚀 [FULL PUSH] Sending {len(payloads)} items to central server...")
         try:
             r = requests.post(f"{SERVER_URL}/webhook/plex/bulk", json=payloads, headers=server_headers)
             print(f"Server response: {r.status_code} - {r.text}")
         except Exception as e:
             print(f"Error sending bulk: {e}")
 
-def build_payload_from_plex(item, media_type):
+def build_payload_from_plex(item, media_type, history_map, oldest_timestamp):
     # Build a payload compatible with our main.py from Plex JSON
     
     watched_at = ""
-    if item.get("lastViewedAt"):
-        # Convert Unix timestamp to UTC str
-        utc_dt = datetime.datetime.utcfromtimestamp(item["lastViewedAt"])
+    rating_key = item.get("ratingKey")
+    
+    if rating_key in history_map:
+        utc_dt = datetime.datetime.utcfromtimestamp(history_map[rating_key])
+        watched_at = utc_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+    else:
+        # Fallback to the absolute beginning of time (- 1 day) for this server
+        utc_dt = datetime.datetime.utcfromtimestamp(oldest_timestamp)
         watched_at = utc_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
         
     guids = []
@@ -122,8 +152,8 @@ def build_payload_from_plex(item, media_type):
     return payload
 
 def get_plex_items_map():
-    # Descarga todos los items de Plex para hacer el cruce rápido en memoria
-    print("Mapeando librería de Plex...")
+    # Download all Plex items for quick cross-check in memory
+    print("Mapping Plex library...")
     plex_movies = []
     plex_shows = []
     sections = get_plex_libraries()
@@ -139,7 +169,7 @@ def get_plex_items_map():
                     elif item.get("type") == "show":
                         plex_shows.append(item)
         except Exception as e:
-            print(f"Error mapeando sección {sec_id}: {e}")
+            print(f"Error mapping section {sec_id}: {e}")
             
     return plex_movies, plex_shows
 
@@ -147,7 +177,7 @@ def match_movie(movie_data, plex_movies):
     title = movie_data.get("movie", {}).get("title", "").lower()
     for pm in plex_movies:
         if pm.get("title", "").lower() == title:
-            return pm.get("ratingKey")
+            return pm
     return None
 
 def match_show(show_data, plex_shows):
@@ -163,7 +193,7 @@ def pull_from_server_and_scrobble(date_from=None):
     url = f"{SERVER_URL}/sync/all-items?client=plex"
     if date_from:
         url += f"&date_from={date_from}"
-    print(f"🌐 Solicitando novedades a: {url}")
+    print(f"🌐 Requesting news from: {url}")
         
     try:
         r = requests.get(url, headers=server_headers)
@@ -179,17 +209,21 @@ def pull_from_server_and_scrobble(date_from=None):
             print("Nothing new in the server to send to Plex.")
             return
             
-        print(f"Received from server: {len(movies)} películas y {len(shows)} shows to mark in Plex.")
+        print(f"Received from server: {len(movies)} movies and {len(shows)} shows to mark in Plex.")
         
         plex_movies, plex_shows = get_plex_items_map()
-        # Procesar Películas
+        # Process Movies
         for m in movies:
-            r_key = match_movie(m, plex_movies)
-            if r_key:
+            matched_movie = match_movie(m, plex_movies)
+            if matched_movie:
+                if matched_movie.get("viewCount", 0) > 0:
+                    print(f"Skipping movie {m['movie']['title']} as it is already watched in Plex.")
+                    continue
+                r_key = matched_movie.get("ratingKey")
                 scrobble_url = f"{PLEX_URL}/:/scrobble?identifier=com.plexapp.plugins.library&key={r_key}"
                 sr = requests.get(scrobble_url, headers=plex_headers)
                 if sr.status_code == 200:
-                    print(f"Marcada película en Plex: {m['movie']['title']}")
+                    print(f"Marked movie in Plex: {m['movie']['title']}")
         # Process Shows
         for s in shows:
             s_key = match_show(s, plex_shows)
@@ -210,6 +244,9 @@ def pull_from_server_and_scrobble(date_from=None):
                             # Find match of the episode in Plex
                             for pep in plex_eps:
                                 if pep.get("parentIndex") == s_num and pep.get("index") == e_num:
+                                    if pep.get("viewCount", 0) > 0:
+                                        print(f"Skipping episode {s_title} T{s_num}E{e_num} as it is already watched in Plex.")
+                                        break
                                     scrobble_url = f"{PLEX_URL}/:/scrobble?identifier=com.plexapp.plugins.library&key={pep['ratingKey']}"
                                     sr = requests.get(scrobble_url, headers=plex_headers)
                                     if sr.status_code == 200:
@@ -217,6 +254,59 @@ def pull_from_server_and_scrobble(date_from=None):
                                     break
     except Exception as e:
         print(f"Error in PULL: {e}")
+
+def push_recent_to_server(last_sync_utc_str):
+    print("Starting INCREMENTAL PUSH from Plex to local server...")
+    
+    # Convert last_sync_utc_str to unix timestamp
+    try:
+        last_sync_dt = datetime.datetime.strptime(last_sync_utc_str, '%Y-%m-%dT%H:%M:%SZ')
+        last_sync_ts = int(last_sync_dt.replace(tzinfo=datetime.timezone.utc).timestamp())
+    except Exception:
+        last_sync_ts = 0
+        
+    url = f"{PLEX_URL}/status/sessions/history/all"
+    r = requests.get(url, headers=plex_headers)
+    if r.status_code != 200: return
+    
+    sessions = r.json().get("MediaContainer", {}).get("Metadata", [])
+    
+    recent_sessions = [s for s in sessions if s.get("viewedAt", 0) >= last_sync_ts]
+    
+    if not recent_sessions:
+        print("No new watches in Plex since last sync.")
+        return
+        
+    print(f"Found {len(recent_sessions)} recent watches in Plex. Processing...")
+    
+    payloads = []
+    for session in recent_sessions:
+        r_key = session.get("ratingKey")
+        viewed_at = session.get("viewedAt")
+        if not r_key or not viewed_at: continue
+            
+        try:
+            # Fetch full metadata for this item to get Guid
+            det_r = requests.get(f"{PLEX_URL}/library/metadata/{r_key}", headers=plex_headers)
+            if det_r.status_code == 200:
+                item_data = det_r.json().get("MediaContainer", {}).get("Metadata", [])[0]
+                m_type = item_data.get("type")
+                if m_type in ["movie", "episode"]:
+                    history_map = {r_key: viewed_at}
+                    payload = build_payload_from_plex(item_data, m_type, history_map, viewed_at)
+                    payloads.append(payload)
+        except Exception as e:
+            print(f"Error fetching details for {r_key}: {e}")
+            
+    for p in payloads:
+        try:
+            # Send as live event so it updates dates correctly if it's a re-watch
+            requests.post(f"{SERVER_URL}/webhook/plex", json=p, headers=server_headers)
+        except Exception as e:
+            print(f"Error sending incremental update: {e}")
+    if payloads:
+        print(f"🚀 [INCREMENTAL PUSH] Sent {len(payloads)} items to central server.")
+
 
 def run_sync():
     settings = load_settings()
@@ -227,15 +317,17 @@ def run_sync():
     # 1. PULL from Server
     pull_from_server_and_scrobble(last_sync)
     
-    # 2. FULL PUSH from Plex (only if it's the first time)
+    # 2. PUSH to Server
     if is_first_sync:
         push_all_to_server()
+    else:
+        push_recent_to_server(last_sync)
         
     # Update date
     now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     settings["last_sync_date"] = now_utc
     save_settings(settings)
-    print(f"Sincronización completada. Fecha actualizada: {now_utc}")
+    print(f"Sync completed. Date updated: {now_utc}")
 
 if __name__ == "__main__":
     print("Starting Plex Syncer service...")

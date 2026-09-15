@@ -17,7 +17,19 @@ Everything is secured by an API Key (Base64) to ensure no unauthorized access to
 
 ## 🛠️ Installation
 
-Before installing, you will need a **TMDB API Key** to fetch the movie/show posters and durations for your dashboard.
+## 🔑 Prerequisites (Tokens & API Keys)
+
+Before installing, you will need two things:
+
+### 1. Plex Token
+You need your Plex Token so the syncer can communicate with your Plex server.
+1. Log in to Plex Web and enter any library.
+2. Click on a movie or episode, click the three dots (...), and select **Get Info**.
+3. At the bottom of the popup, click **View XML**.
+4. Look at the URL in your browser's address bar. At the very end, you will see `&X-Plex-Token=xxxxxxxxxxxx`. Those characters are your token.
+
+### 2. TMDB API Key
+This is required to fetch movie/show posters and durations for your dashboard.
 1. Create a free account at [The Movie Database (TMDB)](https://www.themoviedb.org/).
 2. Go to your Account Settings -> API.
 3. Request an API Key (Developer). It's instant and free. You'll get a 32-character string.
@@ -43,6 +55,20 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/lechtung/SyncPK/main/ins
 ```
 
 *During the installation, you will be prompted (via an interactive blue UI) to enter your Plex IP, Plex Token, and a Master Password to secure the API.*
+
+---
+
+## 🎬 Plex Webhook Setup
+
+For SyncPK to know immediately when you watch something on Plex (from your phone, TV, or browser), you need to configure a webhook in your Plex server:
+
+1. Open your Plex Web interface and go to **Settings**.
+2. Scroll down the left menu and click on **Webhooks** (under your server or account settings).
+3. Click **Add Webhook**.
+4. Enter your SyncPK server webhook URL: `http://<YOUR_SERVER_IP>:8000/webhook/plex`
+5. Click **Save Changes**.
+
+*(Note: Plex Webhooks require an active Plex Pass subscription. If you do not have Plex Pass, the background `plex_syncer.py` script will still poll Plex periodically to get your watches, but the webhook allows for instant sync without delays).*
 
 ---
 

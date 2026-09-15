@@ -69,7 +69,7 @@ class PlayerMonitor(xbmc.Player):
             item = res.get("result", {}).get("item", {})
             media_type = item.get("type", "")
             
-            # Si Kodi no sabe qué es, adivinamos por la temporada
+            # If Kodi does not know what it is, guess by season
             if media_type == 'unknown' or not media_type:
                 if int(item.get("season", -1)) > -1:
                     media_type = "episode"
@@ -90,7 +90,7 @@ class PlayerMonitor(xbmc.Player):
                 show_details = show_res.get("result", {}).get("tvshowdetails", {})
                 show_unique_ids = show_details.get("uniqueid", {})
                 
-                # Fallback por si la librería es vieja y solo tiene imdbnumber
+                # Fallback in case the library is old and only has imdbnumber
                 if not show_unique_ids and show_details.get("imdbnumber"):
                     f_id = show_details.get("imdbnumber")
                     if f_id.startswith("tt"): show_unique_ids["imdb"] = f_id
@@ -112,7 +112,7 @@ class PlayerMonitor(xbmc.Player):
             log(f"Error reading metadata: {e}", xbmc.LOGERROR)
             self.media_info = {}
         
-        log(f"Reproducción iniciada: {self.playing_file} (Total: {self.Total_time}s) [Type: {self.media_info.get('media_type')}]", xbmc.LOGDEBUG)
+        log(f"Playback started: {self.playing_file} (Total: {self.Total_time}s) [Type: {self.media_info.get('media_type')}]", xbmc.LOGDEBUG)
 
     def onPlayBackEnded(self):
         self.process_stop(True)
@@ -140,7 +140,7 @@ class PlayerMonitor(xbmc.Player):
         except:
             threshold = 80.0
 
-        log(f"Reproducción detenida. Visto: {percent_watched:.1f}% (Threshold: {threshold}%)", xbmc.LOGDEBUG)
+        log(f"Playback stopped. Watched: {percent_watched:.1f}% (Threshold: {threshold}%)", xbmc.LOGDEBUG)
 
         if percent_watched >= threshold:
             self.send_webhook()
@@ -153,16 +153,16 @@ class PlayerMonitor(xbmc.Player):
             if self.playing_file:
                 path_lower = self.playing_file.lower()
                 if 'plugin.video.youtube' in path_lower or 'plugin.video.tubed' in path_lower:
-                    log(f"Ignorando envío porque es un vídeo de YouTube/Tubed: {self.playing_file}", xbmc.LOGDEBUG)
+                    log(f"Ignoring push because it is a YouTube/Tubed video: {self.playing_file}", xbmc.LOGDEBUG)
                     return
                 
-            # Filtrado inteligente: Si no tiene un ID válido en la base de datos de Kodi, es un trailer o un stream externo
+            # Smart filtering: If it doesn't have a valid ID in the Kodi database, it's a trailer or an external stream
             kodi_id_str = self.media_info.get('kodi_id', '')
             try: kodi_id_int = int(kodi_id_str)
             except: kodi_id_int = -1
             
             if kodi_id_int <= 0:
-                log(f"Ignorando envío porque el archivo no está catalogado en la base de datos de Kodi (kodi_id={kodi_id_str})", xbmc.LOGDEBUG)
+                log(f"Ignoring push because the file is not cataloged in the Kodi database (kodi_id={kodi_id_str})", xbmc.LOGDEBUG)
                 return
                 
             media_type = self.media_info.get('media_type')
@@ -171,10 +171,10 @@ class PlayerMonitor(xbmc.Player):
                 return
             
             if media_type == 'movie' and ADDON.getSetting('sync_movies') != 'true':
-                log("Ignorando película porque está desactivado en ajustes", xbmc.LOGDEBUG)
+                log("Ignoring movie because it is disabled in settings", xbmc.LOGDEBUG)
                 return
             if media_type == 'episode' and ADDON.getSetting('sync_shows') != 'true':
-                log("Ignorando serie porque está desactivado en ajustes", xbmc.LOGDEBUG)
+                log("Ignoring show because it is disabled in settings", xbmc.LOGDEBUG)
                 return
             
             payload = {
@@ -205,7 +205,7 @@ class PlayerMonitor(xbmc.Player):
             with urllib.request.urlopen(req, timeout=5) as response:
                 res = response.read()
                 log(f"Server response: {res}", xbmc.LOGDEBUG)
-                notify("Sincronizado con éxito")
+                notify("Successfully synced")
                 
         except Exception as e:
             log(f"Error processing webhook push: {e}", xbmc.LOGERROR)
@@ -252,7 +252,7 @@ class SyncPuller:
         log("Starting FULL PUSH SYNC. Building massive package...", xbmc.LOGINFO)
         payloads = []
         
-        # 1. Películas vistas
+        # 1. Watched movies
         resp_m = json_rpc("VideoLibrary.GetMovies", {"properties": ["uniqueid", "imdbnumber", "title", "playcount", "lastplayed"]})
         for m in resp_m.get("result", {}).get("movies", []):
             if m.get("playcount", 0) > 0:
@@ -314,7 +314,7 @@ class SyncPuller:
                 payloads.append(payload)
                 
         if not payloads:
-            log("Full Push completado: No había nada visto en Kodi localmente.", xbmc.LOGINFO)
+            log("Full Push completed: Nothing watched locally in Kodi.", xbmc.LOGINFO)
             return
 
         try:
@@ -322,7 +322,7 @@ class SyncPuller:
             req = urllib.request.Request(bulk_url, data=json.dumps(payloads).encode('utf-8'), headers=get_server_headers())
             with urllib.request.urlopen(req, timeout=30) as response:
                 res = json.loads(response.read())
-                log(f"Full Push completado con éxito. Enviados {len(payloads)} items. Processed: {res.get('processed')}", xbmc.LOGINFO)
+                log(f"Full Push completed successfully. Sent {len(payloads)} items. Processed: {res.get('processed')}", xbmc.LOGINFO)
         except Exception as e:
             log(f"Error in Full Push Bulk: {e}", xbmc.LOGERROR)
 
@@ -367,7 +367,7 @@ class SyncPuller:
             if movieid:
                 resp = json_rpc("VideoLibrary.SetMovieDetails", {"movieid": movieid, "playcount": 1})
                 if resp.get("result") == "OK":
-                    log(f"Película marcada como vista (Pull): {m_obj.get('title')}")
+                    log(f"Movie marked as watched (Pull): {m_obj.get('title')}")
                     
         for s in data.get("shows", []):
             s_obj = s.get("show", {})
@@ -386,13 +386,13 @@ class SyncPuller:
                                     log(f"Episode marked as watched (Pull): {titulo} T{s_num}E{ep.get('number')}")
                                 break
                 
-        # --- PULL FINALIZADO. SI ES LA PRIMERA VEZ, HACEMOS FULL PUSH DESPUÉS ---
+        # --- PULL FINISHED. IF IT'S THE FIRST TIME, DO FULL PUSH AFTERWARDS ---
         if is_first_sync:
             self._full_push_sync(host_url)
                 
         now_local = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         ADDON.setSetting('last_sync_date', now_local)
-        log(f"Sincronización terminada. Nueva fecha local guardada: {now_local}")
+        log(f"Sync finished. New local date saved: {now_local}")
 
 if __name__ == '__main__':
     log("Service started")
