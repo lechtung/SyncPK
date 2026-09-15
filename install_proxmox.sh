@@ -47,8 +47,33 @@ if [ $? -ne 0 ]; then exit 1; fi
 PLEX_TOKEN=$(whiptail --inputbox "Enter your Plex Token:" 10 60 --title "Plex Configuration" 3>&1 1>&2 2>&3)
 if [ $? -ne 0 ]; then exit 1; fi
 
-SYNC_PASSWORD=$(whiptail --passwordbox "Create a master password to protect your SyncPK server:" 10 60 --title "Security" 3>&1 1>&2 2>&3)
-if [ $? -ne 0 ]; then exit 1; fi
+while true; do
+    ROOT_PASSWORD=$(whiptail --passwordbox "Create a ROOT password for the Proxmox LXC container (for SSH/Console):" 10 60 --title "LXC Security" 3>&1 1>&2 2>&3)
+    if [ $? -ne 0 ]; then exit 1; fi
+
+    ROOT_PASSWORD_CONFIRM=$(whiptail --passwordbox "Confirm your ROOT password:" 10 60 --title "LXC Security" 3>&1 1>&2 2>&3)
+    if [ $? -ne 0 ]; then exit 1; fi
+
+    if [ "$ROOT_PASSWORD" == "$ROOT_PASSWORD_CONFIRM" ]; then
+        break
+    else
+        whiptail --msgbox "Passwords do not match. Please try again." 8 45 --title "Error"
+    fi
+done
+
+while true; do
+    SYNC_PASSWORD=$(whiptail --passwordbox "Create a master password for SyncPK (Kodi addon & Web Dashboard):" 10 60 --title "SyncPK Security" 3>&1 1>&2 2>&3)
+    if [ $? -ne 0 ]; then exit 1; fi
+
+    SYNC_PASSWORD_CONFIRM=$(whiptail --passwordbox "Confirm your master password:" 10 60 --title "Security" 3>&1 1>&2 2>&3)
+    if [ $? -ne 0 ]; then exit 1; fi
+
+    if [ "$SYNC_PASSWORD" == "$SYNC_PASSWORD_CONFIRM" ]; then
+        break
+    else
+        whiptail --msgbox "Passwords do not match. Please try again." 8 45 --title "Error"
+    fi
+done
 
 TMDB_API_KEY=$(whiptail --inputbox "Enter your TMDB API Key (Free at themoviedb.org) to load posters:" 10 60 --title "TMDB (The Movie Database)" 3>&1 1>&2 2>&3)
 if [ $? -ne 0 ]; then exit 1; fi
@@ -111,7 +136,7 @@ else
 fi
 
 echo "[Info] Creating CT container $CTID..."
-pct create $CTID $TEMPLATE_STORAGE:vztmpl/$TEMPLATE -storage $TARGET_STORAGE -arch amd64 -hostname syncpk -cores 1 -memory 512 -net0 name=eth0,bridge=vmbr0,ip=dhcp -unprivileged 1 -features nesting=1
+pct create $CTID $TEMPLATE_STORAGE:vztmpl/$TEMPLATE -storage $TARGET_STORAGE -password "$ROOT_PASSWORD" -arch amd64 -hostname syncpk -cores 1 -memory 512 -net0 name=eth0,bridge=vmbr0,ip=dhcp -unprivileged 1 -features nesting=1
 pct start $CTID
 
 echo "[Info] Waiting for the container to boot and get an IP..."

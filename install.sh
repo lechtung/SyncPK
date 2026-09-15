@@ -29,8 +29,19 @@ if [ $? -ne 0 ]; then exit 1; fi
 PLEX_TOKEN=$(whiptail --inputbox "Enter your Plex Token:" 10 60 --title "Plex Configuration" 3>&1 1>&2 2>&3)
 if [ $? -ne 0 ]; then exit 1; fi
 
-SYNC_PASSWORD=$(whiptail --passwordbox "Create a master password to protect your SyncPK server:" 10 60 --title "Security" 3>&1 1>&2 2>&3)
-if [ $? -ne 0 ]; then exit 1; fi
+while true; do
+    SYNC_PASSWORD=$(whiptail --passwordbox "Create a master password to protect your SyncPK server:" 10 60 --title "Security" 3>&1 1>&2 2>&3)
+    if [ $? -ne 0 ]; then exit 1; fi
+
+    SYNC_PASSWORD_CONFIRM=$(whiptail --passwordbox "Confirm your master password:" 10 60 --title "Security" 3>&1 1>&2 2>&3)
+    if [ $? -ne 0 ]; then exit 1; fi
+
+    if [ "$SYNC_PASSWORD" == "$SYNC_PASSWORD_CONFIRM" ]; then
+        break
+    else
+        whiptail --msgbox "Passwords do not match. Please try again." 8 45 --title "Error"
+    fi
+done
 
 TMDB_API_KEY=$(whiptail --inputbox "Enter your TMDB API Key (Free at themoviedb.org) to load posters:" 10 60 --title "TMDB (The Movie Database)" 3>&1 1>&2 2>&3)
 if [ $? -ne 0 ]; then exit 1; fi
@@ -112,7 +123,23 @@ systemctl start syncpk-server syncpk-plex
 # Get local IP to display
 LOCAL_IP=$(hostname -I | awk '{print $1}')
 
-whiptail --title "Installation Completed" --msgbox "SyncPK successfully installed in $INSTALL_DIR.\n\nServer deployed at IP: $LOCAL_IP\n\nDo not forget to enter the IP ($LOCAL_IP) and your password in the Kodi Addon settings." 12 60
+# Setup MOTD for SSH/Console login
+echo "[Info] Configuring MOTD..."
+cat << 'EOF' > /etc/profile.d/syncpk-motd.sh
+#!/bin/bash
+LOCAL_IP=$(hostname -I | awk '{print $1}')
+echo -e "\e[32m"
+echo "================================================="
+echo "               SyncPK Server Active              "
+echo "================================================="
+echo " Web Dashboard: http://$LOCAL_IP:8000"
+echo " Kodi Webhook:  http://$LOCAL_IP:8000/webhook/kodi"
+echo "================================================="
+echo -e "\e[0m"
+EOF
+chmod +x /etc/profile.d/syncpk-motd.sh
+
+whiptail --title "Installation Completed" --msgbox "SyncPK successfully installed in $INSTALL_DIR.\n\nWeb Dashboard: http://$LOCAL_IP:8000\n\nDo not forget to enter the IP ($LOCAL_IP) and your password in the Kodi Addon settings." 12 75
 
 echo "Installation completed! Server IP: $LOCAL_IP"
 
