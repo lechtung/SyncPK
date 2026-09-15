@@ -6,7 +6,7 @@ GITHUB_REPO="SyncPK"
 GITHUB_BRANCH="main"
 INSTALL_DIR="/opt/syncpk"
 
-# Función para mostrar errores
+# Function to show errors
 function error() {
     echo -e "\e[31m[ERROR] $1\e[0m"
     exit 1
@@ -14,37 +14,37 @@ function error() {
 
 # Check that we are root
 if [ "$EUID" -ne 0 ]; then
-    error "Este script debe ejecutarse como root (usa sudo)."
+    error "This script must be run as root (use sudo)."
 fi
 
-# Instalar dependencias necesarias para el instalador
+# Install dependencies needed for the installer
 echo "[Info] Installing base dependencies..."
 apt-get update &>/dev/null
 apt-get install -y whiptail curl jq base64 python3 python3-venv python3-pip &>/dev/null
 
-# 1. Formulario interactivo
-PLEX_URL=$(whiptail --inputbox "Enter your Plex server URL (ej: http://192.168.1.100:32400):" 10 60 "http://" --title "Configuración Plex" 3>&1 1>&2 2>&3)
+# 1. Interactive form
+PLEX_URL=$(whiptail --inputbox "Enter your Plex server URL (e.g., http://192.168.1.100:32400):" 10 60 "http://" --title "Plex Configuration" 3>&1 1>&2 2>&3)
 if [ $? -ne 0 ]; then exit 1; fi
 
-PLEX_TOKEN=$(whiptail --inputbox "Enter your Plex Token:" 10 60 --title "Configuración Plex" 3>&1 1>&2 2>&3)
+PLEX_TOKEN=$(whiptail --inputbox "Enter your Plex Token:" 10 60 --title "Plex Configuration" 3>&1 1>&2 2>&3)
 if [ $? -ne 0 ]; then exit 1; fi
 
-SYNC_PASSWORD=$(whiptail --passwordbox "Crea una contraseña maestra para proteger tu servidor SyncPK:" 10 60 --title "Security" 3>&1 1>&2 2>&3)
+SYNC_PASSWORD=$(whiptail --passwordbox "Create a master password to protect your SyncPK server:" 10 60 --title "Security" 3>&1 1>&2 2>&3)
 if [ $? -ne 0 ]; then exit 1; fi
 
-TMDB_API_KEY=$(whiptail --inputbox "Enter your TMDB API Key (Free at themoviedb.org) para cargar carátulas:" 10 60 --title "TMDB (The Movie Database)" 3>&1 1>&2 2>&3)
+TMDB_API_KEY=$(whiptail --inputbox "Enter your TMDB API Key (Free at themoviedb.org) to load posters:" 10 60 --title "TMDB (The Movie Database)" 3>&1 1>&2 2>&3)
 if [ $? -ne 0 ]; then exit 1; fi
 
-# Convertir contraseña a Base64
+# Convert password to Base64
 SYNC_PASSWORD_B64=$(echo -n "$SYNC_PASSWORD" | base64)
 
-# 2. Instalación de software
+# 2. Software installation
 echo "[Info] Preparing directory $INSTALL_DIR..."
 mkdir -p $INSTALL_DIR
 
 echo "[Info] Downloading files from GitHub..."
 mkdir -p $INSTALL_DIR/static/locales
-# En producción, usa raw.githubusercontent.com
+# In production, use raw.githubusercontent.com
 curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/main.py -o $INSTALL_DIR/main.py
 curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/plex_syncer.py -o $INSTALL_DIR/plex_syncer.py
 curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/index.html -o $INSTALL_DIR/static/index.html
@@ -54,7 +54,7 @@ curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRAN
 curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/locales/es.json -o $INSTALL_DIR/static/locales/es.json
 curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/requirements.txt -o $INSTALL_DIR/requirements.txt
 
-# Si los archivos no existen en GitHub aún, creamos unos dummies por si falla para que el script no rompa
+# If files do not exist on GitHub yet, create dummies to prevent script failure
 if [ ! -f $INSTALL_DIR/requirements.txt ] || ! grep -q "fastapi" $INSTALL_DIR/requirements.txt; then
     echo -e "fastapi\nuvicorn\nrequests\npython-dotenv" > $INSTALL_DIR/requirements.txt
 fi
@@ -109,10 +109,11 @@ systemctl daemon-reload
 systemctl enable syncpk-server syncpk-plex
 systemctl start syncpk-server syncpk-plex
 
-# Obtener IP local para mostrarla
+# Get local IP to display
 LOCAL_IP=$(hostname -I | awk '{print $1}')
 
-whiptail --title "Instalación Completada" --msgbox "SyncPK successfully installed in $INSTALL_DIR.\n\nServer deployed at IP: $LOCAL_IP\n\nDo not forget to enter the IP ($LOCAL_IP) y tu contraseña en los ajustes del Addon de Kodi." 12 60
+whiptail --title "Installation Completed" --msgbox "SyncPK successfully installed in $INSTALL_DIR.\n\nServer deployed at IP: $LOCAL_IP\n\nDo not forget to enter the IP ($LOCAL_IP) and your password in the Kodi Addon settings." 12 60
 
-echo "¡Instalación completada! IP del Servidor: $LOCAL_IP"
+echo "Installation completed! Server IP: $LOCAL_IP"
+
 

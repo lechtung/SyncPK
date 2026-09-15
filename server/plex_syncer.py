@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# --- CONFIGURACIÓN ---
+# --- CONFIGURATION ---
 PLEX_URL = os.getenv("PLEX_URL", "http://192.168.178.21:32400")
 PLEX_TOKEN = os.getenv("PLEX_TOKEN", "")
 SERVER_URL = "http://127.0.0.1:8000" # Runs in the same LXC
@@ -32,7 +32,7 @@ def save_settings(settings):
         json.dump(settings, f)
 
 def get_plex_libraries():
-    # Obtener todas las librerías de video
+    # Get all video libraries
     try:
         r = requests.get(f"{PLEX_URL}/library/sections", headers=plex_headers)
         if r.status_code == 200:
@@ -41,7 +41,7 @@ def get_plex_libraries():
             # Filter only movies and shows
             return [s["key"] for s in sections if s.get("type") in ["movie", "show"]]
     except Exception as e:
-        print(f"Error obteniendo librerías de Plex: {e}")
+        print(f"Error getting Plex libraries: {e}")
     return []
 
 def push_all_to_server():
@@ -51,7 +51,7 @@ def push_all_to_server():
     sections = get_plex_libraries()
     for sec_id in sections:
         try:
-            # Obtener todos los elementos de la librería y filtramos en Python
+            # Get all items from the library and filter in Python
             r = requests.get(f"{PLEX_URL}/library/sections/{sec_id}/all", headers=plex_headers)
             if r.status_code != 200:
                 continue
@@ -78,10 +78,10 @@ def push_all_to_server():
                         payloads.append(build_payload_from_plex(item, "movie"))
                     
         except Exception as e:
-            print(f"Error escaneando sección {sec_id}: {e}")
+            print(f"Error scanning section {sec_id}: {e}")
             
     if payloads:
-        print(f"🚀 [FULL PUSH] Enviando {len(payloads)} items al servidor central...")
+        print(f"🚀 [FULL PUSH] Sending {len(payloads)} items to central server...")
         try:
             r = requests.post(f"{SERVER_URL}/webhook/plex/bulk", json=payloads, headers=server_headers)
             print(f"Server response: {r.status_code} - {r.text}")
@@ -122,8 +122,8 @@ def build_payload_from_plex(item, media_type):
     return payload
 
 def get_plex_items_map():
-    # Descarga todos los items de Plex para hacer el cruce rápido en memoria
-    print("Mapeando librería de Plex...")
+    # Download all Plex items for quick cross-check in memory
+    print("Mapping Plex library...")
     plex_movies = []
     plex_shows = []
     sections = get_plex_libraries()
@@ -139,7 +139,7 @@ def get_plex_items_map():
                     elif item.get("type") == "show":
                         plex_shows.append(item)
         except Exception as e:
-            print(f"Error mapeando sección {sec_id}: {e}")
+            print(f"Error mapping section {sec_id}: {e}")
             
     return plex_movies, plex_shows
 
@@ -163,7 +163,7 @@ def pull_from_server_and_scrobble(date_from=None):
     url = f"{SERVER_URL}/sync/all-items?client=plex"
     if date_from:
         url += f"&date_from={date_from}"
-    print(f"🌐 Solicitando novedades a: {url}")
+    print(f"🌐 Requesting news from: {url}")
         
     try:
         r = requests.get(url, headers=server_headers)
@@ -179,17 +179,17 @@ def pull_from_server_and_scrobble(date_from=None):
             print("Nothing new in the server to send to Plex.")
             return
             
-        print(f"Received from server: {len(movies)} películas y {len(shows)} shows to mark in Plex.")
+        print(f"Received from server: {len(movies)} movies and {len(shows)} shows to mark in Plex.")
         
         plex_movies, plex_shows = get_plex_items_map()
-        # Procesar Películas
+        # Process Movies
         for m in movies:
             r_key = match_movie(m, plex_movies)
             if r_key:
                 scrobble_url = f"{PLEX_URL}/:/scrobble?identifier=com.plexapp.plugins.library&key={r_key}"
                 sr = requests.get(scrobble_url, headers=plex_headers)
                 if sr.status_code == 200:
-                    print(f"Marcada película en Plex: {m['movie']['title']}")
+                    print(f"Marked movie in Plex: {m['movie']['title']}")
         # Process Shows
         for s in shows:
             s_key = match_show(s, plex_shows)
@@ -235,7 +235,7 @@ def run_sync():
     now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     settings["last_sync_date"] = now_utc
     save_settings(settings)
-    print(f"Sincronización completada. Fecha actualizada: {now_utc}")
+    print(f"Sync completed. Date updated: {now_utc}")
 
 if __name__ == "__main__":
     print("Starting Plex Syncer service...")

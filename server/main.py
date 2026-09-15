@@ -17,7 +17,7 @@ load_dotenv()
 
 app = FastAPI()
 
-# --- CONFIGURACIÓN PLEX Y SEGURIDAD ---
+# --- PLEX & SECURITY CONFIGURATION ---
 PLEX_URL = os.getenv("PLEX_URL", "http://192.168.178.21:32400")
 PLEX_TOKEN = os.getenv("PLEX_TOKEN", "")
 SYNC_PASSWORD_B64 = os.getenv("SYNC_PASSWORD_B64", "")
@@ -27,7 +27,7 @@ plex_headers = {"Accept": "application/xml", "X-Plex-Token": PLEX_TOKEN}
 
 def verify_api_key(authorization: str = Header(None)):
     if not SYNC_PASSWORD_B64:
-        return # Si no hay contraseña configurada, permitimos el acceso
+        return # If no password is set, allow access
     
     if not authorization or not authorization.startswith("Basic "):
         raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
@@ -425,11 +425,11 @@ class LoginRequest(BaseModel):
 
 @app.post("/api/login")
 def login(req: LoginRequest):
-    # La contraseña en el frontend vendrá en texto plano, la pasamos a B64 para comprobar
+    # The password in the frontend comes in plain text, convert it to B64 to check
     b64_pwd = base64.b64encode(req.password.encode()).decode()
     if b64_pwd == SYNC_PASSWORD_B64 or not SYNC_PASSWORD_B64:
         return {"success": True, "token": b64_pwd}
-    raise HTTPException(status_code=401, detail="Contraseña incorrecta")
+    raise HTTPException(status_code=401, detail="Invalid password")
 
 @app.get("/api/history")
 def get_history(limit: int = 20, offset: int = 0, type: str = "all", year: str = "all", month: str = "all", search: str = "", authorization: str = Depends(verify_api_key)):
@@ -449,7 +449,7 @@ def get_history(limit: int = 20, offset: int = 0, type: str = "all", year: str =
         params.append(year)
         
     if month != "all":
-        # Asegurar formato de dos dígitos
+        # Ensure two-digit format
         month_str = str(month).zfill(2)
         query += " AND strftime('%m', watched_at) = ?"
         params.append(month_str)

@@ -17,7 +17,19 @@ Everything is secured by an API Key (Base64) to ensure no unauthorized access to
 
 ## 🛠️ Installation
 
-Before installing, you will need a **TMDB API Key** to fetch the movie/show posters and durations for your dashboard.
+## 🔑 Prerequisites (Tokens & API Keys)
+
+Before installing, you will need two things:
+
+### 1. Plex Token
+You need your Plex Token so the syncer can communicate with your Plex server.
+1. Log in to Plex Web and enter any library.
+2. Click on a movie or episode, click the three dots (...), and select **Get Info**.
+3. At the bottom of the popup, click **View XML**.
+4. Look at the URL in your browser's address bar. At the very end, you will see `&X-Plex-Token=xxxxxxxxxxxx`. Those characters are your token.
+
+### 2. TMDB API Key
+This is required to fetch movie/show posters and durations for your dashboard.
 1. Create a free account at [The Movie Database (TMDB)](https://www.themoviedb.org/).
 2. Go to your Account Settings -> API.
 3. Request an API Key (Developer). It's instant and free. You'll get a 32-character string.
