@@ -58,11 +58,51 @@ SYNC_PASSWORD_B64=$(echo -n "$SYNC_PASSWORD" | base64)
 
 # 3. Download template and create LXC
 CTID=$(pvesh get /cluster/nextid)
-TEMPLATE="debian-12-standard_12.2-1_amd64.tar.zst"
 
-echo "[Info] Downloading Debian 12 template..."
+echo "[Info] Fetching latest Debian 12 template version..."
 pveam update &>/dev/null
-pveam download $TARGET_STORAGE $TEMPLATE &>/dev/null || error "Failed to download the template."
+LATEST_TEMPLATE=$(pveam available | grep debian-12-standard | awk '{print $2}' | sort -V | tail -n 1)
+
+if [ -z "$LATEST_TEMPLATE" ]; then
+    error "Could not find a valid Debian 12 template. Please check your Proxmox internet connection."
+fi
+
+# Prepare Whiptail Options
+OPTIONS=( "1" "Download latest Debian 12 ($LATEST_TEMPLATE)" )
+
+# Fetch and sort local templates
+LOCAL_TEMPLATES=$(pvesm list $TARGET_STORAGE --content vztmpl | awk 'NR>1 {print $1}' | cut -d'/' -f2)
+DEBIAN_TEMPLATES=$(echo "$LOCAL_TEMPLATES" | grep "debian" | sort -rV)
+OTHER_TEMPLATES=$(echo "$LOCAL_TEMPLATES" | grep -v "debian" | sort -rV)
+
+idx=2
+while read -r t; do
+    if [ "$idx" -le 11 ] && [ -n "$t" ]; then
+        OPTIONS+=( "$idx" "Use local: $t" )
+        eval "LOCAL_TPL_${idx}='$t'"
+        idx=$((idx+1))
+    fi
+done <<< "$(echo -e "${DEBIAN_TEMPLATES}\n${OTHER_TEMPLATES}" | grep -v '^$')"
+
+CHOICE=$(whiptail --title "OS Template Selection" --menu "Choose a template for the LXC container.\nNOTE: SyncPK is fully tested and supported on DEBIAN." 20 80 10 "${OPTIONS[@]}" 3>&1 1>&2 2>&3)
+
+if [ -z "$CHOICE" ]; then
+    error "Installation cancelled by user."
+fi
+
+if [ "$CHOICE" == "1" ]; then
+    TEMPLATE=$LATEST_TEMPLATE
+    echo "[Info] Checking if latest template is already downloaded..."
+    if pvesm list $TARGET_STORAGE --content vztmpl | grep -q "$TEMPLATE"; then
+        echo "[Info] Template already exists locally, skipping download."
+    else
+        echo "[Info] Downloading latest template..."
+        pveam download $TARGET_STORAGE $TEMPLATE &>/dev/null || error "Failed to download the template."
+    fi
+else
+    eval "TEMPLATE=\$LOCAL_TPL_${CHOICE}"
+    echo "[Info] Proceeding with selected local template: $TEMPLATE"
+fi
 
 echo "[Info] Creating CT container $CTID..."
 pct create $CTID $TARGET_STORAGE:vztmpl/$TEMPLATE -arch amd64 -hostname syncpk -cores 1 -memory 512 -net0 name=eth0,bridge=vmbr0,ip=dhcp -unprivileged 1 -features nesting=1
