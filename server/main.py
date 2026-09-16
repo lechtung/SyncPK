@@ -183,10 +183,10 @@ def get_show_ids_from_plex(grandparent_key):
     try:
         req = urllib.request.Request(url, headers=plex_headers)
         with urllib.request.urlopen(req) as response:
-            root = ET.fromstring(response.read())
-            directory = root.find(".//Directory")
-            if directory is not None:
-                guids = [{"id": g.get("id")} for g in directory.findall("Guid")]
+            data = json.loads(response.read())
+            metadata = data.get("MediaContainer", {}).get("Metadata", [])
+            if metadata:
+                guids = metadata[0].get("Guid", [])
                 return extract_ids(guids)
     except Exception as e:
         print(f"Error sacando IDs de la serie: {e}")
@@ -223,7 +223,10 @@ def process_plex_payload(payload, cursor, is_bulk=False):
         plex_show_guid = metadata.get("grandparentGuid") 
         grandparent_key = metadata.get("grandparentKey")
         
-        if grandparent_key:
+        grandparent_guids = metadata.get("grandparentGuids")
+        if grandparent_guids:
+            show_imdb_id, show_tmdb_id, show_tvdb_id = extract_ids(grandparent_guids)
+        elif grandparent_key:
             show_imdb_id, show_tmdb_id, show_tvdb_id = get_show_ids_from_plex(grandparent_key)
 
     existing_id = None
@@ -771,9 +774,7 @@ def build_payload_from_plex(item, media_type, show_map=None):
         if parent_key and parent_key in show_map:
             show_data = show_map[parent_key]
             payload["Metadata"]["grandparentGuid"] = show_data["guid"]
-            # En process_plex_payload, grandparentKey lanza una consulta de red `get_show_ids_from_plex` si queremos, 
-            # pero dado que ya los tenemos aquí, podemos emular que los inyectamos (process_plex_payload espera leer grandparentKey de la API de Plex, 
-            # pero podemos mejorar esto para evitar que process_plex_payload haga solicitudes HTTP innecesarias).
+            payload["Metadata"]["grandparentGuids"] = show_data["Guid"]
         
     return payload
 
