@@ -53,7 +53,7 @@ Run this command as **root** inside your Linux machine:
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/lechtung/SyncPK/main/install.sh)"
 ```
 
-*During the installation, you will be prompted to enter your Plex IP, your TMDB API Key, and a Master Password. The script will handle the Plex Token securely via the OAuth PIN link.*
+*During the installation, you will be prompted to enter your Plex IP, your TMDB API Key, and a Master Password. The script will handle the Plex Token securely via the OAuth PIN link. It will also ask if you have an active **Plex Pass** subscription; if you don't, it will automatically enable background polling to compensate for the lack of native Plex Webhooks.*
 
 ---
 
