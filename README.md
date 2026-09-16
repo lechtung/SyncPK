@@ -24,12 +24,8 @@ Everything is secured by **SHA-256 salted hashes** and **Plex PIN OAuth** for a 
 
 Before installing, you will need two things:
 
-### 1. Plex Token
-You need your Plex Token so the syncer can communicate with your Plex server.
-1. Log in to Plex Web and enter any library.
-2. Click on a movie or episode, click the three dots (...), and select **Get Info**.
-3. At the bottom of the popup, click **View XML**.
-4. Look at the URL in your browser's address bar. At the very end, you will see `&X-Plex-Token=xxxxxxxxxxxx`. Those characters are your token.
+### 1. Plex Account (Automated OAuth)
+You NO LONGER need to manually hunt for your Plex Token! During installation, the script will automatically generate a secure PIN and provide you with a short link (e.g., `https://plex.tv/link`). You simply visit that link, authorize SyncPK, and the installer will securely pull your Plex Token automatically.
 
 ### 2. TMDB API Key
 This is required to fetch movie/show posters and durations for your dashboard.
@@ -57,7 +53,7 @@ Run this command as **root** inside your Linux machine:
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/lechtung/SyncPK/main/install.sh)"
 ```
 
-*During the installation, you will be prompted (via an interactive blue UI) to enter your Plex IP, Plex Token, and a Master Password to secure the API.*
+*During the installation, you will be prompted to enter your Plex IP, your TMDB API Key, and a Master Password. The script will handle the Plex Token securely via the OAuth PIN link.*
 
 ---
 
