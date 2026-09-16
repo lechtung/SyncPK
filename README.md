@@ -10,12 +10,11 @@ Whether you watch a movie on your TV using Kodi or catch up on a series on your 
 
 ## 🚀 How it works
 
-The project is divided into three main components:
-1. **Central Server (`main.py`)**: A lightweight FastAPI server that acts as a broker. It receives webhooks from Kodi and Plex when you watch something and stores a unified watch history in a local SQLite database.
-2. **Plex Syncer (`plex_syncer.py`)**: A background service that runs alongside the central server. It periodically asks Plex for its latest watch history and sends it to the central server.
-3. **Kodi Addon**: A Kodi plugin that tracks your local playback and pushes it to the server via Webhooks, while also pulling the latest changes from the server on startup or periodically.
+The project is divided into two main components:
+1. **Central Server (`main.py`)**: A lightweight, robust FastAPI server that acts as a broker and background worker. It receives webhooks from Kodi and Plex when you watch something, storing a unified watch history in a local SQLite database. It also features a built-in **Plex background syncer** that periodically asks Plex for its latest watch history, a **Full Library historical importer**, and an asynchronous **TMDB Image Cacher** that downloads highly optimized posters to your local drive for zero-latency dashboard rendering.
+2. **Kodi Addon**: A Kodi plugin that tracks your local playback and pushes it to the server via Webhooks, while also pulling the latest changes from the server on startup or periodically.
 
-Everything is secured by an API Key (Base64) to ensure no unauthorized access to your server.
+Everything is secured by **SHA-256 salted hashes** and **Plex PIN OAuth** for a seamless and secure login experience.
 
 ---
 
@@ -72,7 +71,7 @@ For SyncPK to know immediately when you watch something on Plex (from your phone
 4. Enter your SyncPK server webhook URL: `http://<YOUR_SERVER_IP>:8000/webhook/plex`
 5. Click **Save Changes**.
 
-*(Note: Plex Webhooks require an active Plex Pass subscription. If you do not have Plex Pass, the background `plex_syncer.py` script will still poll Plex periodically to get your watches, but the webhook allows for instant sync without delays).*
+*(Note: Plex Webhooks require an active Plex Pass subscription. If you do not have Plex Pass, the integrated background task in the server will still poll Plex periodically to get your watches, but the webhook allows for instant sync without delays).*
 
 ---
 

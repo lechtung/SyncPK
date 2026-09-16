@@ -26,11 +26,34 @@ apt-get install -y whiptail curl jq base64 python3 python3-venv python3-pip &>/d
 PLEX_URL=$(whiptail --inputbox "Enter your Plex server URL (e.g., http://192.168.1.100:32400):" 10 60 "http://" --title "Plex Configuration" 3>&1 1>&2 2>&3)
 if [ $? -ne 0 ]; then exit 1; fi
 
-PLEX_TOKEN=$(whiptail --inputbox "Enter your Plex Token:" 10 60 --title "Plex Configuration" 3>&1 1>&2 2>&3)
-if [ $? -ne 0 ]; then exit 1; fi
+HAS_PLEX_PASS=$(whiptail --yesno "Do you have an active Plex Pass subscription?" 10 60 --title "Plex Configuration" 3>&1 1>&2 2>&3; echo $?)
+if [ "$HAS_PLEX_PASS" -eq 0 ]; then
+    HAS_PLEX_PASS="true"
+else
+    HAS_PLEX_PASS="false"
+fi
+
+# Plex PIN Auth
+echo "[Info] Requesting Plex authentication PIN..."
+PLEX_CLIENT_ID="syncpk-installer-$RANDOM-$RANDOM"
+PIN_RESPONSE=$(curl -s -X POST "https://plex.tv/api/v2/pins?strong=true" -H "Accept: application/json" -H "X-Plex-Product: SyncPK" -H "X-Plex-Client-Identifier: $PLEX_CLIENT_ID")
+PIN_ID=$(echo "$PIN_RESPONSE" | jq -r '.id')
+PIN_CODE=$(echo "$PIN_RESPONSE" | jq -r '.code')
+AUTH_URL="https://app.plex.tv/auth#?clientID=$PLEX_CLIENT_ID&code=$PIN_CODE&context[device][product]=SyncPK"
+
+whiptail --msgbox "Plex Authentication Required!\n\nPlease open the following URL in your browser and authorize SyncPK:\n\n$AUTH_URL\n\nClick OK when you are ready to wait for authorization." 14 75
+
+echo "[Info] Waiting for you to authorize in your browser..."
+PLEX_TOKEN=""
+while [ -z "$PLEX_TOKEN" ] || [ "$PLEX_TOKEN" == "null" ]; do
+    sleep 3
+    CHECK_RESPONSE=$(curl -s -X GET "https://plex.tv/api/v2/pins/$PIN_ID" -H "Accept: application/json" -H "X-Plex-Client-Identifier: $PLEX_CLIENT_ID")
+    PLEX_TOKEN=$(echo "$CHECK_RESPONSE" | jq -r '.authToken')
+done
+echo "[Info] Plex authentication successful!"
 
 while true; do
-    SYNC_PASSWORD=$(whiptail --passwordbox "Create a master password to protect your SyncPK server:" 10 60 --title "Security" 3>&1 1>&2 2>&3)
+    SYNC_PASSWORD=$(whiptail --passwordbox "Create a master password for the Web Dashboard:" 10 60 --title "Security" 3>&1 1>&2 2>&3)
     if [ $? -ne 0 ]; then exit 1; fi
 
     SYNC_PASSWORD_CONFIRM=$(whiptail --passwordbox "Confirm your master password:" 10 60 --title "Security" 3>&1 1>&2 2>&3)
@@ -46,8 +69,13 @@ done
 TMDB_API_KEY=$(whiptail --inputbox "Enter your TMDB API Key (Free at themoviedb.org) to load posters:" 10 60 --title "TMDB (The Movie Database)" 3>&1 1>&2 2>&3)
 if [ $? -ne 0 ]; then exit 1; fi
 
-# Convert password to Base64
-SYNC_PASSWORD_B64=$(echo -n "$SYNC_PASSWORD" | base64)
+# Generate secure hashes and tokens
+SALT=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 16 | head -n 1)
+WEB_HASH=$(echo -n "${SYNC_PASSWORD}${SALT}" | sha256sum | awk '{print $1}')
+
+API_TOKEN=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
+API_TOKEN="sk_syncpk_${API_TOKEN}"
+API_HASH=$(echo -n "${API_TOKEN}${SALT}" | sha256sum | awk '{print $1}')
 
 # 2. Software installation
 echo "[Info] Preparing directory $INSTALL_DIR..."
@@ -57,7 +85,6 @@ echo "[Info] Downloading files from GitHub..."
 mkdir -p $INSTALL_DIR/static/locales
 # In production, use raw.githubusercontent.com
 curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/main.py -o $INSTALL_DIR/main.py
-curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/plex_syncer.py -o $INSTALL_DIR/plex_syncer.py
 curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/index.html -o $INSTALL_DIR/static/index.html
 curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/style.css -o $INSTALL_DIR/static/style.css
 curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/app.js -o $INSTALL_DIR/static/app.js
@@ -74,7 +101,10 @@ echo "[Info] Configuring environment variables (.env)..."
 cat << EOF > $INSTALL_DIR/.env
 PLEX_URL=$PLEX_URL
 PLEX_TOKEN=$PLEX_TOKEN
-SYNC_PASSWORD_B64=$SYNC_PASSWORD_B64
+HAS_PLEX_PASS=$HAS_PLEX_PASS
+SALT=$SALT
+WEB_HASH=$WEB_HASH
+API_HASH=$API_HASH
 TMDB_API_KEY=$TMDB_API_KEY
 EOF
 
@@ -100,47 +130,32 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-cat << EOF > /etc/systemd/system/syncpk-plex.service
-[Unit]
-Description=Plex Syncer Client (Pull/Push to SyncPK)
-After=network.target syncpk-server.service
-
-[Service]
-User=root
-WorkingDirectory=$INSTALL_DIR
-ExecStart=$INSTALL_DIR/venv/bin/python3 $INSTALL_DIR/plex_syncer.py
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
 systemctl daemon-reload
-systemctl enable syncpk-server syncpk-plex
-systemctl start syncpk-server syncpk-plex
+systemctl enable syncpk-server
+systemctl start syncpk-server
 
 # Get local IP to display
 LOCAL_IP=$(hostname -I | awk '{print $1}')
 
 # Setup MOTD for SSH/Console login
 echo "[Info] Configuring MOTD..."
-cat << 'EOF' > /etc/profile.d/syncpk-motd.sh
+cat << EOF2 > /etc/profile.d/syncpk-motd.sh
 #!/bin/bash
-LOCAL_IP=$(hostname -I | awk '{print $1}')
+LOCAL_IP=\$(hostname -I | awk '{print \$1}')
 echo -e "\e[32m"
 echo "================================================="
 echo "               SyncPK Server Active              "
 echo "================================================="
-echo " Web Dashboard: http://$LOCAL_IP:8000"
-echo " Kodi Webhook:  http://$LOCAL_IP:8000/webhook/kodi?token=$SYNC_PASSWORD_B64"
-echo " Plex Webhook:  http://$LOCAL_IP:8000/webhook/plex?token=$SYNC_PASSWORD_B64"
+echo " Web Dashboard: http://\$LOCAL_IP:8000"
+echo " Webhook Token: $API_TOKEN"
+echo " Kodi Webhook:  http://\$LOCAL_IP:8000/webhook/kodi?token=$API_TOKEN"
+echo " Plex Webhook:  http://\$LOCAL_IP:8000/webhook/plex?token=$API_TOKEN"
 echo "================================================="
 echo -e "\e[0m"
-EOF
+EOF2
 chmod +x /etc/profile.d/syncpk-motd.sh
 
-whiptail --title "Installation Completed" --msgbox "SyncPK successfully installed in $INSTALL_DIR.\n\nWeb Dashboard: http://$LOCAL_IP:8000\n\nPlex Webhook: http://$LOCAL_IP:8000/webhook/plex?token=$SYNC_PASSWORD_B64\nKodi Webhook: http://$LOCAL_IP:8000/webhook/kodi?token=$SYNC_PASSWORD_B64\n\nConfigure the Plex Webhook in your Plex server settings, and enter the IP and password in your Kodi Addon." 14 75
+whiptail --title "Installation Completed" --msgbox "SyncPK successfully installed in $INSTALL_DIR.\n\nWeb Dashboard: http://$LOCAL_IP:8000\n\nGenerated API Token: $API_TOKEN\n\nPlex Webhook: http://$LOCAL_IP:8000/webhook/plex?token=$API_TOKEN\nKodi Webhook: http://$LOCAL_IP:8000/webhook/kodi?token=$API_TOKEN\n\nConfigure the Plex Webhook in your Plex server settings, and enter the IP and API Token in your Kodi Addon." 18 75
 
 echo "Installation completed! Server IP: $LOCAL_IP"
 

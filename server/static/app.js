@@ -1,4 +1,3 @@
-let tmdbApiKey = '';
 let currentLangData = {};
 let historyData = [];
 let offset = 0;
@@ -6,7 +5,6 @@ let limit = 20;
 let hasMore = true;
 let isLoading = false;
 let currentFilters = { type: 'all', year: 'all', month: 'all', search: '' };
-let tmdbCache = {}; // Cache to avoid duplicate API calls
 let statsCache = { movies: 0, moviesHours: 0, episodes: 0, episodesHours: 0 };
 
 // Helper to get token value
@@ -26,7 +24,6 @@ document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
     await loadTranslations();
-    await loadConfig();
     
     // Check if token exists
     if (getAuthToken()) {
@@ -62,13 +59,7 @@ async function loadTranslations() {
     });
 }
 
-async function loadConfig() {
-    try {
-        let res = await fetch('/api/config');
-        let data = await res.json();
-        tmdbApiKey = data.tmdb_api_key;
-    } catch (e) { console.error("Error loading config", e); }
-}
+
 
 function setupEventListeners() {
     document.getElementById('login-btn').addEventListener('click', doLogin);
@@ -176,7 +167,6 @@ function showDashboard() {
     document.getElementById('login-overlay').classList.add('hidden');
     document.getElementById('dashboard').classList.remove('hidden');
     reloadHistory();
-    loadStats();
     generateTimeline();
 }
 
@@ -297,7 +287,8 @@ async function loadMoreHistory() {
 
 async function loadStats() {
     try {
-        let res = await apiFetch('/api/stats');
+        let url = `/api/stats?type=${currentFilters.type}&year=${currentFilters.year}&month=${currentFilters.month}&search=${encodeURIComponent(currentFilters.search)}`;
+        let res = await apiFetch(url);
         if (res.ok) {
             let data = await res.json();
             document.getElementById('stat-movies').textContent = data.movies_count;
@@ -305,14 +296,16 @@ async function loadStats() {
             if (data.available_years) {
                 populateYearFilter(data.available_years);
             }
+            
+            // Use exact duration directly from the server!
+            let estMoviesHours = Math.round(data.movies_hours || 0);
+            let estEpisodesHours = Math.round(data.episodes_hours || 0);
+            
+            document.getElementById('stat-movies-hours').textContent = estMoviesHours + 'h';
+            document.getElementById('stat-episodes-hours').textContent = estEpisodesHours + 'h';
+            document.getElementById('stat-total-hours').textContent = (estMoviesHours + estEpisodesHours) + 'h';
         }
     } catch(e) { console.error(e); }
-}
-
-function updateStatsUI() {
-    document.getElementById('stat-movies-hours').textContent = Math.round(statsCache.moviesHours / 60) + 'h';
-    document.getElementById('stat-episodes-hours').textContent = Math.round(statsCache.episodesHours / 60) + 'h';
-    document.getElementById('stat-total-hours').textContent = Math.round((statsCache.moviesHours + statsCache.episodesHours) / 60) + 'h';
 }
 
 function logout() {
@@ -321,94 +314,6 @@ function logout() {
     document.getElementById('login-overlay').classList.remove('hidden');
 }
 
-// --- TMDB INTEGRATION ---
-async function fetchTMDBData(item) {
-    if (!tmdbApiKey) return null;
-    
-    let cacheKey = `${item.media_type}_${item.id}`;
-    if (tmdbCache[cacheKey]) return tmdbCache[cacheKey];
-    
-    let result = null;
-    
-    try {
-        let externalId = null;
-        let externalSource = '';
-        
-        if (item.media_type === 'episode' || item.media_type === 'show') {
-            if (!externalId && item.show_imdb_id) { externalId = item.show_imdb_id; externalSource = 'imdb_id'; }
-            if (!externalId && item.show_tvdb_id) { externalId = item.show_tvdb_id; externalSource = 'tvdb_id'; }
-            if (!externalId && item.show_tmdb_id) { externalId = item.show_tmdb_id; externalSource = 'tmdb_id'; }
-            // Fallback to episode ids if show ids are missing
-            if (!externalId && item.imdb_id) { externalId = item.imdb_id; externalSource = 'imdb_id'; }
-            if (!externalId && item.tvdb_id) { externalId = item.tvdb_id; externalSource = 'tvdb_id'; }
-            if (!externalId && item.tmdb_id) { externalId = item.tmdb_id; externalSource = 'tmdb_id'; }
-        } else {
-            if (!externalId && item.imdb_id) { externalId = item.imdb_id; externalSource = 'imdb_id'; }
-            if (!externalId && item.tvdb_id) { externalId = item.tvdb_id; externalSource = 'tvdb_id'; }
-            if (!externalId && item.tmdb_id) { externalId = item.tmdb_id; externalSource = 'tmdb_id'; }
-        }
-        
-        let typePath = item.media_type === 'movie' ? 'movie' : 'tv';
-        
-        if (externalId) {
-            let url = externalSource === 'tmdb_id'
-                ? `https://api.themoviedb.org/3/${typePath}/${externalId}?api_key=${tmdbApiKey}`
-                : `https://api.themoviedb.org/3/find/${externalId}?api_key=${tmdbApiKey}&external_source=${externalSource}`;
-            
-            let res = await fetch(url);
-            let data = await res.json();
-            
-            if (externalSource === 'tmdb_id') {
-                result = data;
-            } else {
-                let arr = item.media_type === 'movie' ? data.movie_results : data.tv_results;
-                if (!arr || arr.length === 0) {
-                    // If it was an episode ID, it might be in tv_episode_results
-                    arr = data.tv_episode_results;
-                }
-                
-                if (arr?.length > 0) {
-                    // If it's a show, fetch show details. If it's an episode, we use the show_id from the episode result!
-                    let finalTargetId = arr[0].show_id ? arr[0].show_id : arr[0].id;
-                    let det = await fetch(`https://api.themoviedb.org/3/${typePath}/${finalTargetId}?api_key=${tmdbApiKey}`);
-                    result = await det.json();
-                }
-            }
-        }
-        
-        // Fallback for movies: search by title (handles movies without IDs)
-        if (!result && item.media_type === 'movie' && item.title) {
-            // Remove colons and normalize accents just in case TMDB search fails with them
-            let cleanTitle = item.title.replace(/[:]/g, '').normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            let lang = navigator.language || 'es-ES';
-            let searchRes = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${tmdbApiKey}&query=${encodeURIComponent(cleanTitle)}&language=${lang}`);
-            let searchData = await searchRes.json();
-            if (searchData.results?.length > 0) {
-                let det = await fetch(`https://api.themoviedb.org/3/movie/${(searchData.results.find(r => r.poster_path) || searchData.results[0]).id}?api_key=${tmdbApiKey}&language=${lang}`);
-                result = await det.json();
-            } else {
-                // If clean title fails, try exact title
-                let searchRes2 = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${tmdbApiKey}&query=${encodeURIComponent(item.title)}&language=${lang}`);
-                let searchData2 = await searchRes2.json();
-                if (searchData2.results?.length > 0) {
-                    let det2 = await fetch(`https://api.themoviedb.org/3/movie/${(searchData2.results.find(r => r.poster_path) || searchData2.results[0]).id}?api_key=${tmdbApiKey}&language=${lang}`);
-                    result = await det2.json();
-                }
-            }
-        }
-
-        if (result) {
-            let finalData = {
-                poster: result.poster_path ? `https://image.tmdb.org/t/p/w500${result.poster_path}` : '',
-                backdrop: result.backdrop_path ? `https://image.tmdb.org/t/p/w1280${result.backdrop_path}` : '',
-                runtime: result.runtime || (result.episode_run_time ? result.episode_run_time[0] : 0) || 45
-            };
-            tmdbCache[cacheKey] = finalData;
-            return finalData;
-        }
-    } catch(e) { console.error("TMDB error", e); }
-    return null;
-}
 
 // --- RENDER ---
 async function renderHistory(items) {
@@ -446,37 +351,31 @@ async function renderHistory(items) {
             // Check if card already exists
             if (document.getElementById(`card-${item.id}`)) continue;
             
-            let tmdbData = await fetchTMDBData(item);
-            
-            if (tmdbData) {
-                if (item.media_type === 'movie') statsCache.moviesHours += tmdbData.runtime;
-                else statsCache.episodesHours += tmdbData.runtime;
-            }
-            updateStatsUI();
-            
             let card = document.createElement('div');
-            card.className = 'media-card';
+            card.className = 'media-card c-card';
             card.id = `card-${item.id}`;
             
-            let posterStyle = tmdbData && tmdbData.poster ? `background-image: url('${tmdbData.poster}')` : 'background-color: #333';
-            let bgStyle = tmdbData && tmdbData.backdrop ? `background-image: url('${tmdbData.backdrop}')` : 'background-color: #111';
+            let posterStyle = item.poster_path ? `background-image: url('${item.poster_path}')` : 'background-color: #333';
+            let bgStyle = item.fanart_path ? `background-image: url('${item.fanart_path}')` : 'background-color: #111';
             
             let timeStr = new Date(item.watched_at).toLocaleTimeString(navigator.language, { hour: '2-digit', minute: '2-digit' });
             let title = item.media_type === 'movie' ? item.title : item.show_title;
             let subtitle = item.media_type === 'movie' ? '' : `T${item.season} · E${item.episode} - ${item.title}`;
             
             card.innerHTML = `
-                <div class="card-bg" style="${bgStyle}"></div>
-                <div class="card-poster" style="${posterStyle}"></div>
-                <div class="card-content">
-                    <div class="card-title">${title}</div>
-                    <div class="card-subtitle">${subtitle}</div>
-                    <div class="card-time">${timeStr}</div>
-                </div>
-                <button class="kebab-menu-btn" onclick="toggleDropdown(${item.id}, event)">⋮</button>
-                <div class="kebab-dropdown glass-panel" id="dropdown-${item.id}">
-                    <div class="dropdown-item danger" onclick="deleteItem(${item.id})" data-i18n="action_delete">${currentLangData.action_delete || 'Delete'}</div>
-                    <div class="dropdown-item" onclick="openEditModal(${item.id}, '${item.watched_at}', '${item.media_type}')" data-i18n="action_edit">${currentLangData.action_edit || 'Edit'}</div>
+                <div class="c-poster" style="${posterStyle}"></div>
+                <div class="c-fanart-content" style="${bgStyle}">
+                    <div class="c-fanart-overlay"></div>
+                    <div class="card-content">
+                        <div class="card-title">${title}</div>
+                        <div class="card-subtitle">${subtitle}</div>
+                        <div class="card-time">${timeStr}</div>
+                    </div>
+                    <button class="kebab-menu-btn" onclick="toggleDropdown(${item.id}, event)">⋮</button>
+                    <div class="kebab-dropdown glass-panel" id="dropdown-${item.id}">
+                        <div class="dropdown-item danger" onclick="deleteItem(${item.id})" data-i18n="action_delete">${currentLangData.action_delete || 'Delete'}</div>
+                        <div class="dropdown-item" onclick="openEditModal(${item.id}, '${item.watched_at}', '${item.media_type}')" data-i18n="action_edit">${currentLangData.action_edit || 'Edit'}</div>
+                    </div>
                 </div>
             `;
             cardsGrid.appendChild(card);
