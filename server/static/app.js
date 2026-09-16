@@ -286,7 +286,7 @@ async function loadMoreHistory() {
         offset += limit;
         
         if (historyData.length === 0) {
-            document.getElementById('history-feed').innerHTML = '<div style="text-align:center; padding:50px; color:#aaa; font-size:1.2rem; font-style:italic;">No data found. ¡Corre a la tele y ponte una buena película!</div>';
+            document.getElementById('history-feed').innerHTML = '<div style="text-align:center; padding:50px; color:#fff; font-size:2rem; font-weight:bold;">¡Corre a la tele y ponte una buena película!</div>';
         } else {
             await renderHistory(newItems);
             generateTimeline(); // Refresh dots after new data
