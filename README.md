@@ -24,8 +24,8 @@ Everything is secured by **SHA-256 salted hashes** and **Plex PIN OAuth** for a 
 
 Before installing, you will need two things:
 
-### 1. Plex Account (Automated OAuth)
-You NO LONGER need to manually hunt for your Plex Token! During installation, the script will automatically generate a secure PIN and provide you with a short link (e.g., `https://plex.tv/link`). You simply visit that link, authorize SyncPK, and the installer will securely pull your Plex Token automatically.
+### 1. Plex Account (OAuth)
+The installation script uses a secure OAuth flow to connect with your Plex server. During the installation, the script will automatically generate a secure PIN and provide you with a short link (e.g., `https://plex.tv/link`). You simply visit that link, authorize SyncPK, and the installer will securely configure your server automatically.
 
 ### 2. TMDB API Key
 This is required to fetch movie/show posters and durations for your dashboard.
