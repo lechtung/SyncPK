@@ -173,6 +173,7 @@ async function doLogin() {
 function showDashboard() {
     document.getElementById('login-overlay').classList.add('hidden');
     document.getElementById('dashboard').classList.remove('hidden');
+    loadStats();
     reloadHistory();
     generateTimeline();
 }
@@ -181,14 +182,9 @@ function populateYearFilter(years = []) {
     const menu = document.getElementById('dd-year-menu');
     if (!menu) return;
     
-    // Preserve the "All years" option
-    menu.innerHTML = '<div class="c-dropdown-item selected" data-value="all" data-i18n="filter_year_all">Todos los años</div>';
-    
-    // Restore translations if any
-    let allEl = menu.querySelector('[data-i18n="filter_year_all"]');
-    if (allEl && currentLangData['filter_year_all']) {
-        allEl.textContent = currentLangData['filter_year_all'];
-    }
+    // Preserve the "All years" option using current language
+    let allText = currentLangData['filter_year_all'] || 'All';
+    menu.innerHTML = `<div class="c-dropdown-item selected" data-value="all" data-i18n="filter_year_all">${allText}</div>`;
 
     if (!years || years.length === 0) {
         const currentYear = new Date().getFullYear();
@@ -286,7 +282,8 @@ async function loadMoreHistory() {
         offset += limit;
         
         if (historyData.length === 0) {
-            document.getElementById('history-feed').innerHTML = '<div style="text-align:center; padding:50px; color:#fff; font-size:2rem; font-weight:bold;">¡Corre a la tele y ponte una buena película!</div>';
+            let emptyMsg = currentLangData.empty_state_msg || 'Run to the TV and put on a good movie!';
+            document.getElementById('history-feed').innerHTML = `<div style="text-align:center; padding:50px; color:#fff; font-size:2rem; font-weight:bold;">${emptyMsg}</div>`;
         } else {
             await renderHistory(newItems);
             generateTimeline(); // Refresh dots after new data
@@ -294,7 +291,8 @@ async function loadMoreHistory() {
     } catch(e) {
         console.error(e);
         if (historyData.length === 0) {
-            document.getElementById('history-feed').innerHTML = '<div style="text-align:center; padding:50px; color:#f55; font-size:1.2rem;">Error conectando con la base de datos o escaneo en progreso...</div>';
+            let errMsg = currentLangData.error_state_msg || 'Error connecting to the database or scan in progress...';
+            document.getElementById('history-feed').innerHTML = `<div style="text-align:center; padding:50px; color:#f55; font-size:1.2rem;">${errMsg}</div>`;
         }
     }
     
