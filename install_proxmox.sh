@@ -203,6 +203,7 @@ pct exec $CTID -- bash -c "curl -s https://raw.githubusercontent.com/$GITHUB_USE
 pct exec $CTID -- bash -c "curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/app.js -o /root/sync_server/static/app.js"
 pct exec $CTID -- bash -c "curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/locales/en.json -o /root/sync_server/static/locales/en.json"
 pct exec $CTID -- bash -c "curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/locales/es.json -o /root/sync_server/static/locales/es.json"
+pct exec $CTID -- bash -c "curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/favicon.ico -o /root/sync_server/static/favicon.ico"
 pct exec $CTID -- bash -c "curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/requirements.txt -o /root/sync_server/requirements.txt"
 
 # If files do not exist on GitHub yet, create dummies to prevent script failure

@@ -275,21 +275,27 @@ async function loadMoreHistory() {
         let url = `/api/history?limit=${limit}&offset=${offset}&type=${currentFilters.type}&year=${currentFilters.year}&month=${currentFilters.month}&search=${encodeURIComponent(currentFilters.search)}`;
         let res = await apiFetch(url);
         if (res.status === 401) { logout(); return; }
+        if (!res.ok) throw new Error("API returned status " + res.status);
         
         let data = await res.json();
-        if (data.items.length < limit) hasMore = false;
+        let newItems = data.items || [];
         
-        historyData = historyData.concat(data.items);
+        if (newItems.length < limit) hasMore = false;
+        
+        historyData = historyData.concat(newItems);
         offset += limit;
         
         if (historyData.length === 0) {
             document.getElementById('history-feed').innerHTML = '<div style="text-align:center; padding:50px; color:#aaa; font-size:1.2rem; font-style:italic;">No data found. ¡Corre a la tele y ponte una buena película!</div>';
         } else {
-            await renderHistory(data.items);
+            await renderHistory(newItems);
             generateTimeline(); // Refresh dots after new data
         }
     } catch(e) {
         console.error(e);
+        if (historyData.length === 0) {
+            document.getElementById('history-feed').innerHTML = '<div style="text-align:center; padding:50px; color:#f55; font-size:1.2rem;">Error conectando con la base de datos o escaneo en progreso...</div>';
+        }
     }
     
     isLoading = false;
