@@ -41,9 +41,13 @@ PIN_ID=$(echo "$PIN_RESPONSE" | jq -r '.id')
 PIN_CODE=$(echo "$PIN_RESPONSE" | jq -r '.code')
 AUTH_URL="https://app.plex.tv/auth#?clientID=$PLEX_CLIENT_ID&code=$PIN_CODE&context[device][product]=SyncPK"
 
-whiptail --msgbox "Plex Authentication Required!\n\nPlease open the following URL in your browser and authorize SyncPK:\n\n$AUTH_URL\n\nClick OK when you are ready to wait for authorization." 14 75
-
-echo "[Info] Waiting for you to authorize in your browser..."
+whiptail --msgbox "Plex Authentication Required!\n\nOn the next screen, you will see a link. Copy it and open it in your browser. The script will wait for you to authorize." 10 60
+clear
+echo -e "\n============================================="
+echo -e "🔗 PLEX AUTHORIZATION LINK:"
+echo -e "$AUTH_URL"
+echo -e "=============================================\n"
+echo "[Info] Waiting for you to authorize in your browser (it will auto-resume)..."
 PLEX_TOKEN=""
 while [ -z "$PLEX_TOKEN" ] || [ "$PLEX_TOKEN" == "null" ]; do
     sleep 3
@@ -94,7 +98,7 @@ curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRAN
 
 # If files do not exist on GitHub yet, create dummies to prevent script failure
 if [ ! -f $INSTALL_DIR/requirements.txt ] || ! grep -q "fastapi" $INSTALL_DIR/requirements.txt; then
-    echo -e "fastapi\nuvicorn\nrequests\npython-dotenv\npython-multipart" > $INSTALL_DIR/requirements.txt
+    echo -e "fastapi\nuvicorn\nrequests\npython-dotenv\npython-multipart\nhttpx" > $INSTALL_DIR/requirements.txt
 fi
 
 echo "[Info] Configuring environment variables (.env)..."

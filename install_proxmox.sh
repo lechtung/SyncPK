@@ -59,9 +59,13 @@ PIN_ID=$(echo "$PIN_RESPONSE" | jq -r '.id')
 PIN_CODE=$(echo "$PIN_RESPONSE" | jq -r '.code')
 AUTH_URL="https://app.plex.tv/auth#?clientID=$PLEX_CLIENT_ID&code=$PIN_CODE&context[device][product]=SyncPK"
 
-whiptail --msgbox "Plex Authentication Required!\n\nPlease open the following URL in your browser and authorize SyncPK:\n\n$AUTH_URL\n\nClick OK when you are ready to wait for authorization." 14 75
-
-echo "[Info] Waiting for you to authorize in your browser..."
+whiptail --msgbox "Plex Authentication Required!\n\nOn the next screen, you will see a link. Copy it and open it in your browser. The script will wait for you to authorize." 10 60
+clear
+echo -e "\n============================================="
+echo -e "🔗 PLEX AUTHORIZATION LINK:"
+echo -e "$AUTH_URL"
+echo -e "=============================================\n"
+echo "[Info] Waiting for you to authorize in your browser (it will auto-resume)..."
 PLEX_TOKEN=""
 while [ -z "$PLEX_TOKEN" ] || [ "$PLEX_TOKEN" == "null" ]; do
     sleep 3
@@ -175,7 +179,7 @@ else
 fi
 
 echo "[Info] Creating CT container $CTID..."
-pct create $CTID $TEMPLATE_STORAGE:vztmpl/$TEMPLATE -storage $TARGET_STORAGE -password "$ROOT_PASSWORD" -arch amd64 -hostname syncpk -cores 1 -memory 512 -net0 name=eth0,bridge=vmbr0,ip=dhcp -unprivileged 1 -features nesting=1
+pct create $CTID $TEMPLATE_STORAGE:vztmpl/$TEMPLATE -storage $TARGET_STORAGE -password "$ROOT_PASSWORD" -arch amd64 -hostname syncpk -cores 1 -memory 512 -net0 name=eth0,bridge=vmbr0,ip=dhcp -unprivileged 1 -features nesting=1 -timezone host
 pct start $CTID
 
 echo "[Info] Waiting for the container to boot and get an IP..."
@@ -192,10 +196,8 @@ echo "[Info] Downloading files from GitHub..."
 pct exec $CTID -- mkdir -p /root/sync_server/static/locales
 # In production, use raw.githubusercontent.com
 pct exec $CTID -- curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/main.py -o /root/sync_server/main.py
-pct exec $CTID -- curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/plex_syncer.py -o /root/sync_server/plex_syncer.py
 pct exec $CTID -- curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/index.html -o /root/sync_server/static/index.html
 pct exec $CTID -- bash -c "curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/main.py -o /root/sync_server/main.py"
-pct exec $CTID -- bash -c "curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/plex_syncer.py -o /root/sync_server/plex_syncer.py"
 pct exec $CTID -- bash -c "curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/index.html -o /root/sync_server/static/index.html"
 pct exec $CTID -- bash -c "curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/style.css -o /root/sync_server/static/style.css"
 pct exec $CTID -- bash -c "curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/app.js -o /root/sync_server/static/app.js"
@@ -204,7 +206,7 @@ pct exec $CTID -- bash -c "curl -s https://raw.githubusercontent.com/$GITHUB_USE
 pct exec $CTID -- bash -c "curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/requirements.txt -o /root/sync_server/requirements.txt"
 
 # If files do not exist on GitHub yet, create dummies to prevent script failure
-pct exec $CTID -- bash -c "if [ ! -f /root/sync_server/requirements.txt ] || ! grep -q 'fastapi' /root/sync_server/requirements.txt; then echo -e 'fastapi\nuvicorn\nrequests\npython-dotenv\npython-multipart' > /root/sync_server/requirements.txt; fi"
+pct exec $CTID -- bash -c "if [ ! -f /root/sync_server/requirements.txt ] || ! grep -q 'fastapi' /root/sync_server/requirements.txt; then echo -e 'fastapi\nuvicorn\nrequests\npython-dotenv\npython-multipart\nhttpx' > /root/sync_server/requirements.txt; fi"
 
 echo "[Info] Configuring environment variables (.env)..."
 pct exec $CTID -- bash -c "cat << 'EOF' > /root/sync_server/.env
