@@ -16,7 +16,14 @@ function getAuthToken() {
 async function apiFetch(url, options = {}) {
     if (!options.headers) options.headers = {};
     let token = getAuthToken();
-    if (token) options.headers['Authorization'] = `Basic ${token}`;
+    if (token) {
+        // Backend returns "Basic <password>", don't duplicate "Basic "
+        if (token.startsWith("Basic ")) {
+            options.headers['Authorization'] = token;
+        } else {
+            options.headers['Authorization'] = `Basic ${token}`;
+        }
+    }
     return fetch(url, options);
 }
 
@@ -275,8 +282,12 @@ async function loadMoreHistory() {
         historyData = historyData.concat(data.items);
         offset += limit;
         
-        await renderHistory(data.items);
-        generateTimeline(); // Refresh dots after new data
+        if (historyData.length === 0) {
+            document.getElementById('history-feed').innerHTML = '<div style="text-align:center; padding:50px; color:#aaa; font-size:1.2rem; font-style:italic;">No data found. ¡Corre a la tele y ponte una buena película!</div>';
+        } else {
+            await renderHistory(data.items);
+            generateTimeline(); // Refresh dots after new data
+        }
     } catch(e) {
         console.error(e);
     }
