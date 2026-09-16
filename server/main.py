@@ -38,7 +38,8 @@ def verify_api_key(authorization: str = Header(None)):
     if not authorization or not authorization.startswith("Basic "):
         raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
     
-    token = authorization.split(" ")[1]
+    # Strip any "Basic " strings to handle frontend cache bugs where it sends "Basic Basic password"
+    token = authorization.replace("Basic ", "").strip()
     token_hash = hashlib.sha256((token + SALT).encode()).hexdigest()
     
     if not hmac.compare_digest(token_hash, WEB_HASH):
