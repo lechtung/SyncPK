@@ -25,3 +25,5 @@ sync.db-journal
 # Local development environments (VSCode, PyCharm, etc)
 .vscode/
 .idea/
+
+server/_fix.py

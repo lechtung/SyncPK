@@ -19,76 +19,7 @@ import threading
 import queue
 from dotenv import load_dotenv
 
-ghost_queue = queue.Queue()
-
-def _ghost_worker():
-    import requests
-    while True:
-        try:
-            task = ghost_queue.get()
-            if task is None: break
-            
-            url = task["url"]
-            headers = task["headers"]
-            ghost = task["ghost"]
-            
-            mutation = """
-            mutation removeActivity($input: RemoveActivityInput!) {
-              removeActivity(input: $input)
-            }
-            """
-            del_payload = {
-                "query": mutation,
-                "variables": {
-                    "input": {
-                        "id": ghost.get("id"),
-                        "type": "WATCH_HISTORY"
-                    }
-                },
-                "operationName": "removeActivity"
-            }
-            
-            while True:
-                del_r = requests.post(url, headers=headers, json=del_payload, timeout=10)
-                print(f"📡 RAW PLEX RESPONSE para {ghost.get('id')}: {del_r.text}", flush=True)
-                
-                if del_r.status_code == 200:
-                    del_json = del_r.json()
-                    if del_json.get("errors"):
-                        errors = del_json["errors"]
-                        rate_limited = False
-                        retry_after = 5
-                        
-                        for err in errors:
-                            if err.get("extensions", {}).get("code") == "RATE_LIMITED":
-                                rate_limited = True
-                                retry_after = err.get("extensions", {}).get("retryAfter", 60)
-                                break
-                                
-                        if rate_limited:
-                            print(f"⏳ RATE LIMIT (GraphQL). Hilo fantasma esperando {retry_after}s...", flush=True)
-                            time.sleep(retry_after + 1)
-                            continue
-                        else:
-                            print(f"❌ Error interno GraphQL al borrar {ghost.get('id')}: {errors}", flush=True)
-                            break
-                    else:
-                        print(f"👻 Borrado fantasma Plex Cloud (Background): {ghost.get('id')}", flush=True)
-                        break
-                elif del_r.status_code == 429:
-                    print(f"⚠️ RATE LIMIT 429 Plex al borrar {ghost.get('id')}. Hilo fantasma pausando 5s...", flush=True)
-                    time.sleep(5)
-                    continue
-                else:
-                    print(f"❌ Error HTTP {del_r.status_code} al borrar {ghost.get('id')}: {del_r.text}", flush=True)
-                    break
-                    
-            ghost_queue.task_done()
-        except Exception as e:
-            print(f"Error en hilo fantasma: {e}")
-
-threading.Thread(target=_ghost_worker, daemon=True).start()
-
+# Hilo fantasma borrado, ver _fix.py
 load_dotenv()
 
 app = FastAPI()
@@ -936,53 +867,56 @@ def get_real_plex_history_map():
         
     return history_map, oldest_timestamp
 
-def sanitize_plex_item(metadata_id, delete_ghosts=False):
+def get_oldest_date(rating_key, metadata_id, xml_watched_at):
+    fechas = []
+    if xml_watched_at:
+        fechas.append(xml_watched_at)
+        
+    # Local History API
+    try:
+        hist_url = f"{PLEX_URL}/status/sessions/history/all?metadataItemID={rating_key}&X-Plex-Token={PLEX_TOKEN}"
+        local_headers = {"Accept": "application/json", "X-Plex-Token": PLEX_TOKEN}
+        hr = requests.get(hist_url, headers=local_headers, timeout=5)
+        
+        if hr.status_code == 200:
+            try:
+                sessions = hr.json().get("MediaContainer", {}).get("Metadata", [])
+                for s in sessions:
+                    vat = s.get("viewedAt")
+                    if vat:
+                        utc_dt = datetime.datetime.utcfromtimestamp(vat)
+                        fechas.append(utc_dt.strftime('%Y-%m-%dT%H:%M:%SZ'))
+            except Exception as json_err:
+                print(f"⚠️ Error parsing JSON from local history for {rating_key}: {json_err}", flush=True)
+        elif hr.status_code == 401:
+            print(f"❌ Access denied (401) in local API for {rating_key}. Check Token.", flush=True)
+        elif hr.status_code == 404:
+            print(f"ℹ️ No local history for {rating_key} (404).", flush=True)
+        else:
+            print(f"⚠️ Error {hr.status_code} in local history for {rating_key}: {hr.text}", flush=True)
+            
+    except requests.exceptions.RequestException as req_err:
+        print(f"❌ Connection error to local Plex server ({PLEX_URL}): {req_err}", flush=True)
+    except Exception as e:
+        print(f"❌ Unknown error processing local history for {rating_key}: {e}", flush=True)
+        
+    # GraphQL API (Cloud)
     url = "https://community.plex.tv/api"
-    
-    # Cabeceras exactas del script en Python para la consulta
     headers_fetch = {
         "Accept": "application/json",
         "Content-Type": "application/json",
         "x-plex-client-identifier": "7o448fp80hf1p7gbvqvvaklv",
         "x-plex-token": PLEX_TOKEN
     }
-    
-    # Cabeceras exactas del CURL para el borrado
-    headers_delete = {
-        "accept": "*/*",
-        "accept-language": "es-ES,es;q=0.9,de-DE;q=0.8,de;q=0.7,en-US;q=0.6,en;q=0.5",
-        "cache-control": "no-cache",
-        "content-type": "application/json",
-        "origin": "https://app.plex.tv",
-        "pragma": "no-cache",
-        "priority": "u=1, i",
-        "referer": "https://app.plex.tv/",
-        "sec-ch-ua": '"Not=A?Brand";v="99", "Google Chrome";v="151", "Chromium";v="151"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"',
-        "sec-fetch-dest": "empty",
-        "sec-fetch-mode": "cors",
-        "sec-fetch-site": "same-site",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
-        "x-plex-client-identifier": "7o448fp80hf1p7gbvqvvaklv",
-        "x-plex-platform": "Chrome",
-        "x-plex-product": "Plex Web",
-        "x-plex-token": PLEX_TOKEN,
-        "x-plex-version": "4.160.0"
-    }
-    
     query_graphql = """
     query GetActivityFeed($first: PaginationInt!, $metadataID: ID, $types: [ActivityType!]!, $includeDescendants: Boolean = false) {
       activityFeed(first: $first, metadataID: $metadataID, types: $types, includeDescendants: $includeDescendants) {
         nodes {
-          __typename
-          id
           date
         }
       }
     }
     """
-    
     payload = {
         "query": query_graphql,
         "variables": {
@@ -993,65 +927,27 @@ def sanitize_plex_item(metadata_id, delete_ghosts=False):
         },
         "operationName": "GetActivityFeed"
     }
-    
     try:
-        max_retries = 3
-        for intento in range(max_retries):
+        for intento in range(3):
             r = requests.post(url, headers=headers_fetch, json=payload, timeout=10)
             if r.status_code == 200:
                 nodes = r.json().get("data", {}).get("activityFeed", {}).get("nodes", [])
+                for n in nodes:
+                    if "date" in n:
+                        fechas.append(n["date"])
                 break
             elif r.status_code == 429:
-                print(f"⚠️ RATE LIMIT 429 al consultar actividad. Reintento {intento+1}/{max_retries}. Esperando 5s...")
+                print(f"⚠️ RATE LIMIT GraphQL extracting date for {metadata_id}. Pausing 5s...", flush=True)
                 time.sleep(5)
             else:
-                print(f"❌ Error {r.status_code} al consultar actividad: {r.text}")
-                return None
-        else:
-            print("❌ Demasiados reintentos por Rate Limit. Abortando consulta para este episodio.")
-            return None
-            
-        fechas = [n["date"] for n in nodes if "date" in n]
-        if not fechas:
-            return None
-            
-        fecha_mas_antigua = min(fechas)
-        
-        # Exactamente el print del script del usuario
-        print("\n--- RESULTADOS ---", flush=True)
-        print(f"✅ FECHA HISTÓRICA ORIGINAL (La más antigua): {fecha_mas_antigua}", flush=True)
-        print(f"\nTotal de visualizaciones registradas: {len(fechas)}", flush=True)
-        for i, fecha in enumerate(fechas, 1):
-            if fecha == fecha_mas_antigua:
-                print(f"  {i}. {fecha} <-- ESTA ES LA BUENA", flush=True)
-            else:
-                print(f"  {i}. {fecha}", flush=True)
-        
-        if delete_ghosts:
-            # Borramos todos los nodos EXCEPTO uno (el original más antiguo)
-            ghost_nodes = []
-            kept_original = False
-            for n in nodes:
-                if "date" in n:
-                    if n["date"] == fecha_mas_antigua and not kept_original:
-                        kept_original = True
-                    else:
-                        ghost_nodes.append(n)
-            
-            if ghost_nodes:
-                for ghost in ghost_nodes:
-                    ghost_queue.put({
-                        "url": url,
-                        "headers": headers_delete,
-                        "ghost": ghost
-                    })
-                print(f"🚀 {len(ghost_nodes)} fantasmas enviados a la cola en segundo plano.", flush=True)
-            
-        return fecha_mas_antigua
+                break
     except Exception as e:
-        print(f"Error sanitizando item en Plex Cloud: {e}")
+        print(f"Error GraphQL for {metadata_id}: {e}")
         
-    return None
+    if not fechas:
+        return xml_watched_at
+        
+    return min(fechas)
 
 def build_payload_from_plex(item, media_type, show_map=None):
     if show_map is None: show_map = {}
@@ -1061,23 +957,14 @@ def build_payload_from_plex(item, media_type, show_map=None):
         utc_dt = datetime.datetime.utcfromtimestamp(last_viewed_at)
         watched_at = utc_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
         
-        # Filtramos por todo septiembre para evitar problemas de desfase horario UTC
-        if watched_at.startswith("2026-09-") and os.path.exists("_DUPLICATE_FIX"):
-            guid = item.get("guid", "")
-            metadata_id = guid.split("/")[-1]
-            
-            # El modo francotirador fue un éxito. Abrimos el grifo para todos.
-            delete_ghosts = True
-            
-            if delete_ghosts:
-                print(f"🛠️ FIXING DUPLICATE FOR: {item.get('title')} ({metadata_id})")
-            else:
-                print(f"🔍 Recuperando fecha original para: {item.get('title')} ({metadata_id})")
-                
-            real_date = sanitize_plex_item(metadata_id, delete_ghosts=delete_ghosts)
-            if real_date:
-                watched_at = real_date
-                print(f"🔄 Fecha restaurada a: {watched_at}")
+        guid = item.get("guid", "")
+        metadata_id = guid.split("/")[-1]
+        rating_key = item.get("ratingKey")
+        
+        real_date = get_oldest_date(rating_key, metadata_id, watched_at)
+        if real_date and real_date != watched_at:
+            print(f"🔄 Date fixed from {watched_at} to {real_date} for: {item.get('title')}", flush=True)
+            watched_at = real_date
     else:
         # Fallback si no tiene lastViewedAt pero tiene viewCount
         watched_at = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
