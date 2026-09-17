@@ -7,7 +7,8 @@ echo "   RESETEANDO ENTORNO SYNCPK V5...      "
 echo "========================================"
 
 # 1. Parar el servicio
-echo "[1/7] Parando el servicio syncpk-server..."
+echo "[1/7] Asesinando el servicio syncpk-server (SIGKILL)..."
+systemctl kill --signal=SIGKILL syncpk-server 2>/dev/null
 systemctl stop syncpk-server
 
 # 2. Ir a la carpeta del servidor
