@@ -117,11 +117,14 @@ import os
 os.makedirs("static/cache/posters", exist_ok=True)
 os.makedirs("static/cache/fanarts", exist_ok=True)
 
+tmdb_semaphore = asyncio.Semaphore(10)
+
 async def download_tmdb_images(db_id, tmdb_id, media_type):
     if not TMDB_API_KEY or not tmdb_id:
         return
         
-    url = f"https://api.themoviedb.org/3/{media_type}/{tmdb_id}?api_key={TMDB_API_KEY}&language=es"
+    async with tmdb_semaphore:
+        url = f"https://api.themoviedb.org/3/{media_type}/{tmdb_id}?api_key={TMDB_API_KEY}&language=es"
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.get(url, timeout=10)
@@ -158,17 +161,54 @@ async def download_tmdb_images(db_id, tmdb_id, media_type):
             if poster_local or fanart_local:
                 conn = sqlite3.connect("sync.db")
                 cursor = conn.cursor()
-                if poster_local and fanart_local:
-                    cursor.execute("UPDATE watch_history SET poster_path=?, fanart_path=? WHERE id=?", (poster_local, fanart_local, db_id))
-                elif poster_local:
-                    cursor.execute("UPDATE watch_history SET poster_path=? WHERE id=?", (poster_local, db_id))
-                elif fanart_local:
-                    cursor.execute("UPDATE watch_history SET fanart_path=? WHERE id=?", (fanart_local, db_id))
+                if db_id is not None:
+                    if poster_local and fanart_local:
+                        cursor.execute("UPDATE watch_history SET poster_path=?, fanart_path=? WHERE id=?", (poster_local, fanart_local, db_id))
+                    elif poster_local:
+                        cursor.execute("UPDATE watch_history SET poster_path=? WHERE id=?", (poster_local, db_id))
+                    elif fanart_local:
+                        cursor.execute("UPDATE watch_history SET fanart_path=? WHERE id=?", (fanart_local, db_id))
+                else:
+                    if media_type == "movie":
+                        if poster_local and fanart_local:
+                            cursor.execute("UPDATE watch_history SET poster_path=?, fanart_path=? WHERE media_type='movie' AND tmdb_id=?", (poster_local, fanart_local, tmdb_id))
+                        elif poster_local:
+                            cursor.execute("UPDATE watch_history SET poster_path=? WHERE media_type='movie' AND tmdb_id=?", (poster_local, tmdb_id))
+                        elif fanart_local:
+                            cursor.execute("UPDATE watch_history SET fanart_path=? WHERE media_type='movie' AND tmdb_id=?", (fanart_local, tmdb_id))
+                    else:
+                        if poster_local and fanart_local:
+                            cursor.execute("UPDATE watch_history SET poster_path=?, fanart_path=? WHERE media_type='episode' AND show_tmdb_id=?", (poster_local, fanart_local, tmdb_id))
+                        elif poster_local:
+                            cursor.execute("UPDATE watch_history SET poster_path=? WHERE media_type='episode' AND show_tmdb_id=?", (poster_local, tmdb_id))
+                        elif fanart_local:
+                            cursor.execute("UPDATE watch_history SET fanart_path=? WHERE media_type='episode' AND show_tmdb_id=?", (fanart_local, tmdb_id))
                 conn.commit()
                 conn.close()
                 print(f"✅ Descargadas y Cacheadas imágenes de {media_type} {tmdb_id}")
     except Exception as e:
         print(f"Error downloading TMDB images for {tmdb_id}: {e}")
+
+async def bulk_download_tmdb_images():
+    print("Starting bulk TMDB image download for missing posters...")
+    conn = sqlite3.connect("sync.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT tmdb_id FROM watch_history WHERE media_type='movie' AND poster_path IS NULL AND tmdb_id IS NOT NULL")
+    movie_rows = cursor.fetchall()
+    cursor.execute("SELECT DISTINCT show_tmdb_id FROM watch_history WHERE media_type='episode' AND poster_path IS NULL AND show_tmdb_id IS NOT NULL")
+    show_rows = cursor.fetchall()
+    conn.close()
+    
+    for row in movie_rows:
+        await download_tmdb_images(None, row["tmdb_id"], "movie")
+        await asyncio.sleep(0.1)
+        
+    for row in show_rows:
+        await download_tmdb_images(None, row["show_tmdb_id"], "tv")
+        await asyncio.sleep(0.1)
+        
+    print("✅ Bulk TMDB image download completed!")
 
 def extract_ids(guid_array):
     imdb_id = tmdb_id = tvdb_id = None
@@ -290,7 +330,7 @@ def process_plex_payload(payload, cursor, is_bulk=False):
         loop = asyncio.get_running_loop()
         target_tmdb = tmdb_id if media_type == "movie" else show_tmdb_id
         if not target_tmdb and media_type == "episode": target_tmdb = tmdb_id # Fallback
-        if target_tmdb:
+        if target_tmdb and not is_bulk:
             loop.create_task(download_tmdb_images(db_id, target_tmdb, "tv" if media_type == "episode" else "movie"))
     except RuntimeError:
         pass
@@ -781,53 +821,95 @@ def build_payload_from_plex(item, media_type, show_map=None):
 
 def push_all_to_db():
     print("Starting FULL PUSH from Plex to local DB (Library Scan)...")
+    
+    # Check for test limit
+    test_limit = 0
+    if os.path.exists("sync_limit.txt"):
+        try:
+            with open("sync_limit.txt", "r") as f:
+                test_limit = int(f.read().strip())
+            print(f"⚠️ TEST MODE ACTIVE: Limiting to {test_limit} items.")
+        except Exception:
+            pass
+
     payloads = []
     sections = get_plex_libraries()
     
-    # Fase A: Mapeo en Memoria de todas las Series
+    # Fase A: Mapeo en Memoria de todas las Series (con paginación)
     show_map = {}
     for sec in sections:
         if sec["type"] == "show":
-            try:
-                r = requests.get(f"{PLEX_URL}/library/sections/{sec['key']}/all?includeGuids=1", headers=plex_headers, timeout=60)
-                if r.status_code == 200:
-                    items = r.json().get("MediaContainer", {}).get("Metadata", [])
-                    for item in items:
-                        show_map[item.get("ratingKey")] = {
-                            "guid": item.get("guid"),
-                            "Guid": item.get("Guid", [])
-                        }
-            except Exception as e:
-                print(f"Error mapping shows in section {sec['key']}: {e}")
+            start = 0
+            size = 500
+            while True:
+                headers = plex_headers.copy()
+                headers["X-Plex-Container-Start"] = str(start)
+                headers["X-Plex-Container-Size"] = str(size)
+                try:
+                    r = requests.get(f"{PLEX_URL}/library/sections/{sec['key']}/all?includeGuids=1", headers=headers, timeout=60)
+                    if r.status_code == 200:
+                        items = r.json().get("MediaContainer", {}).get("Metadata", [])
+                        if not items: break
+                        for item in items:
+                            show_map[item.get("ratingKey")] = {
+                                "guid": item.get("guid"),
+                                "Guid": item.get("Guid", [])
+                            }
+                        start += size
+                    else:
+                        break
+                except Exception as e:
+                    print(f"Error mapping shows in section {sec['key']}: {e}")
+                    break
 
     # Fase B: Extracción de Películas y Episodios Vistos
-    # Deduplicación en memoria por (media_type, ID)
     seen_items = {}
+    total_processed = 0
+    limit_reached = False
     
     for sec in sections:
-        try:
-            if sec["type"] == "movie":
-                r = requests.get(f"{PLEX_URL}/library/sections/{sec['key']}/all?includeGuids=1", headers=plex_headers, timeout=120)
+        if limit_reached: break
+        
+        start = 0
+        size = 500
+        while True:
+            if limit_reached: break
+            headers = plex_headers.copy()
+            headers["X-Plex-Container-Start"] = str(start)
+            headers["X-Plex-Container-Size"] = str(size)
+            
+            try:
+                if sec["type"] == "movie":
+                    r = requests.get(f"{PLEX_URL}/library/sections/{sec['key']}/all?includeGuids=1", headers=headers, timeout=60)
+                elif sec["type"] == "show":
+                    r = requests.get(f"{PLEX_URL}/library/sections/{sec['key']}/all?type=4&includeGuids=1", headers=headers, timeout=60)
+                else:
+                    break
+                    
                 if r.status_code == 200:
                     items = r.json().get("MediaContainer", {}).get("Metadata", [])
+                    if not items: break
+                    
                     for item in items:
                         if item.get("viewCount", 0) > 0:
-                            p = build_payload_from_plex(item, "movie", show_map)
-                            dedup_key = ("movie", item.get("title"))
+                            p = build_payload_from_plex(item, sec["type"], show_map)
+                            if sec["type"] == "movie":
+                                dedup_key = ("movie", item.get("title"))
+                            else:
+                                dedup_key = ("episode", item.get("grandparentTitle"), item.get("parentIndex"), item.get("index"))
+                                
                             seen_items[dedup_key] = p
+                            total_processed += 1
                             
-            elif sec["type"] == "show":
-                # Timeout masivo para parsear todos los episodios de golpe
-                r = requests.get(f"{PLEX_URL}/library/sections/{sec['key']}/all?type=4&includeGuids=1", headers=plex_headers, timeout=300)
-                if r.status_code == 200:
-                    episodes = r.json().get("MediaContainer", {}).get("Metadata", [])
-                    for ep in episodes:
-                        if ep.get("viewCount", 0) > 0:
-                            p = build_payload_from_plex(ep, "episode", show_map)
-                            dedup_key = ("episode", ep.get("grandparentTitle"), ep.get("parentIndex"), ep.get("index"))
-                            seen_items[dedup_key] = p
-        except Exception as e:
-            print(f"Error scanning section {sec['key']}: {e}")
+                            if test_limit > 0 and total_processed >= test_limit:
+                                limit_reached = True
+                                break
+                    start += size
+                else:
+                    break
+            except Exception as e:
+                print(f"Error scanning section {sec['key']}: {e}")
+                break
             
     payloads = list(seen_items.values())
     
@@ -844,6 +926,13 @@ def push_all_to_db():
         conn.commit()
         conn.close()
         print(f"✅ Initial Sync completed! {count} items processed.")
+        
+        # Lanza la descarga masiva de imágenes TMDB al terminar
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(bulk_download_tmdb_images())
+        except RuntimeError:
+            pass
 
 def push_recent_to_db(last_sync_utc_str):
     print("Starting INCREMENTAL PUSH from Plex to local DB...")
