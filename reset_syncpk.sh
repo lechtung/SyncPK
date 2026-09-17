@@ -3,7 +3,7 @@
 # Este script reinicia el entorno, borra la DB y descarga la última versión de GitHub.
 
 echo "========================================"
-echo "   RESETEANDO ENTORNO SYNCPK V4...      "
+echo "   RESETEANDO ENTORNO SYNCPK V5...      "
 echo "========================================"
 
 # 1. Parar el servicio

@@ -1183,10 +1183,11 @@ async def startup_event():
     last_sync = settings.get("last_sync_date")
     
     if not last_sync:
-        print("First time setup: Triggering initial sync...")
+        print("First time setup: Triggering initial sync in background...")
         settings["sync_state"] = 1
         save_settings(settings)
-        run_sync() # Run it synchronously so it blocks or just run it once
+        loop = asyncio.get_running_loop()
+        loop.run_in_executor(None, run_sync)
         
     if not HAS_PLEX_PASS:
         print("Plex Pass NOT detected: Starting incremental sync loop...")
