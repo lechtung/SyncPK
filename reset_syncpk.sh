@@ -14,8 +14,21 @@ systemctl stop syncpk-server
 cd /root/sync_server
 
 # 3. Borrar la base de datos y el registro de la última sincronización
-echo "[2/7] Borrando base de datos y ajustes antiguos..."
-rm -f sync.db plex_settings.json
+echo "[2/7] Borrando base de datos, ajustes antiguos y flags..."
+rm -f sync.db plex_settings.json _DUPLICATE_FIX
+
+echo ""
+echo "[2.5/7] ¿Quieres activar el modo FIX de duplicados de Plex (Big Bang Theory)?"
+echo "        (Escribe 's' o 'S' para activar, pulsa INTRO para ignorar)"
+read -p "        Respuesta: " FIX_INPUT
+
+if [[ "$FIX_INPUT" == "s" || "$FIX_INPUT" == "S" ]]; then
+    echo "        -> MODO FIX: Activando purga de duplicados de Plex (_DUPLICATE_FIX)"
+    touch _DUPLICATE_FIX
+else
+    echo "        -> Modo fix ignorado."
+fi
+echo ""
 
 # 4. Descargar los nuevos archivos desde GitHub
 echo "[3/7] Descargando última versión de los archivos desde GitHub..."

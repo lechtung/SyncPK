@@ -816,6 +816,81 @@ def get_real_plex_history_map():
         
     return history_map, oldest_timestamp
 
+def sanitize_plex_item(metadata_id):
+    url = "https://community.plex.tv/api"
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "x-plex-client-identifier": "7o448fp80hf1p7gbvqvvaklv",
+        "x-plex-token": PLEX_TOKEN
+    }
+    
+    query_graphql = """
+    query GetActivityFeed($first: PaginationInt!, $metadataID: ID, $types: [ActivityType!]!, $includeDescendants: Boolean = false) {
+      activityFeed(first: $first, metadataID: $metadataID, types: $types, includeDescendants: $includeDescendants) {
+        nodes {
+          __typename
+          id
+          date
+        }
+      }
+    }
+    """
+    
+    payload = {
+        "query": query_graphql,
+        "variables": {
+            "first": 50,
+            "types": ["WATCH_HISTORY"],
+            "includeDescendants": True,
+            "metadataID": metadata_id
+        },
+        "operationName": "GetActivityFeed"
+    }
+    
+    try:
+        r = requests.post(url, headers=headers, json=payload, timeout=10)
+        if r.status_code == 200:
+            nodes = r.json().get("data", {}).get("activityFeed", {}).get("nodes", [])
+            
+            fechas = [n["date"] for n in nodes if "date" in n]
+            if not fechas:
+                return None
+                
+            fecha_mas_antigua = min(fechas)
+            ghost_nodes = [n for n in nodes if "date" in n and n["date"].startswith("2026-09-14")]
+            
+            if not ghost_nodes:
+                return None
+                
+            mutation = """
+            mutation removeActivity($input: RemoveActivityInput!) {
+              removeActivity(input: $input)
+            }
+            """
+            for ghost in ghost_nodes:
+                if ghost["date"] == fecha_mas_antigua and len(fechas) == 1:
+                    continue
+                    
+                del_payload = {
+                    "query": mutation,
+                    "variables": {
+                        "input": {
+                            "id": ghost.get("id"),
+                            "type": "WATCH_HISTORY"
+                        }
+                    },
+                    "operationName": "removeActivity"
+                }
+                requests.post(url, headers=headers, json=del_payload, timeout=5)
+                print(f"👻 Borrado fantasma Plex Cloud: {ghost.get('id')}")
+                
+            return fecha_mas_antigua
+    except Exception as e:
+        print(f"Error sanitizando item en Plex Cloud: {e}")
+        
+    return None
+
 def build_payload_from_plex(item, media_type, show_map=None):
     if show_map is None: show_map = {}
     
@@ -823,6 +898,16 @@ def build_payload_from_plex(item, media_type, show_map=None):
     if last_viewed_at:
         utc_dt = datetime.datetime.utcfromtimestamp(last_viewed_at)
         watched_at = utc_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+        
+        if watched_at.startswith("2026-09-14") and os.path.exists("_DUPLICATE_FIX"):
+            guid = item.get("guid", "")
+            if guid == "plex://episode/5d9c1279e264b7001fcaabd8":
+                metadata_id = guid.split("/")[-1]
+                print(f"🛠️ FIXING DUPLICATE FOR: {item.get('title')} ({metadata_id})")
+                real_date = sanitize_plex_item(metadata_id)
+                if real_date:
+                    watched_at = real_date
+                    print(f"🔄 Fecha restaurada a: {watched_at}")
     else:
         # Fallback si no tiene lastViewedAt pero tiene viewCount
         watched_at = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -965,6 +1050,13 @@ def push_all_to_db():
         conn.commit()
         conn.close()
         print(f"✅ Initial Sync completed! {count} items processed.")
+        
+        if os.path.exists("_DUPLICATE_FIX"):
+            try:
+                os.remove("_DUPLICATE_FIX")
+                print("🗑️ Archivo _DUPLICATE_FIX borrado tras finalizar la carga inicial.")
+            except Exception as e:
+                print(f"Error borrando _DUPLICATE_FIX: {e}")
         
         # Lanza la descarga masiva de imágenes TMDB al terminar
         try:
