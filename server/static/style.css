@@ -353,7 +353,7 @@ button:hover { background: var(--accent-hover); }
     display: flex;
     flex-direction: column;
 }
-.card-title { font-size: 1.1rem; font-weight: 600; color: #fff; margin-bottom: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card-title { font-size: 1.1rem; font-weight: 600; color: #fff; margin-bottom: 4px; padding-right: 24px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .card-subtitle { font-size: 0.9rem; color: #ccc; margin-bottom: 8px; }
 .card-time { font-size: 0.8rem; color: var(--text-secondary); margin-top: auto; }
 

@@ -15,7 +15,79 @@ import hmac
 import hashlib
 import asyncio
 import time
+import threading
+import queue
 from dotenv import load_dotenv
+
+ghost_queue = queue.Queue()
+
+def _ghost_worker():
+    import requests
+    while True:
+        try:
+            task = ghost_queue.get()
+            if task is None: break
+            
+            url = task["url"]
+            headers = task["headers"]
+            ghost = task["ghost"]
+            
+            mutation = """
+            mutation removeActivity($input: RemoveActivityInput!) {
+              removeActivity(input: $input)
+            }
+            """
+            del_payload = {
+                "query": mutation,
+                "variables": {
+                    "input": {
+                        "id": ghost.get("id"),
+                        "type": "WATCH_HISTORY"
+                    }
+                },
+                "operationName": "removeActivity"
+            }
+            
+            while True:
+                del_r = requests.post(url, headers=headers, json=del_payload, timeout=10)
+                print(f"📡 RAW PLEX RESPONSE para {ghost.get('id')}: {del_r.text}", flush=True)
+                
+                if del_r.status_code == 200:
+                    del_json = del_r.json()
+                    if del_json.get("errors"):
+                        errors = del_json["errors"]
+                        rate_limited = False
+                        retry_after = 5
+                        
+                        for err in errors:
+                            if err.get("extensions", {}).get("code") == "RATE_LIMITED":
+                                rate_limited = True
+                                retry_after = err.get("extensions", {}).get("retryAfter", 60)
+                                break
+                                
+                        if rate_limited:
+                            print(f"⏳ RATE LIMIT (GraphQL). Hilo fantasma esperando {retry_after}s...", flush=True)
+                            time.sleep(retry_after + 1)
+                            continue
+                        else:
+                            print(f"❌ Error interno GraphQL al borrar {ghost.get('id')}: {errors}", flush=True)
+                            break
+                    else:
+                        print(f"👻 Borrado fantasma Plex Cloud (Background): {ghost.get('id')}", flush=True)
+                        break
+                elif del_r.status_code == 429:
+                    print(f"⚠️ RATE LIMIT 429 Plex al borrar {ghost.get('id')}. Hilo fantasma pausando 5s...", flush=True)
+                    time.sleep(5)
+                    continue
+                else:
+                    print(f"❌ Error HTTP {del_r.status_code} al borrar {ghost.get('id')}: {del_r.text}", flush=True)
+                    break
+                    
+            ghost_queue.task_done()
+        except Exception as e:
+            print(f"Error en hilo fantasma: {e}")
+
+threading.Thread(target=_ghost_worker, daemon=True).start()
 
 load_dotenv()
 
@@ -739,6 +811,16 @@ def get_logs(authorization: str = Depends(verify_api_key)):
     except Exception as e:
         return {"logs": f"Error leyendo logs: {e}"}
 
+@app.get("/api/download_logs")
+def download_logs():
+    try:
+        from fastapi.responses import Response
+        # Pide TODO el historial del servicio en formato texto sin paginar
+        out = subprocess.check_output(['journalctl', '-u', 'syncpk-server', '--no-pager']).decode('utf-8')
+        return Response(content=out, media_type="text/plain", headers={"Content-Disposition": "attachment; filename=syncpk_journal.txt"})
+    except Exception as e:
+        return {"error": f"Error descargando logs: {e}"}
+
 @app.delete("/api/history/{item_id}")
 def delete_history_item(item_id: int, authorization: str = Depends(verify_api_key)):
     conn = sqlite3.connect("sync.db")
@@ -953,59 +1035,13 @@ def sanitize_plex_item(metadata_id, delete_ghosts=False):
                         ghost_nodes.append(n)
             
             if ghost_nodes:
-                mutation = """
-                mutation removeActivity($input: RemoveActivityInput!) {
-                  removeActivity(input: $input)
-                }
-                """
                 for ghost in ghost_nodes:
-                    del_payload = {
-                        "query": mutation,
-                        "variables": {
-                            "input": {
-                                "id": ghost.get("id"),
-                                "type": "WATCH_HISTORY"
-                            }
-                        },
-                        "operationName": "removeActivity"
-                    }
-                    
-                    while True:
-                        del_r = requests.post(url, headers=headers_delete, json=del_payload, timeout=10)
-                        
-                        print(f"📡 RAW PLEX RESPONSE para {ghost.get('id')}: {del_r.text}", flush=True)
-                        
-                        if del_r.status_code == 200:
-                            del_json = del_r.json()
-                            if del_json.get("errors"):
-                                errors = del_json["errors"]
-                                rate_limited = False
-                                retry_after = 5
-                                
-                                for err in errors:
-                                    if err.get("extensions", {}).get("code") == "RATE_LIMITED":
-                                        rate_limited = True
-                                        # Leemos lo que nos manda Plex, por defecto 60
-                                        retry_after = err.get("extensions", {}).get("retryAfter", 60)
-                                        break
-                                        
-                                if rate_limited:
-                                    print(f"⏳ RATE LIMIT (GraphQL). Esperando {retry_after}s antes de reintentar el borrado...", flush=True)
-                                    time.sleep(retry_after + 1)  # Le damos 1 segundo extra de margen
-                                    continue # Volvemos a empezar el bucle while True para intentar el mismo ghost
-                                else:
-                                    print(f"❌ Error interno GraphQL al borrar {ghost.get('id')}: {errors}", flush=True)
-                                    break # Salimos del bucle porque es un error distinto a rate limit
-                            else:
-                                print(f"👻 Borrado fantasma Plex Cloud: {ghost.get('id')}", flush=True)
-                                break # Éxito, salimos del bucle while
-                        elif del_r.status_code == 429:
-                            print(f"⚠️ RATE LIMIT 429 de Plex al borrar {ghost.get('id')}. Pausando 5 segundos...", flush=True)
-                            time.sleep(5)
-                            continue # Reintento
-                        else:
-                            print(f"❌ Error HTTP {del_r.status_code} al borrar {ghost.get('id')}: {del_r.text}", flush=True)
-                            break # Fallo fatal, pasamos al siguiente
+                    ghost_queue.put({
+                        "url": url,
+                        "headers": headers_delete,
+                        "ghost": ghost
+                    })
+                print(f"🚀 {len(ghost_nodes)} fantasmas enviados a la cola en segundo plano.", flush=True)
             
         return fecha_mas_antigua
     except Exception as e:
