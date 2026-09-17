@@ -819,12 +819,37 @@ def get_real_plex_history_map():
 
 def sanitize_plex_item(metadata_id, delete_ghosts=False):
     url = "https://community.plex.tv/api"
-    headers = {
+    
+    # Cabeceras exactas del script en Python para la consulta
+    headers_fetch = {
         "Accept": "application/json",
         "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "x-plex-client-identifier": "7o448fp80hf1p7gbvqvvaklv",
         "x-plex-token": PLEX_TOKEN
+    }
+    
+    # Cabeceras exactas del CURL para el borrado
+    headers_delete = {
+        "accept": "*/*",
+        "accept-language": "es-ES,es;q=0.9,de-DE;q=0.8,de;q=0.7,en-US;q=0.6,en;q=0.5",
+        "cache-control": "no-cache",
+        "content-type": "application/json",
+        "origin": "https://app.plex.tv",
+        "pragma": "no-cache",
+        "priority": "u=1, i",
+        "referer": "https://app.plex.tv/",
+        "sec-ch-ua": '"Not=A?Brand";v="99", "Google Chrome";v="151", "Chromium";v="151"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-site",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+        "x-plex-client-identifier": "7o448fp80hf1p7gbvqvvaklv",
+        "x-plex-platform": "Chrome",
+        "x-plex-product": "Plex Web",
+        "x-plex-token": PLEX_TOKEN,
+        "x-plex-version": "4.160.0"
     }
     
     query_graphql = """
@@ -853,7 +878,7 @@ def sanitize_plex_item(metadata_id, delete_ghosts=False):
     try:
         max_retries = 3
         for intento in range(max_retries):
-            r = requests.post(url, headers=headers, json=payload, timeout=10)
+            r = requests.post(url, headers=headers_fetch, json=payload, timeout=10)
             if r.status_code == 200:
                 nodes = r.json().get("data", {}).get("activityFeed", {}).get("nodes", [])
                 break
@@ -872,7 +897,16 @@ def sanitize_plex_item(metadata_id, delete_ghosts=False):
             return None
             
         fecha_mas_antigua = min(fechas)
-        print(f"✅ FECHA HISTÓRICA ORIGINAL (La más antigua): {fecha_mas_antigua}")
+        
+        # Exactamente el print del script del usuario
+        print("\n--- RESULTADOS ---", flush=True)
+        print(f"✅ FECHA HISTÓRICA ORIGINAL (La más antigua): {fecha_mas_antigua}", flush=True)
+        print(f"\nTotal de visualizaciones registradas: {len(fechas)}", flush=True)
+        for i, fecha in enumerate(fechas, 1):
+            if fecha == fecha_mas_antigua:
+                print(f"  {i}. {fecha} <-- ESTA ES LA BUENA", flush=True)
+            else:
+                print(f"  {i}. {fecha}", flush=True)
         
         if delete_ghosts:
             # Borramos todos los nodos EXCEPTO uno (el original más antiguo)
@@ -902,20 +936,21 @@ def sanitize_plex_item(metadata_id, delete_ghosts=False):
                         },
                         "operationName": "removeActivity"
                     }
-                    del_r = requests.post(url, headers=headers, json=del_payload, timeout=10)
+                    del_r = requests.post(url, headers=headers_delete, json=del_payload, timeout=10)
+                    
+                    print(f"📡 RAW PLEX RESPONSE para {ghost.get('id')}: {del_r.text}", flush=True)
+                    
                     if del_r.status_code == 200:
-                        print(f"👻 Borrado fantasma Plex Cloud: {ghost.get('id')}")
+                        del_json = del_r.json()
+                        if del_json.get("errors"):
+                            print(f"❌ Error interno GraphQL al borrar {ghost.get('id')}: {del_json['errors']}", flush=True)
+                        else:
+                            print(f"👻 Borrado fantasma Plex Cloud: {ghost.get('id')}", flush=True)
                     elif del_r.status_code == 429:
-                        print(f"⚠️ RATE LIMIT 429 de Plex al borrar {ghost.get('id')}. Pausando 5 segundos...")
+                        print(f"⚠️ RATE LIMIT 429 de Plex al borrar {ghost.get('id')}. Pausando 5 segundos...", flush=True)
                         time.sleep(5)
                     else:
-                        print(f"❌ Error {del_r.status_code} al borrar {ghost.get('id')}: {del_r.text}")
-                        
-                    # Respiro entre borrados
-                    time.sleep(1.5)
-                    
-                # Respiro antes de saltar al siguiente episodio
-                time.sleep(2)
+                        print(f"❌ Error HTTP {del_r.status_code} al borrar {ghost.get('id')}: {del_r.text}", flush=True)
             
         return fecha_mas_antigua
     except Exception as e:
@@ -1026,8 +1061,11 @@ def push_all_to_db():
                     print(f"Error mapping shows in section {sec['key']}: {e}")
                     break
 
-    # Fase B: Extracción de Películas y Episodios Vistos
-    seen_items = {}
+    # Fase B: Extracción e Inserción Inmediata
+    conn = sqlite3.connect("sync.db")
+    cursor = conn.cursor()
+    count = 0
+    seen_keys = set()
     
     for sec in sections:
         start = 0
@@ -1056,15 +1094,25 @@ def push_all_to_db():
                     for item in items:
                         if item.get("viewCount", 0) > 0:
                             actual_media_type = "movie" if sec["type"] == "movie" else "episode"
-                            p = build_payload_from_plex(item, actual_media_type, show_map)
+                            
                             if sec["type"] == "movie":
                                 dedup_key = ("movie", item.get("title"))
                             else:
                                 dedup_key = ("episode", item.get("grandparentTitle"), item.get("parentIndex"), item.get("index"))
                                 
-                            seen_items[dedup_key] = p
-                            sec_processed += 1
+                            if dedup_key in seen_keys:
+                                continue
+                            seen_keys.add(dedup_key)
+                                
+                            p = build_payload_from_plex(item, actual_media_type, show_map)
                             
+                            if process_plex_payload(p, cursor, is_bulk=True):
+                                count += 1
+                                
+                            # Escribimos en BD al vuelo para verlo en el dashboard en tiempo real
+                            conn.commit()
+                            
+                            sec_processed += 1
                             if test_limit > 0 and sec_processed >= test_limit:
                                 limit_reached = True
                                 break
@@ -1075,28 +1123,15 @@ def push_all_to_db():
                 print(f"Error scanning section {sec['key']}: {e}")
                 break
             
-    payloads = list(seen_items.values())
+    conn.close()
+    print(f"✅ Initial Sync completed! {count} items processed.")
     
-    if payloads:
-        print(f"🚀 Processing {len(payloads)} watched items internally... this might take a bit")
-        conn = sqlite3.connect("sync.db")
-        cursor = conn.cursor()
-        
-        count = 0
-        for p in payloads:
-            if process_plex_payload(p, cursor, is_bulk=True):
-                count += 1
-                
-        conn.commit()
-        conn.close()
-        print(f"✅ Initial Sync completed! {count} items processed.")
-        
-        if os.path.exists("_DUPLICATE_FIX"):
-            try:
-                os.remove("_DUPLICATE_FIX")
-                print("🗑️ Archivo _DUPLICATE_FIX borrado tras finalizar la carga inicial.")
-            except Exception as e:
-                print(f"Error borrando _DUPLICATE_FIX: {e}")
+    if os.path.exists("_DUPLICATE_FIX"):
+        try:
+            os.remove("_DUPLICATE_FIX")
+            print("🗑️ Archivo _DUPLICATE_FIX borrado tras finalizar la carga inicial.")
+        except Exception as e:
+            print(f"Error borrando _DUPLICATE_FIX: {e}")
 
 def push_recent_to_db(last_sync_utc_str):
     print("Starting INCREMENTAL PUSH from Plex to local DB...")
