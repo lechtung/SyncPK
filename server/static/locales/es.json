@@ -29,10 +29,31 @@
     "confirm_delete": "¿Eliminar este elemento del historial?",
     "confirm_yes": "Eliminar",
     "confirm_no": "Cancelar",
-    "day_names": ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"],
-    "month_names": ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"],
+    "day_names": [
+        "dom",
+        "lun",
+        "mar",
+        "mié",
+        "jue",
+        "vie",
+        "sáb"
+    ],
+    "month_names": [
+        "Enero",
+        "Febrero",
+        "Marzo",
+        "Abril",
+        "Mayo",
+        "Junio",
+        "Julio",
+        "Agosto",
+        "Septiembre",
+        "Octubre",
+        "Noviembre",
+        "Diciembre"
+    ],
     "empty_state_msg": "¡Corre a la tele y ponte una buena película!",
     "error_state_msg": "Error conectando con la base de datos o escaneo en progreso...",
-    "sync_in_progress_msg": "El servidor todavía está realizando la carga inicial. Puede que algunas carátulas o fichas no estén disponibles. Por favor, NO configure los webhooks de Plex ni de Kodi todavía.",
+    "sync_in_progress_msg": "El servidor todavía está realizando la carga inicial. Puede que algunas carátulas o fichas no estén disponibles. Por favor, NO configures los webhooks de Plex ni de Kodi todavía.",
     "sync_done_msg": "¡La carga inicial ha terminado! Ya puedes configurar los webhooks de Plex y de Kodi."
 }
