@@ -3,8 +3,8 @@
 # Este script reinicia el entorno, borra la DB y descarga la última versión de GitHub.
 
 echo "========================================"
-echo "   RESETEANDO ENTORNO SYNCPK V3...      "
-echo "=====================================no ==="
+echo "   RESETEANDO ENTORNO SYNCPK V4...      "
+echo "========================================"
 
 # 1. Parar el servicio
 echo "[1/7] Parando el servicio syncpk-server..."
@@ -18,7 +18,7 @@ echo "[2/7] Borrando base de datos, ajustes antiguos y flags..."
 rm -f sync.db plex_settings.json _DUPLICATE_FIX
 
 echo ""
-echo "[2.5/7] ¿Quieres activar el modo FIX de duplicados de Plex (Big Bang Theory)?"
+echo "[2.5/7] ¿Quieres activar el modo FIX GLOBAL de duplicados de Plex (14 y 15 sep)?"
 echo "        (Escribe 's' o 'S' para activar, pulsa INTRO para ignorar)"
 read -p "        Respuesta: " FIX_INPUT
 
