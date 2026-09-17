@@ -20,8 +20,6 @@ load_dotenv()
 
 app = FastAPI()
 
-SYNC_IN_PROGRESS = False
-
 # --- PLEX & SECURITY CONFIGURATION ---
 PLEX_URL = os.getenv("PLEX_URL", "http://192.168.178.21:32400")
 PLEX_TOKEN = os.getenv("PLEX_TOKEN", "")
@@ -210,8 +208,10 @@ async def bulk_download_tmdb_images():
         await download_tmdb_images(None, row["show_tmdb_id"], "tv")
         await asyncio.sleep(0.1)
         
-    global SYNC_IN_PROGRESS
-    SYNC_IN_PROGRESS = False
+    settings = load_settings()
+    if settings.get("sync_state") == 1:
+        settings["sync_state"] = 2
+        save_settings(settings)
     print("✅ Bulk TMDB image download completed!")
 
 def extract_ids(guid_array):
@@ -480,18 +480,37 @@ def process_kodi_payload(payload, cursor, is_bulk=False):
         pass
             
     # Asíncronamente marcar en Plex como visto usando su API
-    if kodi_id:
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(push_scrobble_to_plex(tmdb_id, title, show_title, season, episode, media_type))
-        except RuntimeError:
-            pass
+    if not existing_id:
+        import threading
+        s_season = int(season) if season is not None else None
+        s_episode = int(episode) if episode is not None else None
+        threading.Thread(target=scrobble_single_item_to_plex, args=(title, show_title, s_season, s_episode, media_type)).start()
             
     return True
 
-async def push_scrobble_to_plex(tmdb_id, title, show_title, season, episode, media_type):
-    # Lógica para hacer match en Plex y marcar como visto
-    pass
+def scrobble_single_item_to_plex(title, show_title, season, episode, media_type):
+    try:
+        plex_movies, plex_shows = get_plex_items_map()
+        if media_type == "movie":
+            matched = match_movie({"movie": {"title": title}}, plex_movies)
+            if matched and matched.get("viewCount", 0) == 0:
+                r_key = matched.get("ratingKey")
+                requests.get(f"{PLEX_URL}/:/scrobble?identifier=com.plexapp.plugins.library&key={r_key}", headers=plex_headers)
+                print(f"✅ [Direct] Marked movie in Plex: {title}")
+        elif media_type == "episode":
+            s_key = match_show({"show": {"title": show_title}}, plex_shows)
+            if s_key:
+                r_eps = requests.get(f"{PLEX_URL}/library/metadata/{s_key}/allLeaves", headers=plex_headers)
+                if r_eps.status_code == 200:
+                    plex_eps = r_eps.json().get("MediaContainer", {}).get("Metadata", [])
+                    for pep in plex_eps:
+                        if pep.get("parentIndex") == season and pep.get("index") == episode:
+                            if pep.get("viewCount", 0) == 0:
+                                requests.get(f"{PLEX_URL}/:/scrobble?identifier=com.plexapp.plugins.library&key={pep['ratingKey']}", headers=plex_headers)
+                                print(f"✅ [Direct] Marked episode in Plex: {show_title} T{season}E{episode}")
+                            break
+    except Exception as e:
+        print(f"Error en scrobble_single_item_to_plex: {e}")
 
 
 @app.post("/webhook/kodi/bulk", dependencies=[Depends(verify_api_key)])
@@ -576,7 +595,13 @@ def get_all_items(client: Optional[str] = Query("kodi"), date_from: Optional[str
         })
         
     conn.close()
-    return {"movies": movies, "shows": shows_list}
+    now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return {"movies": movies, "shows": shows_list, "server_time": now_utc}
+
+@app.get("/api/time")
+def get_server_time():
+    now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return {"server_time": now_utc}
 
 # --- WEB DASHBOARD ENDPOINTS ---
 
@@ -671,13 +696,13 @@ def get_stats(type: str = "all", year: str = "all", month: str = "all", search: 
     
     conn.close()
     
-    global SYNC_IN_PROGRESS
+    settings = load_settings()
     return {
         "movies_count": movies_count,
         "movies_hours": movies_hours,
         "episodes_count": episodes_count,
         "episodes_hours": episodes_hours,
-        "sync_in_progress": SYNC_IN_PROGRESS
+        "sync_state": settings.get("sync_state", 0)
     }
 
 @app.delete("/api/history/{item_id}")
@@ -724,6 +749,13 @@ def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: 
         
     conn.commit()
     conn.close()
+    return {"success": True}
+
+@app.post("/api/dismiss-sync")
+def dismiss_sync(authorization: str = Depends(verify_api_key)):
+    settings = load_settings()
+    settings["sync_state"] = 3
+    save_settings(settings)
     return {"success": True}
 
 @app.get("/api/config")
@@ -827,8 +859,6 @@ def build_payload_from_plex(item, media_type, show_map=None):
     return payload
 
 def push_all_to_db():
-    global SYNC_IN_PROGRESS
-    SYNC_IN_PROGRESS = True
     print("Starting FULL PUSH from Plex to local DB (Library Scan)...")
     
     # Check for test limit
@@ -1022,73 +1052,12 @@ def match_show(show_data, plex_shows):
         if ps.get("title", "").lower() == title: return ps.get("ratingKey")
     return None
 
-def pull_from_server_and_scrobble(date_from=None):
-    print("Starting DB -> PLEX pull...")
-    conn = sqlite3.connect("sync.db")
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
-    query = "SELECT * FROM watch_history WHERE origin != 'plex'"
-    if date_from: query += f" AND created_at >= '{date_from}'"
-    
-    cursor.execute(query)
-    rows = cursor.fetchall()
-    
-    movies = []
-    shows = defaultdict(lambda: {"title": "", "seasons": {}})
-    
-    for row in rows:
-        item = dict(row)
-        if item["media_type"] == "movie":
-            movies.append({"movie": {"title": item["title"]}})
-        elif item["media_type"] == "episode":
-            show_key = f"{item['show_title']}_{item['show_tmdb_id']}"
-            if not shows[show_key]["title"]: shows[show_key]["title"] = item["show_title"]
-            season_num = item["season"]
-            if season_num not in shows[show_key]["seasons"]: shows[show_key]["seasons"][season_num] = []
-            shows[show_key]["seasons"][season_num].append({"number": item["episode"]})
-            
-    conn.close()
-    
-    shows_list = [{"show": {"title": data["title"]}, "seasons": [{"number": s_n, "episodes": eps} for s_n, eps in data["seasons"].items()]} for _, data in shows.items()]
-    
-    if not movies and not shows_list:
-        return
-        
-    print(f"Found {len(movies)} movies and {len(shows_list)} shows from Kodi to mark in Plex.")
-    plex_movies, plex_shows = get_plex_items_map()
-    
-    for m in movies:
-        matched = match_movie(m, plex_movies)
-        if matched and matched.get("viewCount", 0) == 0:
-            r_key = matched.get("ratingKey")
-            requests.get(f"{PLEX_URL}/:/scrobble?identifier=com.plexapp.plugins.library&key={r_key}", headers=plex_headers)
-            print(f"Marked movie in Plex: {m['movie']['title']}")
-            
-    for s in shows_list:
-        s_key = match_show(s, plex_shows)
-        if s_key:
-            s_title = s["show"]["title"]
-            for season in s.get("seasons", []):
-                s_num = season.get("number")
-                r_eps = requests.get(f"{PLEX_URL}/library/metadata/{s_key}/allLeaves", headers=plex_headers)
-                if r_eps.status_code == 200:
-                    plex_eps = r_eps.json().get("MediaContainer", {}).get("Metadata", [])
-                    for ep in season.get("episodes", []):
-                        e_num = ep.get("number")
-                        for pep in plex_eps:
-                            if pep.get("parentIndex") == s_num and pep.get("index") == e_num:
-                                if pep.get("viewCount", 0) == 0:
-                                    requests.get(f"{PLEX_URL}/:/scrobble?identifier=com.plexapp.plugins.library&key={pep['ratingKey']}", headers=plex_headers)
-                                    print(f"Marked episode in Plex: {s_title} T{s_num}E{e_num}")
-                                break
+
 
 def run_sync():
     settings = load_settings()
     last_sync = settings.get("last_sync_date")
     is_first_sync = not last_sync
-    
-    pull_from_server_and_scrobble(last_sync)
     
     if is_first_sync:
         push_all_to_db()
@@ -1118,6 +1087,8 @@ async def startup_event():
     
     if not last_sync:
         print("First time setup: Triggering initial sync...")
+        settings["sync_state"] = 1
+        save_settings(settings)
         run_sync() # Run it synchronously so it blocks or just run it once
         
     if not HAS_PLEX_PASS:

@@ -59,6 +59,10 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/lechtung/SyncPK/main/ins
 
 ## 🎬 Plex Webhook Setup
 
+> [!IMPORTANT]
+> **Wait for the Initial Load!**
+> After installing the server, open the Dashboard in your browser. If you see an orange banner stating that the initial load is in progress, **do NOT configure the webhooks yet**. Wait until the green banner appears saying "Initial load complete!", then proceed with the steps below.
+
 For SyncPK to know immediately when you watch something on Plex (from your phone, TV, or browser), you need to configure a webhook in your Plex server:
 
 1. Open your Plex Web interface and go to **Settings**.

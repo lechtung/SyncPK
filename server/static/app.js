@@ -322,17 +322,23 @@ async function loadStats() {
             
             // Handle sync banner
             let banner = document.getElementById('sync-banner');
-            if (data.sync_in_progress) {
+            if (data.sync_state === 1 || data.sync_state === 2) {
                 if (!banner) {
                     banner = document.createElement('div');
                     banner.id = 'sync-banner';
-                    banner.style.cssText = "background-color: rgba(255, 152, 0, 0.2); color: #ffb74d; border: 1px solid #ffb74d; padding: 15px 20px; text-align: center; font-weight: bold; margin-bottom: 20px; border-radius: 8px;";
-                    
-                    let msg = currentLangData.sync_in_progress_msg || 'The server is currently performing the initial load. Some images may not be available yet.';
-                    banner.textContent = msg;
-                    
                     let feed = document.getElementById('history-feed');
                     feed.parentNode.insertBefore(banner, feed);
+                }
+                
+                if (data.sync_state === 1) {
+                    banner.style.cssText = "background-color: rgba(255, 152, 0, 0.2); color: #ffb74d; border: 1px solid #ffb74d; padding: 15px 20px; text-align: center; font-weight: bold; margin-bottom: 20px; border-radius: 8px;";
+                    banner.textContent = currentLangData.sync_in_progress_msg || 'The server is currently performing the initial load...';
+                } else if (data.sync_state === 2) {
+                    banner.style.cssText = "background-color: rgba(76, 175, 80, 0.2); color: #81c784; border: 1px solid #81c784; padding: 15px 20px; text-align: center; font-weight: bold; margin-bottom: 20px; border-radius: 8px;";
+                    banner.textContent = currentLangData.sync_done_msg || 'Initial load complete! You can now configure webhooks.';
+                    
+                    // Mark as seen on server so it doesn't show on next refresh
+                    apiFetch('/api/dismiss-sync', { method: 'POST' }).catch(e => console.error(e));
                 }
             } else {
                 if (banner) banner.remove();
