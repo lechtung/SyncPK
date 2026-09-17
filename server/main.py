@@ -851,9 +851,21 @@ def sanitize_plex_item(metadata_id, delete_ghosts=False):
     }
     
     try:
-        r = requests.post(url, headers=headers, json=payload, timeout=10)
-        if r.status_code == 200:
-            nodes = r.json().get("data", {}).get("activityFeed", {}).get("nodes", [])
+        max_retries = 3
+        for intento in range(max_retries):
+            r = requests.post(url, headers=headers, json=payload, timeout=10)
+            if r.status_code == 200:
+                nodes = r.json().get("data", {}).get("activityFeed", {}).get("nodes", [])
+                break
+            elif r.status_code == 429:
+                print(f"⚠️ RATE LIMIT 429 al consultar actividad. Reintento {intento+1}/{max_retries}. Esperando 5s...")
+                time.sleep(5)
+            else:
+                print(f"❌ Error {r.status_code} al consultar actividad: {r.text}")
+                return None
+        else:
+            print("❌ Demasiados reintentos por Rate Limit. Abortando consulta para este episodio.")
+            return None
             
             fechas = [n["date"] for n in nodes if "date" in n]
             if not fechas:
