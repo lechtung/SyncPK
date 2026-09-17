@@ -158,6 +158,52 @@ async def download_tmdb_images(db_id, tmdb_id, media_type):
                     with open(local_path, "wb") as f:
                         f.write(img_resp.content)
                     fanart_local = f"/cache/fanarts/{tmdb_id}.jpg"
+
+def download_tmdb_images_sync(tmdb_id, media_type):
+    if not TMDB_API_KEY or not tmdb_id:
+        return None, None
+        
+    poster_local_path = f"static/cache/posters/{tmdb_id}.jpg"
+    fanart_local_path = f"static/cache/fanarts/{tmdb_id}.jpg"
+    
+    poster_local = f"/cache/posters/{tmdb_id}.jpg" if os.path.exists(poster_local_path) else None
+    fanart_local = f"/cache/fanarts/{tmdb_id}.jpg" if os.path.exists(fanart_local_path) else None
+    
+    if poster_local and fanart_local:
+        return poster_local, fanart_local
+
+    url = f"https://api.themoviedb.org/3/{media_type}/{tmdb_id}?api_key={TMDB_API_KEY}&language=es"
+    import requests
+    try:
+        resp = requests.get(url, timeout=10)
+        if resp.status_code != 200:
+            resp = requests.get(url.replace("&language=es", ""), timeout=10)
+            if resp.status_code != 200: return poster_local, fanart_local
+            
+        data = resp.json()
+        poster = data.get("poster_path")
+        backdrop = data.get("backdrop_path")
+        
+        if poster and not poster_local:
+            img_url = f"https://image.tmdb.org/t/p/w185{poster}"
+            img_resp = requests.get(img_url, timeout=15)
+            if img_resp.status_code == 200:
+                with open(poster_local_path, "wb") as f:
+                    f.write(img_resp.content)
+                poster_local = f"/cache/posters/{tmdb_id}.jpg"
+        
+        if backdrop and not fanart_local:
+            img_url = f"https://image.tmdb.org/t/p/w300{backdrop}"
+            img_resp = requests.get(img_url, timeout=15)
+            if img_resp.status_code == 200:
+                with open(fanart_local_path, "wb") as f:
+                    f.write(img_resp.content)
+                fanart_local = f"/cache/fanarts/{tmdb_id}.jpg"
+                
+    except Exception as e:
+        print(f"Error descargando imágenes sincrónicas TMDB para {tmdb_id}: {e}")
+        
+    return poster_local, fanart_local
                     
             if poster_local or fanart_local:
                 conn = sqlite3.connect("sync.db")
@@ -332,13 +378,14 @@ def process_plex_payload(payload, cursor, is_bulk=False):
             
     try:
         db_id = existing_id if existing_id else cursor.lastrowid
-        loop = asyncio.get_running_loop()
         target_tmdb = tmdb_id if media_type == "movie" else show_tmdb_id
         if not target_tmdb and media_type == "episode": target_tmdb = tmdb_id # Fallback
-        if target_tmdb and not is_bulk:
-            loop.create_task(download_tmdb_images(db_id, target_tmdb, "tv" if media_type == "episode" else "movie"))
-    except RuntimeError:
-        pass
+        if target_tmdb:
+            p_path, f_path = download_tmdb_images_sync(target_tmdb, "tv" if media_type == "episode" else "movie")
+            if p_path or f_path:
+                cursor.execute("UPDATE watch_history SET poster_path=COALESCE(?, poster_path), fanart_path=COALESCE(?, fanart_path) WHERE id=?", (p_path, f_path, db_id))
+    except Exception as e:
+        print(f"Error asignando carátulas Plex: {e}")
             
     return True
 
@@ -472,13 +519,14 @@ def process_kodi_payload(payload, cursor, is_bulk=False):
             
     try:
         db_id = existing_id if existing_id else cursor.lastrowid
-        loop = asyncio.get_running_loop()
         target_tmdb = tmdb_id if media_type == "movie" else show_tmdb_id
         if not target_tmdb and media_type == "episode": target_tmdb = tmdb_id # Fallback
         if target_tmdb:
-            loop.create_task(download_tmdb_images(db_id, target_tmdb, "tv" if media_type == "episode" else "movie"))
-    except RuntimeError:
-        pass
+            p_path, f_path = download_tmdb_images_sync(target_tmdb, "tv" if media_type == "episode" else "movie")
+            if p_path or f_path:
+                cursor.execute("UPDATE watch_history SET poster_path=COALESCE(?, poster_path), fanart_path=COALESCE(?, fanart_path) WHERE id=?", (p_path, f_path, db_id))
+    except Exception as e:
+        print(f"Error asignando carátulas Kodi: {e}")
             
     # Asíncronamente marcar en Plex como visto usando su API
     if not existing_id:
@@ -936,21 +984,43 @@ def sanitize_plex_item(metadata_id, delete_ghosts=False):
                         },
                         "operationName": "removeActivity"
                     }
-                    del_r = requests.post(url, headers=headers_delete, json=del_payload, timeout=10)
                     
-                    print(f"📡 RAW PLEX RESPONSE para {ghost.get('id')}: {del_r.text}", flush=True)
-                    
-                    if del_r.status_code == 200:
-                        del_json = del_r.json()
-                        if del_json.get("errors"):
-                            print(f"❌ Error interno GraphQL al borrar {ghost.get('id')}: {del_json['errors']}", flush=True)
+                    while True:
+                        del_r = requests.post(url, headers=headers_delete, json=del_payload, timeout=10)
+                        
+                        print(f"📡 RAW PLEX RESPONSE para {ghost.get('id')}: {del_r.text}", flush=True)
+                        
+                        if del_r.status_code == 200:
+                            del_json = del_r.json()
+                            if del_json.get("errors"):
+                                errors = del_json["errors"]
+                                rate_limited = False
+                                retry_after = 5
+                                
+                                for err in errors:
+                                    if err.get("extensions", {}).get("code") == "RATE_LIMITED":
+                                        rate_limited = True
+                                        # Leemos lo que nos manda Plex, por defecto 60
+                                        retry_after = err.get("extensions", {}).get("retryAfter", 60)
+                                        break
+                                        
+                                if rate_limited:
+                                    print(f"⏳ RATE LIMIT (GraphQL). Esperando {retry_after}s antes de reintentar el borrado...", flush=True)
+                                    time.sleep(retry_after + 1)  # Le damos 1 segundo extra de margen
+                                    continue # Volvemos a empezar el bucle while True para intentar el mismo ghost
+                                else:
+                                    print(f"❌ Error interno GraphQL al borrar {ghost.get('id')}: {errors}", flush=True)
+                                    break # Salimos del bucle porque es un error distinto a rate limit
+                            else:
+                                print(f"👻 Borrado fantasma Plex Cloud: {ghost.get('id')}", flush=True)
+                                break # Éxito, salimos del bucle while
+                        elif del_r.status_code == 429:
+                            print(f"⚠️ RATE LIMIT 429 de Plex al borrar {ghost.get('id')}. Pausando 5 segundos...", flush=True)
+                            time.sleep(5)
+                            continue # Reintento
                         else:
-                            print(f"👻 Borrado fantasma Plex Cloud: {ghost.get('id')}", flush=True)
-                    elif del_r.status_code == 429:
-                        print(f"⚠️ RATE LIMIT 429 de Plex al borrar {ghost.get('id')}. Pausando 5 segundos...", flush=True)
-                        time.sleep(5)
-                    else:
-                        print(f"❌ Error HTTP {del_r.status_code} al borrar {ghost.get('id')}: {del_r.text}", flush=True)
+                            print(f"❌ Error HTTP {del_r.status_code} al borrar {ghost.get('id')}: {del_r.text}", flush=True)
+                            break # Fallo fatal, pasamos al siguiente
             
         return fecha_mas_antigua
     except Exception as e:
