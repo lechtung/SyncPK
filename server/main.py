@@ -788,6 +788,9 @@ def get_stats(type: str = "all", year: str = "all", month: str = "all", search: 
     row = cursor.fetchone()
     episodes_count = row[0] or 0
     episodes_hours = round((row[1] or 0) / 60.0, 1)
+    # Obtener años disponibles globales
+    cursor.execute("SELECT DISTINCT strftime('%Y', watched_at) FROM watch_history WHERE watched_at IS NOT NULL ORDER BY 1 DESC")
+    available_years = [str(r[0]) for r in cursor.fetchall() if r[0]]
     
     conn.close()
     
@@ -797,7 +800,8 @@ def get_stats(type: str = "all", year: str = "all", month: str = "all", search: 
         "movies_hours": movies_hours,
         "episodes_count": episodes_count,
         "episodes_hours": episodes_hours,
-        "sync_state": settings.get("sync_state", 0)
+        "sync_state": settings.get("sync_state", 0),
+        "available_years": available_years
     }
 
 import subprocess

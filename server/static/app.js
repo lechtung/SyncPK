@@ -292,6 +292,7 @@ async function reloadHistory() {
     document.getElementById('history-feed').innerHTML = '';
     statsCache.moviesHours = 0;
     statsCache.episodesHours = 0;
+    loadStats(); // Refrescar las tarjetas de estadísticas globales
     await loadMoreHistory();
 }
 
