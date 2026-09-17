@@ -867,57 +867,57 @@ def sanitize_plex_item(metadata_id, delete_ghosts=False):
             print("❌ Demasiados reintentos por Rate Limit. Abortando consulta para este episodio.")
             return None
             
-            fechas = [n["date"] for n in nodes if "date" in n]
-            if not fechas:
-                return None
-                
-            fecha_mas_antigua = min(fechas)
-            print(f"✅ FECHA HISTÓRICA ORIGINAL (La más antigua): {fecha_mas_antigua}")
+        fechas = [n["date"] for n in nodes if "date" in n]
+        if not fechas:
+            return None
             
-            if delete_ghosts:
-                # Borramos todos los nodos EXCEPTO uno (el original más antiguo)
-                ghost_nodes = []
-                kept_original = False
-                for n in nodes:
-                    if "date" in n:
-                        if n["date"] == fecha_mas_antigua and not kept_original:
-                            kept_original = True
-                        else:
-                            ghost_nodes.append(n)
-                
-                if ghost_nodes:
-                    mutation = """
-                    mutation removeActivity($input: RemoveActivityInput!) {
-                      removeActivity(input: $input)
+        fecha_mas_antigua = min(fechas)
+        print(f"✅ FECHA HISTÓRICA ORIGINAL (La más antigua): {fecha_mas_antigua}")
+        
+        if delete_ghosts:
+            # Borramos todos los nodos EXCEPTO uno (el original más antiguo)
+            ghost_nodes = []
+            kept_original = False
+            for n in nodes:
+                if "date" in n:
+                    if n["date"] == fecha_mas_antigua and not kept_original:
+                        kept_original = True
+                    else:
+                        ghost_nodes.append(n)
+            
+            if ghost_nodes:
+                mutation = """
+                mutation removeActivity($input: RemoveActivityInput!) {
+                  removeActivity(input: $input)
+                }
+                """
+                for ghost in ghost_nodes:
+                    del_payload = {
+                        "query": mutation,
+                        "variables": {
+                            "input": {
+                                "id": ghost.get("id"),
+                                "type": "WATCH_HISTORY"
+                            }
+                        },
+                        "operationName": "removeActivity"
                     }
-                    """
-                    for ghost in ghost_nodes:
-                        del_payload = {
-                            "query": mutation,
-                            "variables": {
-                                "input": {
-                                    "id": ghost.get("id"),
-                                    "type": "WATCH_HISTORY"
-                                }
-                            },
-                            "operationName": "removeActivity"
-                        }
-                        del_r = requests.post(url, headers=headers, json=del_payload, timeout=10)
-                        if del_r.status_code == 200:
-                            print(f"👻 Borrado fantasma Plex Cloud: {ghost.get('id')}")
-                        elif del_r.status_code == 429:
-                            print(f"⚠️ RATE LIMIT 429 de Plex al borrar {ghost.get('id')}. Pausando 5 segundos...")
-                            time.sleep(5)
-                        else:
-                            print(f"❌ Error {del_r.status_code} al borrar {ghost.get('id')}: {del_r.text}")
-                            
-                        # Respiro entre borrados
-                        time.sleep(1.5)
+                    del_r = requests.post(url, headers=headers, json=del_payload, timeout=10)
+                    if del_r.status_code == 200:
+                        print(f"👻 Borrado fantasma Plex Cloud: {ghost.get('id')}")
+                    elif del_r.status_code == 429:
+                        print(f"⚠️ RATE LIMIT 429 de Plex al borrar {ghost.get('id')}. Pausando 5 segundos...")
+                        time.sleep(5)
+                    else:
+                        print(f"❌ Error {del_r.status_code} al borrar {ghost.get('id')}: {del_r.text}")
                         
-                    # Respiro antes de saltar al siguiente episodio
-                    time.sleep(2)
-                
-            return fecha_mas_antigua
+                    # Respiro entre borrados
+                    time.sleep(1.5)
+                    
+                # Respiro antes de saltar al siguiente episodio
+                time.sleep(2)
+            
+        return fecha_mas_antigua
     except Exception as e:
         print(f"Error sanitizando item en Plex Cloud: {e}")
         
