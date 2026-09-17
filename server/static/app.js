@@ -141,14 +141,16 @@ function initDropdowns() {
         let trigger = dd.querySelector('.c-dropdown-trigger');
         let closeTimer;
         
-        // Hover to open
-        dd.addEventListener('mouseenter', () => {
-            clearTimeout(closeTimer);
-            dd.classList.add('open');
-        });
-        dd.addEventListener('mouseleave', () => {
-            closeTimer = setTimeout(() => dd.classList.remove('open'), 180);
-        });
+        // Hover to open (excepto para editScope-dd)
+        if (dd.id !== 'editScope-dd') {
+            dd.addEventListener('mouseenter', () => {
+                clearTimeout(closeTimer);
+                dd.classList.add('open');
+            });
+            dd.addEventListener('mouseleave', () => {
+                closeTimer = setTimeout(() => dd.classList.remove('open'), 180);
+            });
+        }
         
         // Click trigger also toggles
         trigger.addEventListener('click', (e) => {
