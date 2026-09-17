@@ -208,37 +208,7 @@ def download_tmdb_images_sync(tmdb_id, media_type):
         print(f"Error descargando imágenes sincrónicas TMDB para {tmdb_id}: {e}")
         
     return poster_local, fanart_local
-                    
-            if poster_local or fanart_local:
-                conn = sqlite3.connect("sync.db")
-                cursor = conn.cursor()
-                if db_id is not None:
-                    if poster_local and fanart_local:
-                        cursor.execute("UPDATE watch_history SET poster_path=?, fanart_path=? WHERE id=?", (poster_local, fanart_local, db_id))
-                    elif poster_local:
-                        cursor.execute("UPDATE watch_history SET poster_path=? WHERE id=?", (poster_local, db_id))
-                    elif fanart_local:
-                        cursor.execute("UPDATE watch_history SET fanart_path=? WHERE id=?", (fanart_local, db_id))
-                else:
-                    if media_type == "movie":
-                        if poster_local and fanart_local:
-                            cursor.execute("UPDATE watch_history SET poster_path=?, fanart_path=? WHERE media_type='movie' AND tmdb_id=?", (poster_local, fanart_local, tmdb_id))
-                        elif poster_local:
-                            cursor.execute("UPDATE watch_history SET poster_path=? WHERE media_type='movie' AND tmdb_id=?", (poster_local, tmdb_id))
-                        elif fanart_local:
-                            cursor.execute("UPDATE watch_history SET fanart_path=? WHERE media_type='movie' AND tmdb_id=?", (fanart_local, tmdb_id))
-                    else:
-                        if poster_local and fanart_local:
-                            cursor.execute("UPDATE watch_history SET poster_path=?, fanart_path=? WHERE media_type='episode' AND show_tmdb_id=?", (poster_local, fanart_local, tmdb_id))
-                        elif poster_local:
-                            cursor.execute("UPDATE watch_history SET poster_path=? WHERE media_type='episode' AND show_tmdb_id=?", (poster_local, tmdb_id))
-                        elif fanart_local:
-                            cursor.execute("UPDATE watch_history SET fanart_path=? WHERE media_type='episode' AND show_tmdb_id=?", (fanart_local, tmdb_id))
-                conn.commit()
-                conn.close()
-                print(f"✅ Descargadas y Cacheadas imágenes de {media_type} {tmdb_id}")
-    except Exception as e:
-        print(f"Error downloading TMDB images for {tmdb_id}: {e}")
+
 
 async def bulk_download_tmdb_images():
     print("Starting bulk TMDB image download for missing posters...")
