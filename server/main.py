@@ -158,6 +158,8 @@ async def download_tmdb_images(db_id, tmdb_id, media_type):
                     with open(local_path, "wb") as f:
                         f.write(img_resp.content)
                     fanart_local = f"/cache/fanarts/{tmdb_id}.jpg"
+    except Exception as e:
+        print(f"Error asíncrono en TMDB para {tmdb_id}: {e}", flush=True)
 
 def download_tmdb_images_sync(tmdb_id, media_type):
     if not TMDB_API_KEY or not tmdb_id:
@@ -178,7 +180,9 @@ def download_tmdb_images_sync(tmdb_id, media_type):
         resp = requests.get(url, timeout=10)
         if resp.status_code != 200:
             resp = requests.get(url.replace("&language=es", ""), timeout=10)
-            if resp.status_code != 200: return poster_local, fanart_local
+            if resp.status_code != 200: 
+                print(f"❌ Error TMDB ({resp.status_code}) para {tmdb_id}: {resp.text}", flush=True)
+                return poster_local, fanart_local
             
         data = resp.json()
         poster = data.get("poster_path")
@@ -753,6 +757,17 @@ def get_stats(type: str = "all", year: str = "all", month: str = "all", search: 
         "episodes_hours": episodes_hours,
         "sync_state": settings.get("sync_state", 0)
     }
+
+import subprocess
+
+@app.get("/api/logs")
+def get_logs(authorization: str = Depends(verify_api_key)):
+    try:
+        # Pide las últimas 200 líneas del servicio en Proxmox
+        out = subprocess.check_output(['journalctl', '-u', 'syncpk-server', '-n', '200', '--no-pager']).decode('utf-8')
+        return {"logs": out}
+    except Exception as e:
+        return {"logs": f"Error leyendo logs: {e}"}
 
 @app.delete("/api/history/{item_id}")
 def delete_history_item(item_id: int, authorization: str = Depends(verify_api_key)):

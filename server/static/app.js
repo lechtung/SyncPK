@@ -6,6 +6,7 @@ let hasMore = true;
 let isLoading = false;
 let currentFilters = { type: 'all', year: 'all', month: 'all', search: '' };
 let statsCache = { movies: 0, moviesHours: 0, episodes: 0, episodesHours: 0 };
+let logInterval = null;
 
 // Helper to get token value
 function getAuthToken() {
@@ -98,9 +99,41 @@ function setupEventListeners() {
         }
     });
 
+    let closeLogBtn = document.getElementById('close-log-btn');
+    if (closeLogBtn) closeLogBtn.addEventListener('click', closeLogViewer);
+
     document.getElementById('edit-cancel-btn').addEventListener('click', () => {
         document.getElementById('edit-modal').classList.add('hidden');
     });
+}
+
+function openLogViewer() {
+    document.getElementById('log-modal').classList.remove('hidden');
+    fetchLogs();
+    logInterval = setInterval(fetchLogs, 5000); // 5 seconds auto-refresh
+}
+
+function closeLogViewer() {
+    document.getElementById('log-modal').classList.add('hidden');
+    if (logInterval) {
+        clearInterval(logInterval);
+        logInterval = null;
+    }
+}
+
+async function fetchLogs() {
+    try {
+        let res = await apiFetch('/api/logs');
+        if (res.ok) {
+            let data = await res.json();
+            let logEl = document.getElementById('log-content');
+            let isAtBottom = (logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 50);
+            logEl.textContent = data.logs;
+            if (isAtBottom || logEl.scrollTop === 0) {
+                logEl.scrollTop = logEl.scrollHeight;
+            }
+        }
+    } catch(e) {}
 }
 
 function initDropdowns() {
@@ -331,8 +364,11 @@ async function loadStats() {
                 }
                 
                 if (data.sync_state === 1) {
-                    banner.style.cssText = "background-color: rgba(255, 152, 0, 0.2); color: #ffb74d; border: 1px solid #ffb74d; padding: 15px 20px; text-align: center; font-weight: bold; margin-bottom: 20px; border-radius: 8px;";
-                    banner.textContent = currentLangData.sync_in_progress_msg || 'The server is currently performing the initial load...';
+                    banner.style.cssText = "background-color: rgba(255, 152, 0, 0.2); color: #ffb74d; border: 1px solid #ffb74d; padding: 15px 20px; text-align: center; font-weight: bold; margin-bottom: 20px; border-radius: 8px; display: flex; justify-content: center; align-items: center; gap: 20px; flex-wrap: wrap;";
+                    let msg = currentLangData.sync_in_progress_msg || 'El servidor todavía está realizando la carga inicial. Puede que algunas carátulas o fichas no estén disponibles.';
+                    banner.innerHTML = `<span>${msg}</span><button id="btn-view-logs" style="padding: 6px 12px; background: #ffb74d; color: #000; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; font-family: 'Inter', sans-serif;">Ver Terminal</button>`;
+                    
+                    document.getElementById('btn-view-logs').addEventListener('click', openLogViewer);
                 } else if (data.sync_state === 2) {
                     banner.style.cssText = "background-color: rgba(76, 175, 80, 0.2); color: #81c784; border: 1px solid #81c784; padding: 15px 20px; text-align: center; font-weight: bold; margin-bottom: 20px; border-radius: 8px;";
                     banner.textContent = currentLangData.sync_done_msg || 'Initial load complete! You can now configure webhooks.';
