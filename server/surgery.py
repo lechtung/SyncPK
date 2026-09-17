@@ -6,6 +6,7 @@ import requests
 import os
 import sys
 
+# v2
 # Forzar codificación UTF-8 en consola de Windows para las tildes
 sys.stdout.reconfigure(encoding='utf-8')
 
@@ -73,8 +74,8 @@ mutation updateActivityDate($id: ID!, $input: UpdateActivityInput!) {
 def main():
     print("🔪 Starting Plex Temporal Surgery...")
     
-    # 10 de Junio de 2024 a las 23:00 (Hora base)
-    current_date = datetime.datetime(2024, 6, 10, 23, 0, 0, tzinfo=datetime.timezone.utc)
+    # 10 de Junio de 2024 a las 12:00 del mediodía UTC (Para que caiga seguro en el día 10 en España)
+    current_date = datetime.datetime(2024, 6, 10, 12, 0, 0, tzinfo=datetime.timezone.utc)
     counter = 0
     target = random.randint(1, 4)
     
@@ -193,9 +194,14 @@ def main():
             
             total_episodios_modificados += 1
             
+            # Restamos entre 40 y 60 minutos para el siguiente episodio (que es anterior en la serie)
+            current_date -= datetime.timedelta(minutes=random.randint(40, 60))
+            
             # Gestión de avance de días
             counter += 1
             if counter >= target:
+                # Saltamos al día anterior y reseteamos la hora a las 12:00 UTC
+                current_date = current_date.replace(hour=12, minute=0, second=0, microsecond=0)
                 current_date -= datetime.timedelta(days=1)
                 counter = 0
                 target = random.randint(1, 4)
