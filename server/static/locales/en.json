@@ -32,5 +32,6 @@
     "day_names": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
     "month_names": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
     "empty_state_msg": "Run to the TV and put on a good movie!",
-    "error_state_msg": "Error connecting to the database or scan in progress..."
+    "error_state_msg": "Error connecting to the database or scan in progress...",
+    "sync_in_progress_msg": "The server is currently performing the initial load. Some images may not be available yet."
 }

@@ -319,6 +319,24 @@ async function loadStats() {
             document.getElementById('stat-movies-hours').textContent = estMoviesHours + 'h';
             document.getElementById('stat-episodes-hours').textContent = estEpisodesHours + 'h';
             document.getElementById('stat-total-hours').textContent = (estMoviesHours + estEpisodesHours) + 'h';
+            
+            // Handle sync banner
+            let banner = document.getElementById('sync-banner');
+            if (data.sync_in_progress) {
+                if (!banner) {
+                    banner = document.createElement('div');
+                    banner.id = 'sync-banner';
+                    banner.style.cssText = "background-color: rgba(255, 152, 0, 0.2); color: #ffb74d; border: 1px solid #ffb74d; padding: 15px 20px; text-align: center; font-weight: bold; margin-bottom: 20px; border-radius: 8px;";
+                    
+                    let msg = currentLangData.sync_in_progress_msg || 'The server is currently performing the initial load. Some images may not be available yet.';
+                    banner.textContent = msg;
+                    
+                    let feed = document.getElementById('history-feed');
+                    feed.parentNode.insertBefore(banner, feed);
+                }
+            } else {
+                if (banner) banner.remove();
+            }
         }
     } catch(e) { console.error(e); }
 }

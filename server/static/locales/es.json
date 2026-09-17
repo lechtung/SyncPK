@@ -32,5 +32,6 @@
     "day_names": ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"],
     "month_names": ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"],
     "empty_state_msg": "¡Corre a la tele y ponte una buena película!",
-    "error_state_msg": "Error conectando con la base de datos o escaneo en progreso..."
+    "error_state_msg": "Error conectando con la base de datos o escaneo en progreso...",
+    "sync_in_progress_msg": "El servidor todavía está realizando la carga inicial. Puede que algunas carátulas no estén disponibles."
 }

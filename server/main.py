@@ -20,6 +20,8 @@ load_dotenv()
 
 app = FastAPI()
 
+SYNC_IN_PROGRESS = False
+
 # --- PLEX & SECURITY CONFIGURATION ---
 PLEX_URL = os.getenv("PLEX_URL", "http://192.168.178.21:32400")
 PLEX_TOKEN = os.getenv("PLEX_TOKEN", "")
@@ -208,6 +210,8 @@ async def bulk_download_tmdb_images():
         await download_tmdb_images(None, row["show_tmdb_id"], "tv")
         await asyncio.sleep(0.1)
         
+    global SYNC_IN_PROGRESS
+    SYNC_IN_PROGRESS = False
     print("✅ Bulk TMDB image download completed!")
 
 def extract_ids(guid_array):
@@ -666,11 +670,14 @@ def get_stats(type: str = "all", year: str = "all", month: str = "all", search: 
     episodes_hours = round((row[1] or 0) / 60.0, 1)
     
     conn.close()
+    
+    global SYNC_IN_PROGRESS
     return {
         "movies_count": movies_count,
         "movies_hours": movies_hours,
         "episodes_count": episodes_count,
-        "episodes_hours": episodes_hours
+        "episodes_hours": episodes_hours,
+        "sync_in_progress": SYNC_IN_PROGRESS
     }
 
 @app.delete("/api/history/{item_id}")
@@ -820,6 +827,8 @@ def build_payload_from_plex(item, media_type, show_map=None):
     return payload
 
 def push_all_to_db():
+    global SYNC_IN_PROGRESS
+    SYNC_IN_PROGRESS = True
     print("Starting FULL PUSH from Plex to local DB (Library Scan)...")
     
     # Check for test limit
@@ -864,14 +873,13 @@ def push_all_to_db():
 
     # Fase B: Extracción de Películas y Episodios Vistos
     seen_items = {}
-    total_processed = 0
-    limit_reached = False
     
     for sec in sections:
-        if limit_reached: break
-        
         start = 0
         size = 500
+        sec_processed = 0
+        limit_reached = False
+        
         while True:
             if limit_reached: break
             headers = plex_headers.copy()
@@ -892,16 +900,17 @@ def push_all_to_db():
                     
                     for item in items:
                         if item.get("viewCount", 0) > 0:
-                            p = build_payload_from_plex(item, sec["type"], show_map)
+                            actual_media_type = "movie" if sec["type"] == "movie" else "episode"
+                            p = build_payload_from_plex(item, actual_media_type, show_map)
                             if sec["type"] == "movie":
                                 dedup_key = ("movie", item.get("title"))
                             else:
                                 dedup_key = ("episode", item.get("grandparentTitle"), item.get("parentIndex"), item.get("index"))
                                 
                             seen_items[dedup_key] = p
-                            total_processed += 1
+                            sec_processed += 1
                             
-                            if test_limit > 0 and total_processed >= test_limit:
+                            if test_limit > 0 and sec_processed >= test_limit:
                                 limit_reached = True
                                 break
                     start += size
