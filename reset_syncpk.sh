@@ -2,9 +2,9 @@
 # Script de Reset para SyncPK (Proxmox)
 # Este script reinicia el entorno, borra la DB y descarga la última versión de GitHub.
 
-echo "====================================="
-echo "   RESETEANDO ENTORNO SYNCPK...      "
-echo "====================================="
+echo "========================================"
+echo "   RESETEANDO ENTORNO SYNCPK V2...      "
+echo "========================================"
 
 # 1. Parar el servicio
 echo "[1/7] Parando el servicio syncpk-server..."
