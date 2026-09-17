@@ -816,7 +816,7 @@ def get_real_plex_history_map():
         
     return history_map, oldest_timestamp
 
-def sanitize_plex_item(metadata_id):
+def sanitize_plex_item(metadata_id, delete_ghosts=False):
     url = "https://community.plex.tv/api"
     headers = {
         "Accept": "application/json",
@@ -858,32 +858,30 @@ def sanitize_plex_item(metadata_id):
                 return None
                 
             fecha_mas_antigua = min(fechas)
-            ghost_nodes = [n for n in nodes if "date" in n and n["date"].startswith("2026-09-14")]
             
-            if not ghost_nodes:
-                return None
+            if delete_ghosts:
+                # Borramos todo lo que no sea la primera visualización original
+                ghost_nodes = [n for n in nodes if "date" in n and n["date"] != fecha_mas_antigua]
                 
-            mutation = """
-            mutation removeActivity($input: RemoveActivityInput!) {
-              removeActivity(input: $input)
-            }
-            """
-            for ghost in ghost_nodes:
-                if ghost["date"] == fecha_mas_antigua and len(fechas) == 1:
-                    continue
-                    
-                del_payload = {
-                    "query": mutation,
-                    "variables": {
-                        "input": {
-                            "id": ghost.get("id"),
-                            "type": "WATCH_HISTORY"
+                if ghost_nodes:
+                    mutation = """
+                    mutation removeActivity($input: RemoveActivityInput!) {
+                      removeActivity(input: $input)
+                    }
+                    """
+                    for ghost in ghost_nodes:
+                        del_payload = {
+                            "query": mutation,
+                            "variables": {
+                                "input": {
+                                    "id": ghost.get("id"),
+                                    "type": "WATCH_HISTORY"
+                                }
+                            },
+                            "operationName": "removeActivity"
                         }
-                    },
-                    "operationName": "removeActivity"
-                }
-                requests.post(url, headers=headers, json=del_payload, timeout=5)
-                print(f"👻 Borrado fantasma Plex Cloud: {ghost.get('id')}")
+                        requests.post(url, headers=headers, json=del_payload, timeout=5)
+                        print(f"👻 Borrado fantasma Plex Cloud: {ghost.get('id')}")
                 
             return fecha_mas_antigua
     except Exception as e:
@@ -899,15 +897,22 @@ def build_payload_from_plex(item, media_type, show_map=None):
         utc_dt = datetime.datetime.utcfromtimestamp(last_viewed_at)
         watched_at = utc_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
         
-        if watched_at.startswith("2026-09-14") and os.path.exists("_DUPLICATE_FIX"):
+        if (watched_at.startswith("2026-09-14") or watched_at.startswith("2026-09-15")) and os.path.exists("_DUPLICATE_FIX"):
             guid = item.get("guid", "")
-            if guid == "plex://episode/5d9c1279e264b7001fcaabd8":
-                metadata_id = guid.split("/")[-1]
+            metadata_id = guid.split("/")[-1]
+            
+            # El modo francotirador fue un éxito. Abrimos el grifo para todos.
+            delete_ghosts = True
+            
+            if delete_ghosts:
                 print(f"🛠️ FIXING DUPLICATE FOR: {item.get('title')} ({metadata_id})")
-                real_date = sanitize_plex_item(metadata_id)
-                if real_date:
-                    watched_at = real_date
-                    print(f"🔄 Fecha restaurada a: {watched_at}")
+            else:
+                print(f"🔍 Recuperando fecha original para: {item.get('title')} ({metadata_id})")
+                
+            real_date = sanitize_plex_item(metadata_id, delete_ghosts=delete_ghosts)
+            if real_date:
+                watched_at = real_date
+                print(f"🔄 Fecha restaurada a: {watched_at}")
     else:
         # Fallback si no tiene lastViewedAt pero tiene viewCount
         watched_at = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
