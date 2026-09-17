@@ -821,6 +821,7 @@ def sanitize_plex_item(metadata_id, delete_ghosts=False):
     headers = {
         "Accept": "application/json",
         "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "x-plex-client-identifier": "7o448fp80hf1p7gbvqvvaklv",
         "x-plex-token": PLEX_TOKEN
     }
@@ -840,8 +841,8 @@ def sanitize_plex_item(metadata_id, delete_ghosts=False):
     payload = {
         "query": query_graphql,
         "variables": {
-            "first": 50,
-            "types": ["WATCH_HISTORY"],
+            "first": 24,
+            "types": ["METADATA_MESSAGE", "RATING", "WATCH_HISTORY", "WATCHLIST", "POST", "WATCH_SESSION", "WATCH_RATING", "REVIEW", "WATCH_REVIEW"],
             "includeDescendants": True,
             "metadataID": metadata_id
         },
@@ -858,10 +859,18 @@ def sanitize_plex_item(metadata_id, delete_ghosts=False):
                 return None
                 
             fecha_mas_antigua = min(fechas)
+            print(f"✅ FECHA HISTÓRICA ORIGINAL (La más antigua): {fecha_mas_antigua}")
             
             if delete_ghosts:
-                # Borramos todo lo que no sea la primera visualización original
-                ghost_nodes = [n for n in nodes if "date" in n and n["date"] != fecha_mas_antigua]
+                # Borramos todos los nodos EXCEPTO uno (el original más antiguo)
+                ghost_nodes = []
+                kept_original = False
+                for n in nodes:
+                    if "date" in n:
+                        if n["date"] == fecha_mas_antigua and not kept_original:
+                            kept_original = True
+                        else:
+                            ghost_nodes.append(n)
                 
                 if ghost_nodes:
                     mutation = """
@@ -897,7 +906,8 @@ def build_payload_from_plex(item, media_type, show_map=None):
         utc_dt = datetime.datetime.utcfromtimestamp(last_viewed_at)
         watched_at = utc_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
         
-        if (watched_at.startswith("2026-09-14") or watched_at.startswith("2026-09-15")) and os.path.exists("_DUPLICATE_FIX"):
+        # Filtramos por todo septiembre para evitar problemas de desfase horario UTC
+        if watched_at.startswith("2026-09-") and os.path.exists("_DUPLICATE_FIX"):
             guid = item.get("guid", "")
             metadata_id = guid.split("/")[-1]
             
@@ -1062,13 +1072,6 @@ def push_all_to_db():
                 print("🗑️ Archivo _DUPLICATE_FIX borrado tras finalizar la carga inicial.")
             except Exception as e:
                 print(f"Error borrando _DUPLICATE_FIX: {e}")
-        
-        # Lanza la descarga masiva de imágenes TMDB al terminar
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(bulk_download_tmdb_images())
-        except RuntimeError:
-            pass
 
 def push_recent_to_db(last_sync_utc_str):
     print("Starting INCREMENTAL PUSH from Plex to local DB...")
@@ -1175,6 +1178,12 @@ async def sync_loop():
         print(f"Sleeping {SYNC_INTERVAL} seconds...")
         await asyncio.sleep(SYNC_INTERVAL)
 
+async def background_initial_task():
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, run_sync)
+    # Una vez terminada la carga en BD, descargamos las imágenes asíncronamente
+    await bulk_download_tmdb_images()
+
 @app.on_event("startup")
 async def startup_event():
     init_db()
@@ -1186,8 +1195,7 @@ async def startup_event():
         print("First time setup: Triggering initial sync in background...")
         settings["sync_state"] = 1
         save_settings(settings)
-        loop = asyncio.get_running_loop()
-        loop.run_in_executor(None, run_sync)
+        asyncio.create_task(background_initial_task())
         
     if not HAS_PLEX_PASS:
         print("Plex Pass NOT detected: Starting incremental sync loop...")
