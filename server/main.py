@@ -14,6 +14,7 @@ import base64
 import hmac
 import hashlib
 import asyncio
+import time
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -889,8 +890,20 @@ def sanitize_plex_item(metadata_id, delete_ghosts=False):
                             },
                             "operationName": "removeActivity"
                         }
-                        requests.post(url, headers=headers, json=del_payload, timeout=5)
-                        print(f"👻 Borrado fantasma Plex Cloud: {ghost.get('id')}")
+                        del_r = requests.post(url, headers=headers, json=del_payload, timeout=10)
+                        if del_r.status_code == 200:
+                            print(f"👻 Borrado fantasma Plex Cloud: {ghost.get('id')}")
+                        elif del_r.status_code == 429:
+                            print(f"⚠️ RATE LIMIT 429 de Plex al borrar {ghost.get('id')}. Pausando 5 segundos...")
+                            time.sleep(5)
+                        else:
+                            print(f"❌ Error {del_r.status_code} al borrar {ghost.get('id')}: {del_r.text}")
+                            
+                        # Respiro entre borrados
+                        time.sleep(1.5)
+                        
+                    # Respiro antes de saltar al siguiente episodio
+                    time.sleep(2)
                 
             return fecha_mas_antigua
     except Exception as e:
