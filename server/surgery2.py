@@ -6,6 +6,7 @@ import requests
 import os
 import sys
 
+# v2
 # Forzar codificación UTF-8 en consola
 sys.stdout.reconfigure(encoding='utf-8')
 
@@ -63,8 +64,8 @@ mutation updateActivityDate($id: ID!, $input: UpdateActivityInput!) {
 def main():
     print("🔪 Starting Plex Temporal Surgery...")
     
-    # 14 de Diciembre de 2025 a las 12:00 UTC (Para que caiga seguro en el día 14 en España)
-    current_date = datetime.datetime(2025, 12, 14, 12, 0, 0, tzinfo=datetime.timezone.utc)
+    # 14 de Diciembre de 2023 a las 12:00 UTC (Para que caiga seguro en el día 14 en España)
+    current_date = datetime.datetime(2023, 12, 14, 12, 0, 0, tzinfo=datetime.timezone.utc)
     counter = 0
     target = random.randint(1, 4)
     
@@ -96,13 +97,14 @@ def main():
             watched_at_graphql = current_date.strftime('%Y-%m-%dT%H:%M:%S.000Z')
             watched_at_local = current_date.strftime('%Y-%m-%dT%H:%M:%SZ')
             
-            # PASO 0: Comprobar caso especial (TWD S1E1 ya tiene scrobble manual)
+            # PASO 0: Evitar Scrobble para los episodios que ya se procesaron en la tirada fallida
             needs_scrobble = True
-            if show == "The Walking Dead" and season == 1 and episode == 1:
-                print(f"  ℹ️ {show} S{season}E{episode} - Saltando Scrobble inicial (ya se hizo a mano)")
+            
+            if show == "The Walking Dead" and season == 11 and episode >= 4:
+                print(f"  ℹ️ {show} S{season}E{episode} - Nodo ya generado en pasada anterior. Saltando Scrobble.")
                 needs_scrobble = False
                 
-            # PASO 1: SCROBBLE (Crear el evento en Plex local si es necesario)
+            # PASO 1: SCROBBLE (Crear el evento en Plex local si no existía)
             if needs_scrobble:
                 # 1.1 Necesitamos extraer el ratingKey local consultando a Plex por su guid global
                 rating_key = None
