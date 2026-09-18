@@ -19,7 +19,7 @@ import threading
 import queue
 from dotenv import load_dotenv
 
-# Hilo fantasma borrado, ver _fix.py
+# v3.1
 load_dotenv()
 
 app = FastAPI()
@@ -330,7 +330,7 @@ def process_plex_payload(payload, cursor, is_bulk=False):
             action = "Bulk Update (Solo IDs)"
             
         if media_type == "episode":
-            print(f"🔄 Plex PUSH ({action}): Serie '{show_title}' T{season}E{episode}")
+            print(f"🔄 Plex PUSH ({action}): Serie '{show_title}' T{season}E{episode} - {title}")
         else:
             print(f"🔄 Plex PUSH ({action}): Película '{title}'")
     else:
@@ -349,7 +349,7 @@ def process_plex_payload(payload, cursor, is_bulk=False):
         ))
         
         if media_type == "episode":
-            print(f"✅ Plex PUSH (Nuevo): Serie '{show_title}' T{season}E{episode}")
+            print(f"✅ Plex PUSH (Nuevo): Serie '{show_title}' T{season}E{episode} - {title}")
         else:
             print(f"✅ Plex PUSH (Nuevo): Película '{title}'")
             
@@ -471,7 +471,7 @@ def process_kodi_payload(payload, cursor, is_bulk=False):
             action = "Bulk Update (Solo IDs)"
             
         if media_type == "episode":
-            print(f"🔄 Kodi PUSH ({action}): Serie '{show_title}' T{season}E{episode}")
+            print(f"🔄 Kodi PUSH ({action}): Serie '{show_title}' T{season}E{episode} - {title}")
         else:
             print(f"🔄 Kodi PUSH ({action}): Película '{title}'")
     else:
@@ -490,7 +490,7 @@ def process_kodi_payload(payload, cursor, is_bulk=False):
         ))
         
         if media_type == "episode":
-            print(f"✅ Kodi PUSH (Nuevo): Serie '{show_title}' T{season}E{episode}")
+            print(f"✅ Kodi PUSH (Nuevo): Serie '{show_title}' T{season}E{episode} - {title}")
         else:
             print(f"✅ Kodi PUSH (Nuevo): Película '{title}'")
             
@@ -533,7 +533,7 @@ def scrobble_single_item_to_plex(title, show_title, season, episode, media_type)
                         if pep.get("parentIndex") == season and pep.get("index") == episode:
                             if pep.get("viewCount", 0) == 0:
                                 requests.get(f"{PLEX_URL}/:/scrobble?identifier=com.plexapp.plugins.library&key={pep['ratingKey']}", headers=plex_headers)
-                                print(f"✅ [Direct] Marked episode in Plex: {show_title} T{season}E{episode}")
+                                print(f"✅ [Direct] Marked episode in Plex: {show_title} T{season}E{episode} - {title}")
                             break
     except Exception as e:
         print(f"Error en scrobble_single_item_to_plex: {e}")
@@ -769,6 +769,80 @@ class UpdateHistoryRequest(BaseModel):
     watched_at: str
     scope: Optional[str] = "episode"
 
+def perform_plex_surgery(item: dict, watched_at_local: str):
+    plex_guid = item.get("plex_guid")
+    if not plex_guid: return False
+    metadata_id = plex_guid.split("/")[-1]
+    watched_at_graphql = watched_at_local.replace("Z", ".000Z")
+    
+    headers_fetch = {
+        "Accept": "application/json", "Content-Type": "application/json",
+        "x-plex-client-identifier": "7o448fp80hf1p7gbvqvvaklv", "x-plex-token": PLEX_TOKEN
+    }
+    url_graphql = "https://community.plex.tv/api"
+    query_get = """
+    query GetActivityFeed($first: PaginationInt!, $metadataID: ID, $types: [ActivityType!]!, $includeDescendants: Boolean = false) {
+      activityFeed(first: $first, metadataID: $metadataID, types: $types, includeDescendants: $includeDescendants) {
+        nodes { id }
+      }
+    }
+    """
+    payload_get = {
+        "query": query_get,
+        "variables": {"first": 24, "types": ["WATCH_HISTORY", "WATCH_SESSION"], "includeDescendants": True, "metadataID": metadata_id},
+        "operationName": "GetActivityFeed"
+    }
+    
+    node_id = None
+    for intento in range(3):
+        try:
+            r = requests.post(url_graphql, headers=headers_fetch, json=payload_get, timeout=20)
+            if r.status_code == 200:
+                nodes = r.json().get("data", {}).get("activityFeed", {}).get("nodes", [])
+                if nodes: node_id = nodes[0]["id"]
+                break
+            elif r.status_code == 429:
+                time.sleep(5)
+            else:
+                break
+        except Exception:
+            time.sleep(2)
+            
+    if not node_id:
+        print(f"No node for {item.get('title')}, triggering scrobble...")
+        scrobble_single_item_to_plex(item.get("title"), item.get("show_title"), item.get("season"), item.get("episode"), item.get("media_type"))
+        time.sleep(2)
+        for intento in range(3):
+            try:
+                r = requests.post(url_graphql, headers=headers_fetch, json=payload_get, timeout=20)
+                if r.status_code == 200:
+                    nodes = r.json().get("data", {}).get("activityFeed", {}).get("nodes", [])
+                    if nodes: node_id = nodes[0]["id"]
+                    break
+            except Exception:
+                time.sleep(2)
+                
+    if node_id:
+        headers_mutate = dict(headers_fetch)
+        headers_mutate["origin"] = "https://app.plex.tv"
+        mutation_graphql = """
+        mutation updateActivityDate($id: ID!, $input: UpdateActivityInput!) {
+          updateActivity(id: $id, input: $input) { id }
+        }
+        """
+        payload_mut = {
+            "query": mutation_graphql, "variables": {"id": node_id, "input": {"date": watched_at_graphql}}, "operationName": "updateActivityDate"
+        }
+        try:
+            requests.post(url_graphql, headers=headers_mutate, json=payload_mut, timeout=20)
+            print(f"💉 Surgery success in Plex Cloud for {item.get('title')} -> {watched_at_local}")
+            return True
+        except Exception as e:
+            print(f"❌ Surgery failed for {item.get('title')}: {e}")
+    else:
+        print(f"❌ Surgery failed: Could not get Activity Node for {item.get('title')}")
+    return False
+
 @app.put("/api/history/{item_id}")
 def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: str = Depends(verify_api_key)):
     conn = sqlite3.connect("sync.db")
@@ -785,18 +859,37 @@ def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: 
         
     scope = req.scope or "episode"
     
+    # 1. Fetch all items that will be modified
+    items_to_modify = []
     if item["media_type"] == "episode":
         if scope == "episode":
-            cursor.execute("UPDATE watch_history SET watched_at = ? WHERE id = ?", (req.watched_at, item_id))
+            cursor.execute("SELECT * FROM watch_history WHERE id = ?", (item_id,))
         elif scope == "show":
-            cursor.execute("UPDATE watch_history SET watched_at = ? WHERE show_title = ?", (req.watched_at, item["show_title"]))
+            cursor.execute("SELECT * FROM watch_history WHERE show_title = ?", (item["show_title"],))
         elif scope == "season":
-            cursor.execute("UPDATE watch_history SET watched_at = ? WHERE show_title = ? AND season = ?", (req.watched_at, item["show_title"], item["season"]))
+            cursor.execute("SELECT * FROM watch_history WHERE show_title = ? AND season = ?", (item["show_title"], item["season"]))
         elif scope == "onwards":
-            cursor.execute("UPDATE watch_history SET watched_at = ? WHERE show_title = ? AND (season > ? OR (season = ? AND episode >= ?))", (req.watched_at, item["show_title"], item["season"], item["season"], item["episode"]))
+            cursor.execute("SELECT * FROM watch_history WHERE show_title = ? AND (season > ? OR (season = ? AND episode >= ?))", (item["show_title"], item["season"], item["season"], item["episode"]))
     else:
-        # Movies only support single update
-        cursor.execute("UPDATE watch_history SET watched_at = ? WHERE id = ?", (req.watched_at, item_id))
+        cursor.execute("SELECT * FROM watch_history WHERE id = ?", (item_id,))
+        
+    items_to_modify = [dict(r) for r in cursor.fetchall()]
+    
+    # 2. Perform Plex Cloud Surgery and Update DB with new watched_at & created_at
+    now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    
+    # For multiple items, we should decrement time backwards if we want chronology, 
+    # but since the UI sends one date, we apply it to all. (For bulk, users might get same date for all)
+    current_date = datetime.datetime.strptime(req.watched_at, "%Y-%m-%dT%H:%M:%SZ")
+    
+    for mod_item in sorted(items_to_modify, key=lambda x: (x.get("season", 0), x.get("episode", 0)), reverse=True):
+        watched_str = current_date.strftime("%Y-%m-%dT%H:%M:%SZ")
+        perform_plex_surgery(mod_item, watched_str)
+        
+        cursor.execute("UPDATE watch_history SET watched_at = ?, created_at = ? WHERE id = ?", (watched_str, now_utc, mod_item["id"]))
+        
+        if len(items_to_modify) > 1:
+            current_date -= datetime.timedelta(minutes=45) # Decrement 45m backwards for chronological bulk update
         
     conn.commit()
     conn.close()
@@ -928,9 +1021,9 @@ def get_oldest_date(rating_key, metadata_id, xml_watched_at):
         },
         "operationName": "GetActivityFeed"
     }
-    try:
-        for intento in range(3):
-            r = requests.post(url, headers=headers_fetch, json=payload, timeout=10)
+    for intento in range(3):
+        try:
+            r = requests.post(url, headers=headers_fetch, json=payload, timeout=20)
             if r.status_code == 200:
                 nodes = r.json().get("data", {}).get("activityFeed", {}).get("nodes", [])
                 for n in nodes:
@@ -942,8 +1035,12 @@ def get_oldest_date(rating_key, metadata_id, xml_watched_at):
                 time.sleep(5)
             else:
                 break
-    except Exception as e:
-        print(f"Error GraphQL for {metadata_id}: {e}")
+        except Exception as e:
+            if intento == 2:
+                print(f"Error GraphQL for {metadata_id} after 3 retries: {e}")
+            else:
+                print(f"⚠️ Timeout/Error GraphQL for {metadata_id}, retrying ({intento+1}/3)...")
+                time.sleep(2)
         
     if not fechas:
         return xml_watched_at
