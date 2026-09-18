@@ -901,11 +901,12 @@ def get_oldest_date(rating_key, metadata_id, xml_watched_at):
         print(f"❌ Unknown error processing local history for {rating_key}: {e}", flush=True)
         
     # GraphQL API (Cloud)
+    # [TEST id ] 7o448fp80hf1p7gbvqvvaklv 
     url = "https://community.plex.tv/api"
     headers_fetch = {
         "Accept": "application/json",
         "Content-Type": "application/json",
-        "x-plex-client-identifier": "7o448fp80hf1p7gbvqvvaklv",
+        "x-plex-client-identifier": "b8x92tz3pq1g4f7mcy6k0w5n",
         "x-plex-token": PLEX_TOKEN
     }
     query_graphql = """
