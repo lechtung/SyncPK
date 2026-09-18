@@ -62,10 +62,7 @@ mutation updateActivityDate($id: ID!, $input: UpdateActivityInput!) {
 def main():
     print("🔪 Starting Plex Temporal Surgery...")
     
-    # 24 de Septiembre de 2023 a las 12:00 UTC
-    current_date = datetime.datetime(2023, 9, 24, 12, 0, 0, tzinfo=datetime.timezone.utc)
-    counter = 0
-    target = random.randint(1, 4)
+    # El rango estricto es del 20 al 24 de Septiembre de 2023
     
     conn = sqlite3.connect("sync.db")
     conn.row_factory = sqlite3.Row
@@ -84,12 +81,21 @@ def main():
             print(f"  ⚠️ No episodes found in sync.db for '{show}'")
             continue
             
-        for ep in episodes:
+        # Distribución estricta pedida: 3 el 24, 3 el 23, 2 el 22, 3 el 21, 3 el 20
+        # Como el bucle procesa del S1E14 al S1E1, mapeamos los días en ese mismo orden
+        days = [24, 24, 24, 23, 23, 23, 22, 22, 21, 21, 21, 20, 20, 20]
+        # Horas decrecientes para mantener el orden cronológico dentro del mismo día
+        hours = [22, 21, 20, 22, 21, 20, 21, 20, 22, 21, 20, 22, 21, 20]
+            
+        for idx, ep in enumerate(episodes):
             db_id = ep["id"]
             plex_guid = ep["plex_guid"]
             metadata_id = plex_guid.split("/")[-1]
             season = ep["season"]
             episode = ep["episode"]
+            
+            # Asignar la fecha estricta pre-calculada
+            current_date = datetime.datetime(2023, 9, days[idx], hours[idx], 0, 0, tzinfo=datetime.timezone.utc)
             
             # Formatos de fecha objetivo
             watched_at_graphql = current_date.strftime('%Y-%m-%dT%H:%M:%S.000Z')
@@ -213,18 +219,7 @@ def main():
             cursor.execute("UPDATE watch_history SET watched_at=? WHERE id=?", (watched_at_local, db_id))
             conn.commit()
             total_episodios_modificados += 1
-            
-            # GESTIÓN DE TIEMPO Y DÍAS
-            # Restamos entre 40 y 60 minutos para el siguiente episodio (que es anterior)
-            current_date -= datetime.timedelta(minutes=random.randint(40, 60))
-            
-            counter += 1
-            if counter >= target:
-                # Saltamos al día anterior y reseteamos la hora a las 12:00 UTC
-                current_date = current_date.replace(hour=12, minute=0, second=0, microsecond=0)
-                current_date -= datetime.timedelta(days=1)
-                counter = 0
-                target = random.randint(1, 4)
+            print(f"  ✅ [LOCAL DB] {show} S{season}E{episode} -> {watched_at_local}")
                 
             # Pequeño respiro para no ahogar la API local ni la nube
             time.sleep(1)
