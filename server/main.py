@@ -19,7 +19,7 @@ import threading
 import queue
 from dotenv import load_dotenv
 
-# v3.1
+# v3.2
 load_dotenv()
 
 app = FastAPI()
@@ -878,9 +878,12 @@ def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: 
     # 2. Perform Plex Cloud Surgery and Update DB with new watched_at & created_at
     now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     
-    # For multiple items, we should decrement time backwards if we want chronology, 
-    # but since the UI sends one date, we apply it to all. (For bulk, users might get same date for all)
-    current_date = datetime.datetime.strptime(req.watched_at, "%Y-%m-%dT%H:%M:%SZ")
+    # Clean milliseconds from frontend if present
+    clean_date = req.watched_at
+    if "." in clean_date:
+        clean_date = clean_date.split(".")[0] + "Z"
+        
+    current_date = datetime.datetime.strptime(clean_date, "%Y-%m-%dT%H:%M:%SZ")
     
     for mod_item in sorted(items_to_modify, key=lambda x: (x.get("season", 0), x.get("episode", 0)), reverse=True):
         watched_str = current_date.strftime("%Y-%m-%dT%H:%M:%SZ")

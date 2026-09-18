@@ -40,39 +40,12 @@ done
 TARGET_STORAGE=$(whiptail --title "LXC Storage" --menu "Select the disk to install SyncPK on:" 15 50 4 "${STORAGE_MENU[@]}" 3>&1 1>&2 2>&3)
 if [ $? -ne 0 ]; then exit 1; fi
 
-# 2. Interactive form
-PLEX_URL=$(whiptail --inputbox "Enter your Plex server URL (e.g., http://192.168.1.100:32400):" 10 60 "http://" --title "Plex Configuration" 3>&1 1>&2 2>&3)
+# 2. Setup Configuration
+echo "[Info] Launching configuration wizard..."
+curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/setup_config.sh -o /tmp/setup_config.sh
+chmod +x /tmp/setup_config.sh
+/tmp/setup_config.sh
 if [ $? -ne 0 ]; then exit 1; fi
-
-HAS_PLEX_PASS=$(whiptail --yesno "Do you have an active Plex Pass subscription?" 10 60 --title "Plex Configuration" 3>&1 1>&2 2>&3; echo $?)
-if [ "$HAS_PLEX_PASS" -eq 0 ]; then
-    HAS_PLEX_PASS="true"
-else
-    HAS_PLEX_PASS="false"
-fi
-
-# Plex PIN Auth
-echo "[Info] Requesting Plex authentication PIN..."
-PLEX_CLIENT_ID="syncpk-installer-$RANDOM-$RANDOM"
-PIN_RESPONSE=$(curl -s -X POST "https://plex.tv/api/v2/pins?strong=true" -H "Accept: application/json" -H "X-Plex-Product: SyncPK" -H "X-Plex-Client-Identifier: $PLEX_CLIENT_ID")
-PIN_ID=$(echo "$PIN_RESPONSE" | jq -r '.id')
-PIN_CODE=$(echo "$PIN_RESPONSE" | jq -r '.code')
-AUTH_URL="https://app.plex.tv/auth#?clientID=$PLEX_CLIENT_ID&code=$PIN_CODE&context[device][product]=SyncPK"
-
-whiptail --msgbox "Plex Authentication Required!\n\nOn the next screen, you will see a link. Copy it and open it in your browser. The script will wait for you to authorize." 10 60
-clear
-echo -e "\n============================================="
-echo -e "🔗 PLEX AUTHORIZATION LINK:"
-echo -e "$AUTH_URL"
-echo -e "=============================================\n"
-echo "[Info] Waiting for you to authorize in your browser (it will auto-resume)..."
-PLEX_TOKEN=""
-while [ -z "$PLEX_TOKEN" ] || [ "$PLEX_TOKEN" == "null" ]; do
-    sleep 3
-    CHECK_RESPONSE=$(curl -s -X GET "https://plex.tv/api/v2/pins/$PIN_ID" -H "Accept: application/json" -H "X-Plex-Client-Identifier: $PLEX_CLIENT_ID")
-    PLEX_TOKEN=$(echo "$CHECK_RESPONSE" | jq -r '.authToken')
-done
-echo "[Info] Plex authentication successful!"
 
 while true; do
     ROOT_PASSWORD=$(whiptail --passwordbox "Create a ROOT password for the Proxmox LXC container (for SSH/Console):" 10 60 --title "LXC Security" 3>&1 1>&2 2>&3)
@@ -87,31 +60,6 @@ while true; do
         whiptail --msgbox "Passwords do not match. Please try again." 8 45 --title "Error"
     fi
 done
-
-while true; do
-    SYNC_PASSWORD=$(whiptail --passwordbox "Create a master password for SyncPK (Kodi addon & Web Dashboard):" 10 60 --title "SyncPK Security" 3>&1 1>&2 2>&3)
-    if [ $? -ne 0 ]; then exit 1; fi
-
-    SYNC_PASSWORD_CONFIRM=$(whiptail --passwordbox "Confirm your master password:" 10 60 --title "Security" 3>&1 1>&2 2>&3)
-    if [ $? -ne 0 ]; then exit 1; fi
-
-    if [ "$SYNC_PASSWORD" == "$SYNC_PASSWORD_CONFIRM" ]; then
-        break
-    else
-        whiptail --msgbox "Passwords do not match. Please try again." 8 45 --title "Error"
-    fi
-done
-
-TMDB_API_KEY=$(whiptail --inputbox "Enter your TMDB API Key (Free at themoviedb.org) to load posters:" 10 60 --title "TMDB (The Movie Database)" 3>&1 1>&2 2>&3)
-if [ $? -ne 0 ]; then exit 1; fi
-
-# Generate secure hashes and tokens
-SALT=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 16 | head -n 1)
-WEB_HASH=$(echo -n "${SYNC_PASSWORD}${SALT}" | sha256sum | awk '{print $1}')
-
-API_TOKEN=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
-API_TOKEN="sk_syncpk_${API_TOKEN}"
-API_HASH=$(echo -n "${API_TOKEN}${SALT}" | sha256sum | awk '{print $1}')
 
 # 3. Download template and create LXC
 CTID=$(pvesh get /cluster/nextid)
@@ -187,85 +135,16 @@ sleep 10
 CT_IP=$(pct exec $CTID -- ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
 echo "[Info] Assigned IP: $CT_IP"
 
-# 4. Instalación de software dentro del LXC
-echo "[Info] Installing Python and dependencies in the container..."
-pct exec $CTID -- apt-get update
-pct exec $CTID -- apt-get install -y python3 python3-venv python3-pip curl
+# 4. Inyección y despliegue dentro del LXC
+echo "[Info] Injecting environment configuration into LXC..."
+pct exec $CTID -- mkdir -p /opt/syncpk
+pct push $CTID .env /opt/syncpk/.env
 
-echo "[Info] Downloading files from GitHub..."
-pct exec $CTID -- mkdir -p /root/sync_server/static/locales
-# In production, use raw.githubusercontent.com
-pct exec $CTID -- curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/main.py -o /root/sync_server/main.py
-pct exec $CTID -- curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/index.html -o /root/sync_server/static/index.html
-pct exec $CTID -- bash -c "curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/main.py -o /root/sync_server/main.py"
-pct exec $CTID -- bash -c "curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/index.html -o /root/sync_server/static/index.html"
-pct exec $CTID -- bash -c "curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/style.css -o /root/sync_server/static/style.css"
-pct exec $CTID -- bash -c "curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/app.js -o /root/sync_server/static/app.js"
-pct exec $CTID -- bash -c "curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/locales/en.json -o /root/sync_server/static/locales/en.json"
-pct exec $CTID -- bash -c "curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/locales/es.json -o /root/sync_server/static/locales/es.json"
-pct exec $CTID -- bash -c "curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/favicon.ico -o /root/sync_server/static/favicon.ico"
-pct exec $CTID -- bash -c "curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/requirements.txt -o /root/sync_server/requirements.txt"
+echo "[Info] Launching automated system installer inside LXC..."
+pct exec $CTID -- bash -c "cd /opt/syncpk && curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/setup_system.sh -o setup_system.sh && chmod +x setup_system.sh && ./setup_system.sh"
 
-# If files do not exist on GitHub yet, create dummies to prevent script failure
-pct exec $CTID -- bash -c "if [ ! -f /root/sync_server/requirements.txt ] || ! grep -q 'fastapi' /root/sync_server/requirements.txt; then echo -e 'fastapi\nuvicorn\nrequests\npython-dotenv\npython-multipart\nhttpx' > /root/sync_server/requirements.txt; fi"
-
-echo "[Info] Configuring environment variables (.env)..."
-pct exec $CTID -- bash -c "cat << 'EOF' > /root/sync_server/.env
-PLEX_URL=$PLEX_URL
-PLEX_TOKEN=$PLEX_TOKEN
-HAS_PLEX_PASS=$HAS_PLEX_PASS
-SALT=$SALT
-WEB_HASH=$WEB_HASH
-API_HASH=$API_HASH
-TMDB_API_KEY=$TMDB_API_KEY
-EOF"
-
-echo "[Info] Configuring virtual environment..."
-pct exec $CTID -- python3 -m venv /root/sync_server/venv
-pct exec $CTID -- /root/sync_server/venv/bin/pip install -r /root/sync_server/requirements.txt
-
-# 5. Servicios Systemd
-echo "[Info] Creating systemd services..."
-pct exec $CTID -- bash -c "cat << 'EOF' > /etc/systemd/system/syncpk-server.service
-[Unit]
-Description=SyncPK Central Server
-After=network.target
-
-[Service]
-User=root
-WorkingDirectory=/root/sync_server
-ExecStart=/root/sync_server/venv/bin/python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-EOF"
-
-pct exec $CTID -- systemctl daemon-reload
-pct exec $CTID -- systemctl enable syncpk-server
-pct exec $CTID -- systemctl start syncpk-server
-
-# Setup MOTD for SSH/Console login
-echo "[Info] Configuring MOTD..."
-pct exec $CTID -- bash -c "cat << 'EOF' > /etc/profile.d/syncpk-motd.sh
-#!/bin/bash
-source /root/sync_server/.env
-LOCAL_IP=\$(hostname -I | awk '{print \$1}')
-    echo -e \"\e[32m\"
-echo \"=================================================\"
-echo \"               SyncPK Server Active              \"
-echo \"=================================================\"
-echo \" Web Dashboard: http://\$LOCAL_IP:8000\"
-echo \" Webhook Token: $API_TOKEN\"
-echo \" Kodi Webhook:  http://\$LOCAL_IP:8000/webhook/kodi?token=$API_TOKEN\"
-echo \" Plex Webhook:  http://\$LOCAL_IP:8000/webhook/plex?token=$API_TOKEN\"
-echo \"=================================================\"
-echo -e \"\e[0m\"
-EOF"
-pct exec $CTID -- chmod +x /etc/profile.d/syncpk-motd.sh
-
-whiptail --title "Installation Completed" --msgbox "SyncPK successfully installed.\n\nWeb Dashboard: http://$CT_IP:8000\n\nGenerated API Token: $API_TOKEN\n\nPlex Webhook: http://$CT_IP:8000/webhook/plex?token=$API_TOKEN\nKodi Webhook: http://$CT_IP:8000/webhook/kodi?token=$API_TOKEN\n\nConfigure the Plex Webhook in your Plex server settings, and enter the IP and API Token in your Kodi Addon." 18 75
+source .env
+whiptail --title "Installation Completed" --msgbox "SyncPK successfully installed.\n\nWeb Dashboard: http://$CT_IP:8000\n\nGenerated API Token: $API_TOKEN_RAW\n\nPlex Webhook: http://$CT_IP:8000/webhook/plex?token=$API_TOKEN_RAW\nKodi Webhook: http://$CT_IP:8000/webhook/kodi?token=$API_TOKEN_RAW\n\nConfigure the Plex Webhook in your Plex server settings, and enter the IP and API Token in your Kodi Addon." 18 75
 
 echo "Installation completed! Server IP: $CT_IP"
 
