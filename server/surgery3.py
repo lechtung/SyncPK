@@ -81,6 +81,27 @@ def main():
             print(f"  ⚠️ No episodes found in sync.db for '{show}'")
             continue
             
+        # NUEVO: Obtener la serie y todos sus episodios de Plex directamente
+        r_show = requests.get(f"{PLEX_URL}/search?type=2&query={show}", headers={"Accept": "application/json", "X-Plex-Token": PLEX_TOKEN})
+        show_key = None
+        if r_show.status_code == 200:
+            md = r_show.json().get("MediaContainer", {}).get("Metadata", [])
+            if md:
+                show_key = md[0].get("ratingKey")
+                
+        if not show_key:
+            print(f"  ❌ No se encontró la serie {show} en Plex local.")
+            continue
+            
+        r_eps = requests.get(f"{PLEX_URL}/library/metadata/{show_key}/allLeaves", headers={"Accept": "application/json", "X-Plex-Token": PLEX_TOKEN})
+        plex_episodes = {}
+        if r_eps.status_code == 200:
+            for item in r_eps.json().get("MediaContainer", {}).get("Metadata", []):
+                s = item.get("parentIndex")
+                e = item.get("index")
+                if s and e:
+                    plex_episodes[(s, e)] = item
+            
         # Distribución estricta pedida: 3 el 24, 3 el 23, 2 el 22, 3 el 21, 3 el 20
         # Como el bucle procesa del S1E14 al S1E1, mapeamos los días en ese mismo orden
         days = [24, 24, 24, 23, 23, 23, 22, 22, 21, 21, 21, 20, 20, 20]
@@ -89,10 +110,18 @@ def main():
             
         for idx, ep in enumerate(episodes):
             db_id = ep["id"]
-            plex_guid = ep["plex_guid"]
-            metadata_id = plex_guid.split("/")[-1]
             season = ep["season"]
             episode = ep["episode"]
+            
+            # Buscamos el episodio en Plex por Temporada y Capítulo (así ignoramos el GUID viejo de sync.db)
+            plex_ep = plex_episodes.get((season, episode))
+            if not plex_ep:
+                print(f"  ❌ No se pudo encontrar Firefly S{season}E{episode} en Plex local. Saltando.")
+                continue
+                
+            rating_key = plex_ep.get("ratingKey")
+            plex_guid = plex_ep.get("guid", "")
+            metadata_id = plex_guid.split("/")[-1]
             
             # Asignar la fecha estricta pre-calculada
             current_date = datetime.datetime(2023, 9, days[idx], hours[idx], 0, 0, tzinfo=datetime.timezone.utc)
@@ -105,19 +134,7 @@ def main():
                 
             # PASO 1: SCROBBLE (Crear el evento en Plex local si no existía)
             if needs_scrobble:
-                # 1.1 Necesitamos extraer el ratingKey local consultando a Plex por su guid global
-                rating_key = None
-                r_search = requests.get(f"{PLEX_URL}/library/all?guid={plex_guid}", headers={"Accept": "application/json", "X-Plex-Token": PLEX_TOKEN}, timeout=10)
-                if r_search.status_code == 200:
-                    md = r_search.json().get("MediaContainer", {}).get("Metadata", [])
-                    if md:
-                        rating_key = md[0].get("ratingKey")
-                        
-                if not rating_key:
-                    print(f"  ❌ No se pudo encontrar ratingKey local para {show} S{season}E{episode}. Saltando.")
-                    continue
-                
-                # 1.2 Forzar el Scrobble
+                # 1.2 Forzar el Scrobble con el ratingKey actualizado
                 r_scrobble = requests.get(f"{PLEX_URL}/:/scrobble?key={rating_key}&identifier=com.plexapp.plugins.library", headers={"X-Plex-Token": PLEX_TOKEN}, timeout=10)
                 if r_scrobble.status_code != 200:
                     print(f"  ❌ Error haciendo scrobble de {show} S{season}E{episode} (HTTP {r_scrobble.status_code}). Saltando.")
@@ -216,7 +233,7 @@ def main():
                 continue
                 
             # PASO 4: ACTUALIZAR BD LOCAL INCONDICIONALMENTE
-            cursor.execute("UPDATE watch_history SET watched_at=? WHERE id=?", (watched_at_local, db_id))
+            cursor.execute("UPDATE watch_history SET watched_at=?, plex_guid=? WHERE id=?", (watched_at_local, plex_guid, db_id))
             conn.commit()
             total_episodios_modificados += 1
             print(f"  ✅ [LOCAL DB] {show} S{season}E{episode} -> {watched_at_local}")
