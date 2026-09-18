@@ -35,7 +35,7 @@ This is required to fetch movie/show posters and durations for your dashboard.
 
 We provide two automated installation scripts. You don't need to manually download or configure the files.
 
-### Option A: Proxmox Automatic LXC (Recommended)
+### Option A: Proxmox Automatic LXC
 If you are running a Proxmox server, you can use our interactive script to automatically create a brand-new LXC container, install all dependencies, and set up the services.
 
 Run this command directly in your **Proxmox Host Shell**:
@@ -53,8 +53,20 @@ Run this command as **root** inside your Linux machine:
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/lechtung/SyncPK/main/install.sh)"
 ```
 
-*During the installation, you will be prompted to enter your Plex IP, your TMDB API Key, and a Master Password. The script will handle the Plex Token securely via the OAuth PIN link. It will also ask if you have an active **Plex Pass** subscription; if you don't, it will automatically enable background polling to compensate for the lack of native Plex Webhooks.*
+### Option C: Docker Compose (r/selfhosted)
+For the standard self-hosted stack, SyncPK can be deployed seamlessly using Docker.
 
+1. Download the setup script and run it to interactively generate your `.env` configuration file:
+   ```bash
+   bash -c "$(curl -fsSL https://raw.githubusercontent.com/lechtung/SyncPK/main/setup_config.sh)"
+   ```
+2. Download the `docker-compose.yml` file and start the container:
+   ```bash
+   curl -O https://raw.githubusercontent.com/lechtung/SyncPK/main/docker-compose.yml
+   docker compose up -d
+   ```
+
+*During any of the automated installations, you will be prompted to enter your Plex IP, your TMDB API Key, and a Master Password. The script will handle the Plex Token securely via the OAuth PIN link. It will also ask if you have an active **Plex Pass** subscription; if you don't, it will automatically enable background polling to compensate for the lack of native Plex Webhooks.*
 ---
 
 ## 🎬 Plex Webhook Setup
