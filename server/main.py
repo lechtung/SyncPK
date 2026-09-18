@@ -769,6 +769,13 @@ class UpdateHistoryRequest(BaseModel):
     watched_at: str
     scope: Optional[str] = "episode"
     sync_remote: bool = True
+    dist_mode: Optional[str] = "same"
+    dist_order: Optional[str] = "asc"
+    eps_per_day: Optional[int] = 1
+    eps_min: Optional[int] = 1
+    eps_max: Optional[int] = 3
+    end_date: Optional[str] = None
+    dist_between_type: Optional[str] = "fixed"
 
 def perform_plex_surgery(item: dict, watched_at_local: str):
     plex_guid = item.get("plex_guid")
@@ -875,6 +882,13 @@ def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: 
         cursor.execute("SELECT * FROM watch_history WHERE id = ?", (item_id,))
         
     items_to_modify = [dict(r) for r in cursor.fetchall()]
+    total_items = len(items_to_modify)
+    if total_items == 0:
+        conn.close()
+        return {"success": True}
+        
+    # Sort chronologically (S1E1, S1E2...)
+    sorted_items = sorted(items_to_modify, key=lambda x: (x.get("season", 0), x.get("episode", 0)))
     
     # 2. Perform Plex Cloud Surgery and Update DB with new watched_at & created_at
     now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -886,17 +900,98 @@ def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: 
         
     current_date = datetime.datetime.strptime(clean_date, "%Y-%m-%dT%H:%M:%SZ")
     
-    for mod_item in sorted(items_to_modify, key=lambda x: (x.get("season", 0), x.get("episode", 0)), reverse=True):
-        watched_str = current_date.strftime("%Y-%m-%dT%H:%M:%SZ")
+    # Defaults for simple edit / missing scope
+    dist_mode = getattr(req, "dist_mode", "same")
+    if scope == "episode": dist_mode = "same"
+    
+    # Determine order
+    order = getattr(req, "dist_order", "asc")
+    if dist_mode == "between":
+        end_date = current_date
+        if hasattr(req, "end_date") and req.end_date:
+            clean_end = req.end_date.split(".")[0] + "Z" if "." in req.end_date else req.end_date
+            end_date = datetime.datetime.strptime(clean_end, "%Y-%m-%dT%H:%M:%SZ")
+        order = "asc" if end_date >= current_date else "desc"
+    
+    import random, math
+    days_counts = []
+    
+    if dist_mode == "same":
+        days_counts = [total_items]
+    elif dist_mode == "fixed":
+        eps = getattr(req, "eps_per_day", 1)
+        days_counts = [eps] * (total_items // eps)
+        if total_items % eps > 0: days_counts.append(total_items % eps)
+    elif dist_mode == "random":
+        eps_min = getattr(req, "eps_min", 1)
+        eps_max = getattr(req, "eps_max", 3)
+        c_sum = 0
+        while c_sum < total_items:
+            r = random.randint(eps_min, eps_max)
+            if c_sum + r > total_items: r = total_items - c_sum
+            days_counts.append(r)
+            c_sum += r
+    elif dist_mode == "between":
+        diff = abs((end_date.date() - current_date.date()).days) + 1
+        if diff <= 0: diff = 1
+        btype = getattr(req, "dist_between_type", "fixed")
+        if btype == "fixed":
+            base_r = total_items // diff
+            rem = total_items % diff
+            days_counts = [base_r] * diff
+            for i in range(rem): days_counts[i] += 1
+        else:
+            base_r = total_items / diff
+            eps_max = getattr(req, "eps_max", 3)
+            max_allowed = max(eps_max, math.ceil(base_r) + 1)
+            days_counts = [random.randint(1, max_allowed) for _ in range(diff)]
+            while sum(days_counts) > total_items:
+                m_val = max(days_counts)
+                idx = days_counts.index(m_val)
+                days_counts[idx] -= 1
+            while sum(days_counts) < total_items:
+                m_val = min(days_counts)
+                idx = days_counts.index(m_val)
+                days_counts[idx] += 1
+                
+    # Generate timestamps
+    assigned_dates = []
+    base_date = current_date
+    for count in days_counts:
+        if count <= 0: continue
+        if count == 1:
+            assigned_dates.append(base_date)
+        else:
+            if order == "asc":
+                avail = (24*3600) - (base_date.hour*3600 + base_date.minute*60 + base_date.second) - 60
+                if avail <= 0: avail = 3600
+                interval = avail / count
+                for i in range(count):
+                    assigned_dates.append(base_date + datetime.timedelta(seconds=int(interval * i)))
+            else:
+                avail = (base_date.hour*3600 + base_date.minute*60 + base_date.second) - 60
+                if avail <= 0: avail = 3600
+                interval = avail / count
+                for i in range(count):
+                    assigned_dates.append(base_date - datetime.timedelta(seconds=int(interval * i)))
+                    
+        if order == "asc":
+            base_date += datetime.timedelta(days=1)
+        else:
+            base_date -= datetime.timedelta(days=1)
+            
+    # Apply to items
+    if order == "desc":
+        sorted_items.reverse()
+        
+    for item, assign_dt in zip(sorted_items, assigned_dates):
+        watched_str = assign_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
         
         if req.sync_remote:
-            perform_plex_surgery(mod_item, watched_str)
-            cursor.execute("UPDATE watch_history SET watched_at = ?, created_at = ? WHERE id = ?", (watched_str, now_utc, mod_item["id"]))
+            perform_plex_surgery(item, watched_str)
+            cursor.execute("UPDATE watch_history SET watched_at = ?, created_at = ? WHERE id = ?", (watched_str, now_utc, item["id"]))
         else:
-            cursor.execute("UPDATE watch_history SET watched_at = ? WHERE id = ?", (watched_str, mod_item["id"]))
-        
-        if len(items_to_modify) > 1:
-            current_date -= datetime.timedelta(minutes=45) # Decrement 45m backwards for chronological bulk update
+            cursor.execute("UPDATE watch_history SET watched_at = ? WHERE id = ?", (watched_str, item["id"]))
         
     conn.commit()
     conn.close()

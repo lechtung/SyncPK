@@ -35,5 +35,22 @@
     "error_state_msg": "Error connecting to the database or scan in progress...",
     "sync_in_progress_msg": "The server is currently performing the initial load. Some images or metadata may not be available yet. Please do NOT configure the Plex or Kodi webhooks yet.",
     "sync_done_msg": "Initial load complete! You can now configure the Plex and Kodi webhooks.",
-    "modal_sync_remote": "Update automatically on Plex & Kodi"
+    "modal_sync_remote": "Update automatically on Plex & Kodi",
+    "edit_dist_mode_title": "Distribution Mode",
+    "dist_mode_same": "Same date",
+    "dist_mode_fixed": "Fixed per day",
+    "dist_mode_random": "Random per day",
+    "dist_mode_between": "Between two dates",
+    "label_end_date": "End Date",
+    "label_eps_per_day": "Episodes per day",
+    "label_eps_min": "Min episodes per day",
+    "label_eps_max": "Max episodes per day",
+    "label_distribution": "Distribution",
+    "dist_type_fixed": "Fixed",
+    "dist_type_random": "Random",
+    "label_order": "Order",
+    "order_asc": "Ascending",
+    "order_desc": "Descending",
+    "help_order_asc": "First episode will be assigned to selected date and the following to later dates.",
+    "help_order_desc": "Last episode will be assigned to selected date and the following to earlier dates."
 }

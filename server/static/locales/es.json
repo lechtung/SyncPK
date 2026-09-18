@@ -56,5 +56,22 @@
     "error_state_msg": "Error conectando con la base de datos o escaneo en progreso...",
     "sync_in_progress_msg": "El servidor todavía está realizando la carga inicial. Puede que algunas carátulas o fichas no estén disponibles. Por favor, NO configures los webhooks de Plex ni de Kodi todavía.",
     "sync_done_msg": "¡La carga inicial ha terminado! Ya puedes configurar los webhooks de Plex y de Kodi.",
-    "modal_sync_remote": "Actualizar automáticamente en Plex y Kodi"
+    "modal_sync_remote": "Actualizar automáticamente en Plex y Kodi",
+    "edit_dist_mode_title": "Modo de Distribución",
+    "dist_mode_same": "Misma fecha",
+    "dist_mode_fixed": "Cantidad fija por día",
+    "dist_mode_random": "Cantidad aleatoria por día",
+    "dist_mode_between": "Distribuir entre dos fechas",
+    "label_end_date": "Fecha fin",
+    "label_eps_per_day": "Episodios por día",
+    "label_eps_min": "Min episodios por día",
+    "label_eps_max": "Máximo episodios por día",
+    "label_distribution": "Distribución",
+    "dist_type_fixed": "Fija",
+    "dist_type_random": "Aleatoria",
+    "label_order": "Orden",
+    "order_asc": "Ascendente",
+    "order_desc": "Descendente",
+    "help_order_asc": "Se asignará el primer episodio a la fecha seleccionada y se irán asignando los siguientes a fechas posteriores.",
+    "help_order_desc": "Se asignará el último episodio a la fecha seleccionada y se irán asignando los siguientes a fechas anteriores."
 }

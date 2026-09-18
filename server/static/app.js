@@ -180,6 +180,9 @@ function initDropdowns() {
                     reloadHistory();
                 } else {
                     dd.dataset.currentValue = value;
+                    if (dd.id === 'editScope-dd' || dd.id === 'editDistMode-dd') {
+                        if (window.updateBulkOptionsUI) window.updateBulkOptionsUI();
+                    }
                 }
             });
         });
@@ -543,8 +546,78 @@ window.openEditModal = function (id, dateStr, mediaType) {
         scopeSelect.classList.add('hidden');
         scopeSelect.dataset.currentValue = 'episode';
     }
+    
+    // Reset Bulk Options Mode to 'same'
+    let distModeSelect = document.getElementById('editDistMode-dd');
+    if(distModeSelect) {
+        distModeSelect.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected'));
+        let dmItem = distModeSelect.querySelector('.c-dropdown-item[data-value="same"]');
+        if (dmItem) dmItem.classList.add('selected');
+        distModeSelect.dataset.currentValue = 'same';
+        let dmValEl = document.getElementById('editDistMode-val');
+        if (dmValEl && currentLangData.dist_mode_same) dmValEl.textContent = currentLangData.dist_mode_same;
+        
+        // Setup initial radio listener if not already there
+        if (!window.distRadioInit) {
+            document.querySelectorAll('input[name="distBetweenType"]').forEach(r => r.addEventListener('change', window.updateBulkOptionsUI));
+            document.querySelectorAll('input[name="distOrder"]').forEach(r => {
+                r.addEventListener('change', (e) => {
+                    let help = document.getElementById('order-help-text');
+                    if (e.target.value === 'asc') help.textContent = currentLangData.help_order_asc || "First episode will be assigned to selected date.";
+                    else help.textContent = currentLangData.help_order_desc || "Last episode will be assigned to selected date.";
+                });
+            });
+            window.distRadioInit = true;
+        }
+        
+        // Trigger initial UI update
+        if(window.updateBulkOptionsUI) window.updateBulkOptionsUI();
+    }
 
     modal.classList.remove('hidden');
+}
+
+window.updateBulkOptionsUI = function() {
+    let scopeVal = document.getElementById('editScope-dd').dataset.currentValue || 'episode';
+    let bulkContainer = document.getElementById('bulkOptions-container');
+    if(!bulkContainer) return;
+    
+    if (scopeVal === 'episode') {
+        bulkContainer.classList.add('hidden');
+        return;
+    }
+    
+    bulkContainer.classList.remove('hidden');
+    let mode = document.getElementById('editDistMode-dd').dataset.currentValue || 'same';
+    
+    let fEnd = document.getElementById('field-end-date');
+    let fMin = document.getElementById('field-eps-min');
+    let fMax = document.getElementById('field-eps-max');
+    let fOrder = document.getElementById('field-order');
+    let fBetweenType = document.getElementById('field-between-type');
+    let labelMin = document.getElementById('label-eps-min');
+    
+    fEnd.classList.add('hidden');
+    fMin.classList.add('hidden');
+    fMax.classList.add('hidden');
+    fOrder.classList.add('hidden');
+    fBetweenType.classList.add('hidden');
+    
+    if (mode === 'fixed') {
+        fMin.classList.remove('hidden');
+        fOrder.classList.remove('hidden');
+        labelMin.textContent = currentLangData.label_eps_per_day || "Episodes per day";
+    } else if (mode === 'random') {
+        fMin.classList.remove('hidden');
+        fMax.classList.remove('hidden');
+        fOrder.classList.remove('hidden');
+        labelMin.textContent = currentLangData.label_eps_min || "Min episodes per day";
+    } else if (mode === 'between') {
+        fEnd.classList.remove('hidden');
+        fBetweenType.classList.remove('hidden');
+        let isRandom = document.querySelector('input[name="distBetweenType"]:checked').value === 'random';
+        if (isRandom) fMax.classList.remove('hidden');
+    }
 }
 
 document.getElementById('edit-save-btn').addEventListener('click', async () => {
@@ -556,12 +629,40 @@ document.getElementById('edit-save-btn').addEventListener('click', async () => {
 
     // Convert back to UTC string format used by DB (or local if prefered, backend saves as string)
     let finalDateStr = new Date(newVal).toISOString();
+    
+    let payload = {
+        watched_at: finalDateStr,
+        scope: scopeVal,
+        sync_remote: document.getElementById('editSyncRemote').checked
+    };
+    
+    if (scopeVal !== 'episode') {
+        let distMode = document.getElementById('editDistMode-dd').dataset.currentValue || 'same';
+        payload.dist_mode = distMode;
+        if (distMode === 'fixed') {
+            payload.eps_per_day = parseInt(document.getElementById('input-eps-min').value) || 1;
+            payload.dist_order = document.querySelector('input[name="distOrder"]:checked').value;
+        } else if (distMode === 'random') {
+            payload.eps_min = parseInt(document.getElementById('input-eps-min').value) || 1;
+            payload.eps_max = parseInt(document.getElementById('input-eps-max').value) || 3;
+            payload.dist_order = document.querySelector('input[name="distOrder"]:checked').value;
+        } else if (distMode === 'between') {
+            let endDateStr = document.getElementById('edit-end-date-input').value;
+            if(endDateStr) payload.end_date = new Date(endDateStr).toISOString();
+            
+            let betweenType = document.querySelector('input[name="distBetweenType"]:checked').value;
+            payload.dist_between_type = betweenType;
+            if (betweenType === 'random') {
+                payload.eps_max = parseInt(document.getElementById('input-eps-max').value) || 3;
+            }
+        }
+    }
 
     try {
         let res = await apiFetch(`/api/history/${currentEditId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ watched_at: finalDateStr, scope: scopeVal, sync_remote: document.getElementById('editSyncRemote').checked })
+            body: JSON.stringify(payload)
         });
         if (res.ok) {
             document.getElementById('edit-modal').classList.add('hidden');

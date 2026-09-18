@@ -146,6 +146,61 @@
                     <div class="c-dropdown-item" data-value="show" data-i18n="edit_scope_show">Entire show</div>
                 </div>
             </div>
+
+            <!-- Advanced Bulk Options Container -->
+            <div id="bulkOptions-container" class="hidden" style="margin-bottom: 24px;">
+                <h4 style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;" data-i18n="edit_dist_mode_title">Distribution Mode</h4>
+                
+                <div class="c-dropdown" id="editDistMode-dd" style="margin-bottom: 16px;">
+                    <div class="c-dropdown-trigger" id="editDistMode-trigger">
+                        <div class="c-dropdown-bottom">
+                            <span class="c-dropdown-value" id="editDistMode-val" data-i18n="dist_mode_same">Same date</span>
+                            <span class="c-dropdown-arrow">▾</span>
+                        </div>
+                    </div>
+                    <div class="c-dropdown-menu glass-panel" id="editDistMode-menu">
+                        <div class="c-dropdown-item selected" data-value="same" data-i18n="dist_mode_same">Same date</div>
+                        <div class="c-dropdown-item" data-value="fixed" data-i18n="dist_mode_fixed">Fixed per day</div>
+                        <div class="c-dropdown-item" data-value="random" data-i18n="dist_mode_random">Random per day</div>
+                        <div class="c-dropdown-item" data-value="between" data-i18n="dist_mode_between">Between two dates</div>
+                    </div>
+                </div>
+
+                <div id="distFields-container" style="display:flex; flex-direction:column; gap:16px;">
+                    <div id="field-end-date" class="hidden">
+                        <label style="color:#aaa; font-size:0.85rem;" data-i18n="label_end_date">End Date</label>
+                        <input type="datetime-local" id="edit-end-date-input" style="margin-top:4px;">
+                    </div>
+                    
+                    <div id="field-eps-min" class="hidden">
+                        <label id="label-eps-min" style="color:#aaa; font-size:0.85rem;" data-i18n="label_eps_per_day">Episodes per day</label>
+                        <input type="number" id="input-eps-min" min="1" max="100" value="1" style="margin-top:4px; width:100%; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.3); color:#fff; font-size:1rem;">
+                    </div>
+                    
+                    <div id="field-eps-max" class="hidden">
+                        <label style="color:#aaa; font-size:0.85rem;" data-i18n="label_eps_max">Max episodes per day</label>
+                        <input type="number" id="input-eps-max" min="1" max="100" value="3" style="margin-top:4px; width:100%; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.3); color:#fff; font-size:1rem;">
+                    </div>
+                    
+                    <div id="field-between-type" class="hidden" style="display:flex; flex-direction:column; gap:8px;">
+                        <label style="color:#aaa; font-size:0.85rem;" data-i18n="label_distribution">Distribution</label>
+                        <div style="display:flex; gap:16px;">
+                            <label style="display:flex; align-items:center; gap:8px; color:#fff; cursor:pointer;"><input type="radio" name="distBetweenType" value="fixed" checked> <span data-i18n="dist_type_fixed">Fixed</span></label>
+                            <label style="display:flex; align-items:center; gap:8px; color:#fff; cursor:pointer;"><input type="radio" name="distBetweenType" value="random"> <span data-i18n="dist_type_random">Random</span></label>
+                        </div>
+                    </div>
+
+                    <div id="field-order" class="hidden" style="display:flex; flex-direction:column; gap:8px;">
+                        <label style="color:#aaa; font-size:0.85rem;" data-i18n="label_order">Order</label>
+                        <div style="display:flex; gap:16px;">
+                            <label style="display:flex; align-items:center; gap:8px; color:#fff; cursor:pointer;"><input type="radio" name="distOrder" value="asc" checked> <span data-i18n="order_asc">Ascending</span></label>
+                            <label style="display:flex; align-items:center; gap:8px; color:#fff; cursor:pointer;"><input type="radio" name="distOrder" value="desc"> <span data-i18n="order_desc">Descending</span></label>
+                        </div>
+                        <span id="order-help-text" style="color:#888; font-size:0.75rem; margin-top:4px;" data-i18n="help_order_asc">First episode will be assigned to selected date.</span>
+                    </div>
+                </div>
+            </div>
+
             <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 24px; color: #fff; font-size: 0.9rem; cursor: pointer;">
                 <input type="checkbox" id="editSyncRemote" checked>
                 <span data-i18n="modal_sync_remote">Update automatically on Plex & Kodi</span>
