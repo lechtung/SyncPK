@@ -6,7 +6,7 @@ import requests
 import os
 import sys
 
-# v3
+# v4
 # Forzar codificación UTF-8 en consola
 sys.stdout.reconfigure(encoding='utf-8')
 
@@ -84,6 +84,27 @@ def main():
         if not episodes:
             print(f"  ⚠️ No episodes found in sync.db to migrate for '{show}'")
             continue
+            
+        # NUEVO: Obtener la serie y todos sus episodios de Plex directamente
+        r_show = requests.get(f"{PLEX_URL}/search?type=2&query={show}", headers={"Accept": "application/json", "X-Plex-Token": PLEX_TOKEN})
+        show_key = None
+        if r_show.status_code == 200:
+            md = r_show.json().get("MediaContainer", {}).get("Metadata", [])
+            if md:
+                show_key = md[0].get("ratingKey")
+                
+        if not show_key:
+            print(f"  ❌ No se encontró la serie {show} en Plex local.")
+            continue
+            
+        r_eps = requests.get(f"{PLEX_URL}/library/metadata/{show_key}/allLeaves", headers={"Accept": "application/json", "X-Plex-Token": PLEX_TOKEN})
+        plex_episodes = {}
+        if r_eps.status_code == 200:
+            for item in r_eps.json().get("MediaContainer", {}).get("Metadata", []):
+                s = item.get("parentIndex")
+                e = item.get("index")
+                if s is not None and e is not None:
+                    plex_episodes[(s, e)] = item
             
         for ep in episodes:
             db_id = ep["id"]
