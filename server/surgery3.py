@@ -6,7 +6,7 @@ import requests
 import os
 import sys
 
-# v2
+# v3
 # Forzar codificación UTF-8 en consola
 sys.stdout.reconfigure(encoding='utf-8')
 
