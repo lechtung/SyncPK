@@ -1,0 +1,14 @@
+version: "3.8"
+
+services:
+  syncpk-server:
+    build: .
+    container_name: syncpk-server
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./sync.db:/app/sync.db
+      - ./plex_settings.json:/app/plex_settings.json
+    env_file:
+      - .env

@@ -25,7 +25,7 @@ load_dotenv()
 app = FastAPI()
 
 # --- PLEX & SECURITY CONFIGURATION ---
-PLEX_URL = os.getenv("PLEX_URL", "http://192.168.178.21:32400")
+PLEX_URL = os.getenv("PLEX_URL", "")
 PLEX_TOKEN = os.getenv("PLEX_TOKEN", "")
 TMDB_API_KEY = os.getenv("TMDB_API_KEY", "")
 SALT = os.getenv("SALT", "")
