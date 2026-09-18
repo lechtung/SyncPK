@@ -442,9 +442,9 @@ async function renderHistory(items) {
                 let tmdbUrl = '';
                 if (item.media_type === 'movie' && item.tmdb_id) {
                     tmdbUrl = `https://www.themoviedb.org/movie/${item.tmdb_id}`;
-                } else if (item.media_type === 'episode' && item.tmdb_id) {
-                    // Asumimos que tmdb_id es el id de la serie
-                    tmdbUrl = `https://www.themoviedb.org/tv/${item.tmdb_id}/season/${item.season}/episode/${item.episode}`;
+                } else if (item.media_type === 'episode' && item.show_tmdb_id) {
+                    // Usamos el ID de la serie de la base de datos
+                    tmdbUrl = `https://www.themoviedb.org/tv/${item.show_tmdb_id}/season/${item.season}/episode/${item.episode}`;
                 } else if (item.media_type === 'movie' && item.title) {
                     tmdbUrl = `https://www.themoviedb.org/search/movie?query=${encodeURIComponent(item.title)}`;
                 } else if (item.media_type === 'episode' && item.show_title) {

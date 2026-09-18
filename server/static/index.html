@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,8 +10,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
+
 <body>
-    
+
     <!-- LOGIN OVERLAY -->
     <div id="login-overlay" class="overlay">
         <div class="login-box glass-panel">
@@ -24,7 +26,7 @@
 
     <!-- MAIN DASHBOARD -->
     <div id="dashboard" class="hidden">
-        
+
         <!-- STICKY HEADER -->
         <header class="sticky-header glass-panel">
             <div class="header-left">
@@ -35,25 +37,29 @@
                     <!-- Javascript will populate days here -->
                 </div>
             </div>
-            
+
             <div class="header-right">
-                <input type="text" id="search-input" data-i18n-placeholder="search_placeholder" placeholder="Search title...">
-                
+                <input type="text" id="search-input" data-i18n-placeholder="search_placeholder"
+                    placeholder="Search title...">
+
                 <div class="c-dropdown" data-filter="type">
                     <div class="c-dropdown-trigger">
                         <span class="c-dropdown-label" data-i18n="filter_label_type">Type</span>
                         <div class="c-dropdown-bottom">
-                            <span class="c-dropdown-value" id="dd-type-val" data-i18n="filter_type_all">All watch history</span>
+                            <span class="c-dropdown-value" id="dd-type-val" data-i18n="filter_type_all">All watch
+                                history</span>
                             <span class="c-dropdown-arrow">▾</span>
                         </div>
                     </div>
                     <div class="c-dropdown-menu glass-panel">
-                        <div class="c-dropdown-item selected" data-value="all" data-i18n="filter_type_all">All watch history</div>
+                        <div class="c-dropdown-item selected" data-value="all" data-i18n="filter_type_all">All watch
+                            history</div>
                         <div class="c-dropdown-item" data-value="movie" data-i18n="filter_type_movies">Movies</div>
-                        <div class="c-dropdown-item" data-value="episode" data-i18n="filter_type_episodes">TV Shows</div>
+                        <div class="c-dropdown-item" data-value="episode" data-i18n="filter_type_episodes">TV Shows
+                        </div>
                     </div>
                 </div>
-                
+
                 <div class="c-dropdown" data-filter="year" id="dd-year">
                     <div class="c-dropdown-trigger">
                         <span class="c-dropdown-label" data-i18n="filter_label_year">Year</span>
@@ -67,7 +73,7 @@
                         <!-- JS will populate years -->
                     </div>
                 </div>
-                
+
                 <div class="c-dropdown" data-filter="month">
                     <div class="c-dropdown-trigger">
                         <span class="c-dropdown-label" data-i18n="filter_label_month">Month</span>
@@ -112,7 +118,7 @@
         <div class="history-feed" id="history-feed">
             <!-- JS will populate history groups here -->
         </div>
-        
+
         <div id="loading-spinner" class="spinner hidden"></div>
 
     </div>
@@ -126,13 +132,16 @@
             <div class="c-dropdown hidden" id="editScope-dd" style="margin-bottom: 24px;">
                 <div class="c-dropdown-trigger" id="editScope-trigger">
                     <div class="c-dropdown-bottom">
-                        <span class="c-dropdown-value" id="editScope-val" data-i18n="edit_scope_episode">Only this episode</span>
+                        <span class="c-dropdown-value" id="editScope-val" data-i18n="edit_scope_episode">Only this
+                            episode</span>
                         <span class="c-dropdown-arrow">▾</span>
                     </div>
                 </div>
                 <div class="c-dropdown-menu glass-panel" id="editScope-menu">
-                    <div class="c-dropdown-item selected" data-value="episode" data-i18n="edit_scope_episode">Only this episode</div>
-                    <div class="c-dropdown-item" data-value="onwards" data-i18n="edit_scope_onwards">From this episode onwards</div>
+                    <div class="c-dropdown-item selected" data-value="episode" data-i18n="edit_scope_episode">Only this
+                        episode</div>
+                    <div class="c-dropdown-item" data-value="onwards" data-i18n="edit_scope_onwards">From this episode
+                        onwards</div>
                     <div class="c-dropdown-item" data-value="season" data-i18n="edit_scope_season">Entire season</div>
                     <div class="c-dropdown-item" data-value="show" data-i18n="edit_scope_show">Entire show</div>
                 </div>
@@ -147,26 +156,30 @@
     <!-- CUSTOM CONFIRM MODAL -->
     <div id="confirm-modal" class="overlay hidden">
         <div class="login-box glass-panel" style="max-width:340px; text-align:center;">
-            <p id="confirm-message" style="margin-bottom:24px; color:#fff; font-size:1rem;" data-i18n="confirm_delete">Delete this item from history?</p>
+            <p id="confirm-message" style="margin-bottom:24px; color:#fff; font-size:1rem;" data-i18n="confirm_delete">
+                Delete this item from history?</p>
             <div class="modal-buttons">
                 <button id="confirm-no-btn" data-i18n="confirm_no">Cancel</button>
                 <button id="confirm-yes-btn" style="background:var(--danger);" data-i18n="confirm_yes">Delete</button>
             </div>
         </div>
     </div>
-    
+
     <!-- LOG VIEWER MODAL -->
     <div id="log-modal" class="overlay hidden">
-        <div class="login-box glass-panel" style="max-width: 900px; width: 95%; height: 85vh; display: flex; flex-direction: column;">
+        <div class="login-box glass-panel"
+            style="max-width: 900px; width: 95%; height: 85vh; display: flex; flex-direction: column;">
             <h3 style="margin-top: 0; color: #ffb74d;">Terminal: syncpk-server</h3>
-            <div id="log-content" style="flex-grow: 1; overflow-y: auto; background: #000; color: #0f0; padding: 15px; font-family: monospace; font-size: 13px; text-align: left; white-space: pre-wrap; border-radius: 4px; border: 1px solid #333;"></div>
+            <div id="log-content"
+                style="flex-grow: 1; overflow-y: auto; background: #000; color: #0f0; padding: 15px; font-family: monospace; font-size: 13px; text-align: left; white-space: pre-wrap; border-radius: 4px; border: 1px solid #333;">
+            </div>
             <div class="modal-buttons" style="margin-top: 15px;">
                 <button id="close-log-btn" data-i18n="btn_close">Cerrar</button>
             </div>
         </div>
     </div>
 
-    <script src="app.js?v=4"></script>
+    <script src="app.js?v=5"></script>
 </body>
-</html>
 
+</html>
