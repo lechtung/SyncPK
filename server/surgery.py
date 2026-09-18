@@ -6,11 +6,10 @@ import requests
 import os
 import sys
 
-# v2
 # Forzar codificación UTF-8 en consola de Windows para las tildes
 sys.stdout.reconfigure(encoding='utf-8')
 
-# Eliminada la dependencia de dotenv para que no de error en la consola
+PLEX_URL = "http://192.168.178.21:32400"
 PLEX_TOKEN = os.getenv("PLEX_TOKEN")
 if not PLEX_TOKEN:
     # Usamos el token proporcionado por el usuario en su CURL como fallback
