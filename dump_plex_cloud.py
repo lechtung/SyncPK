@@ -3,7 +3,8 @@ import json
 import time
 import os
 
-# Intentamos leer el PLEX_TOKEN del .env
+#v2
+# Intentamos leer el PLEX_TOKEN del .env 
 PLEX_TOKEN = ""
 try:
     with open(".env", "r") as f:
@@ -37,20 +38,11 @@ query GetActivityFeed($first: PaginationInt!, $after: String, $types: [ActivityT
     nodes {
       id
       date
-      type
-      metadata {
-        ... on Movie {
-          title
-          guid
-          year
-        }
-        ... on Episode {
-          title
-          guid
-          grandparentTitle
-          parentIndex
-          index
-        }
+      __typename
+      metadataItem {
+        __typename
+        title
+        guid
       }
     }
   }
