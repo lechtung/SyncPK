@@ -380,7 +380,7 @@ button:hover { background: var(--accent-hover); }
     position: absolute;
     top: 40px; right: 8px;
     z-index: 4;
-    width: 150px;
+    min-width: max-content;
     padding: 8px 0;
     display: none;
 }
@@ -390,6 +390,7 @@ button:hover { background: var(--accent-hover); }
     color: #fff;
     cursor: pointer;
     font-size: 0.9rem;
+    white-space: nowrap;
 }
 .dropdown-item:hover { background: rgba(255,255,255,0.1); }
 .dropdown-item.danger { color: var(--danger); }

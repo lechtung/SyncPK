@@ -55,5 +55,6 @@
     "empty_state_msg": "¡Corre a la tele y ponte una buena película!",
     "error_state_msg": "Error conectando con la base de datos o escaneo en progreso...",
     "sync_in_progress_msg": "El servidor todavía está realizando la carga inicial. Puede que algunas carátulas o fichas no estén disponibles. Por favor, NO configures los webhooks de Plex ni de Kodi todavía.",
-    "sync_done_msg": "¡La carga inicial ha terminado! Ya puedes configurar los webhooks de Plex y de Kodi."
+    "sync_done_msg": "¡La carga inicial ha terminado! Ya puedes configurar los webhooks de Plex y de Kodi.",
+    "modal_sync_remote": "Actualizar automáticamente en Plex y Kodi"
 }

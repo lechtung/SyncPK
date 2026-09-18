@@ -561,7 +561,7 @@ document.getElementById('edit-save-btn').addEventListener('click', async () => {
         let res = await apiFetch(`/api/history/${currentEditId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ watched_at: finalDateStr, scope: scopeVal })
+            body: JSON.stringify({ watched_at: finalDateStr, scope: scopeVal, sync_remote: document.getElementById('editSyncRemote').checked })
         });
         if (res.ok) {
             document.getElementById('edit-modal').classList.add('hidden');

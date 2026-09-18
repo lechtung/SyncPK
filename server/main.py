@@ -768,6 +768,7 @@ def delete_history_item(item_id: int, authorization: str = Depends(verify_api_ke
 class UpdateHistoryRequest(BaseModel):
     watched_at: str
     scope: Optional[str] = "episode"
+    sync_remote: bool = True
 
 def perform_plex_surgery(item: dict, watched_at_local: str):
     plex_guid = item.get("plex_guid")
@@ -887,9 +888,12 @@ def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: 
     
     for mod_item in sorted(items_to_modify, key=lambda x: (x.get("season", 0), x.get("episode", 0)), reverse=True):
         watched_str = current_date.strftime("%Y-%m-%dT%H:%M:%SZ")
-        perform_plex_surgery(mod_item, watched_str)
         
-        cursor.execute("UPDATE watch_history SET watched_at = ?, created_at = ? WHERE id = ?", (watched_str, now_utc, mod_item["id"]))
+        if req.sync_remote:
+            perform_plex_surgery(mod_item, watched_str)
+            cursor.execute("UPDATE watch_history SET watched_at = ?, created_at = ? WHERE id = ?", (watched_str, now_utc, mod_item["id"]))
+        else:
+            cursor.execute("UPDATE watch_history SET watched_at = ? WHERE id = ?", (watched_str, mod_item["id"]))
         
         if len(items_to_modify) > 1:
             current_date -= datetime.timedelta(minutes=45) # Decrement 45m backwards for chronological bulk update
