@@ -1410,11 +1410,11 @@ def push_cloud_orphans_to_db():
     cursor = conn.cursor()
     
     # Pre-load existing IDs by GUID to check for collisions
-    cursor.execute("SELECT id, guid, watched_at FROM watch_history WHERE guid IS NOT NULL")
+    cursor.execute("SELECT id, plex_guid, watched_at FROM watch_history WHERE plex_guid IS NOT NULL")
     local_items_by_guid = {}
     for r in cursor.fetchall():
-        if r["guid"]:
-            local_items_by_guid[r["guid"]] = {"id": r["id"], "watched_at": r["watched_at"]}
+        if r["plex_guid"]:
+            local_items_by_guid[r["plex_guid"]] = {"id": r["id"], "watched_at": r["watched_at"]}
             
     url_graphql = "https://community.plex.tv/api"
     headers_fetch = {
@@ -1500,7 +1500,7 @@ def push_cloud_orphans_to_db():
                                     conn.commit()
                                     count_orphans += 1
                                     # Cache it to avoid retrying in the current loop
-                                    cursor.execute("SELECT id FROM watch_history WHERE guid=?", (guid,))
+                                    cursor.execute("SELECT id FROM watch_history WHERE plex_guid=?", (guid,))
                                     new_r = cursor.fetchone()
                                     if new_r:
                                         local_items_by_guid[guid] = {"id": new_r["id"], "watched_at": cloud_date}
