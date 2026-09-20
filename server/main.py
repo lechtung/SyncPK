@@ -336,9 +336,11 @@ def process_plex_payload(payload, cursor, is_bulk=False):
             action = "Bulk Update (Solo IDs)"
             
         if media_type == "episode":
-            print(f"🔄 Plex PUSH ({action}): Serie '{show_title}' T{season}E{episode} - {title}")
+            prefix = "Bulk Import" if is_bulk else "Plex PUSH"
+            print(f"🔄 {prefix} ({action}): Serie '{show_title}' T{season}E{episode} - {title}")
         else:
-            print(f"🔄 Plex PUSH ({action}): Película '{title}'")
+            prefix = "Bulk Import" if is_bulk else "Plex PUSH"
+            print(f"🔄 {prefix} ({action}): Película '{title}'")
     else:
         cursor.execute("""
             INSERT INTO watch_history (
@@ -355,9 +357,11 @@ def process_plex_payload(payload, cursor, is_bulk=False):
         ))
         
         if media_type == "episode":
-            print(f"✅ Plex PUSH (Nuevo): Serie '{show_title}' T{season}E{episode} - {title}")
+            prefix = "Bulk Import" if is_bulk else "Plex PUSH"
+            print(f"✅ {prefix} (Nuevo): Serie '{show_title}' T{season}E{episode} - {title}")
         else:
-            print(f"✅ Plex PUSH (Nuevo): Película '{title}'")
+            prefix = "Bulk Import" if is_bulk else "Plex PUSH"
+            print(f"✅ {prefix} (Nuevo): Película '{title}'")
             
     try:
         db_id = existing_id if existing_id else cursor.lastrowid
@@ -1203,6 +1207,11 @@ def build_payload_from_plex(item, media_type, show_map=None):
             show_data = show_map[parent_key]
             payload["Metadata"]["grandparentGuid"] = show_data["guid"]
             payload["Metadata"]["grandparentGuids"] = show_data["Guid"]
+        else:
+            if "grandparentGuid" in item:
+                payload["Metadata"]["grandparentGuid"] = item.get("grandparentGuid")
+            if "grandparentGuids" in item:
+                payload["Metadata"]["grandparentGuids"] = item.get("grandparentGuids")
         
     return payload
 
@@ -1474,8 +1483,8 @@ def push_cloud_orphans_to_db():
                 
                 if guid in local_items_by_guid:
                     local_date = local_items_by_guid[guid]["watched_at"]
-                    if cloud_date and cloud_date > local_date:
-                        print(f"⬆️ Updating date from {local_date} to {cloud_date} for {meta.get('title')}")
+                    if cloud_date and cloud_date < local_date:
+                        print(f"⬇️ Updating date from {local_date} to {cloud_date} for {meta.get('title')}")
                         cursor.execute("UPDATE watch_history SET watched_at = ?, created_at = ? WHERE id = ?", (cloud_date, now_utc, local_items_by_guid[guid]["id"]))
                         local_items_by_guid[guid]["watched_at"] = cloud_date
                         count_updates += 1
@@ -1491,10 +1500,28 @@ def push_cloud_orphans_to_db():
                             if m_data:
                                 item = m_data[0]
                                 m_type = item.get("type")
-                                actual_media_type = "movie" if m_type == "movie" else "episode"
+                                if m_type not in ["movie", "episode"]:
+                                    print(f"⚠️ Ignorando huérfano global (tipo '{m_type}'): {meta.get('title')}")
+                                    continue
+                                    
+                                actual_media_type = m_type
                                 
                                 p = build_payload_from_plex(item, actual_media_type)
                                 p["Metadata"]["watched_at"] = cloud_date 
+                                
+                                # Si es un episodio huérfano, necesitamos los IDs de la serie desde la nube
+                                if actual_media_type == "episode" and "grandparentGuid" in item:
+                                    gp_guid = item["grandparentGuid"]
+                                    gp_id = gp_guid.split("/")[-1]
+                                    try:
+                                        gp_url = f"https://metadata.provider.plex.tv/library/metadata/{gp_id}?X-Plex-Token={PLEX_TOKEN}"
+                                        gp_resp = requests.get(gp_url, headers={"Accept": "application/json"}, timeout=5)
+                                        if gp_resp.status_code == 200:
+                                            gp_data = gp_resp.json().get("MediaContainer", {}).get("Metadata", [])
+                                            if gp_data:
+                                                p["Metadata"]["grandparentGuids"] = gp_data[0].get("Guid", [])
+                                    except Exception:
+                                        pass
                                 
                                 if process_plex_payload(p, cursor, is_bulk=True):
                                     conn.commit()
