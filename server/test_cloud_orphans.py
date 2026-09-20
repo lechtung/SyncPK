@@ -6,8 +6,13 @@ print("   TEST DE RESCATE DE HISTORIAL HUÉRFANO (CLOUD)      ")
 print("======================================================")
 
 # 1. Cargamos el entorno para asegurar que pilla el PLEX_TOKEN y el idioma
-from dotenv import load_dotenv
-load_dotenv()
+if os.path.exists(".env"):
+    with open(".env", "r") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                os.environ[k.strip()] = v.strip().strip('"').strip("'")
 
 # Si no hay token en el entorno, lo pedimos por pantalla para facilitar la prueba
 if not os.getenv("PLEX_TOKEN"):

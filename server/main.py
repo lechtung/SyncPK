@@ -17,10 +17,15 @@ import asyncio
 import time
 import threading
 import queue
-from dotenv import load_dotenv
 
-# v3.2
-load_dotenv()
+# Manual .env fallback
+if os.path.exists(".env"):
+    with open(".env", "r") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, val = line.split("=", 1)
+                os.environ[key.strip()] = val.strip().strip('"').strip("'")
 
 app = FastAPI()
 
