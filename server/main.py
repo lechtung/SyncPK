@@ -177,12 +177,13 @@ def download_tmdb_images_sync(tmdb_id, media_type):
     if poster_local and fanart_local:
         return poster_local, fanart_local
 
-    url = f"https://api.themoviedb.org/3/{media_type}/{tmdb_id}?api_key={TMDB_API_KEY}&language=es"
+    lang = os.getenv("SYNC_LANGUAGE", "en")
+    url = f"https://api.themoviedb.org/3/{media_type}/{tmdb_id}?api_key={TMDB_API_KEY}&language={lang}"
     import requests
     try:
         resp = requests.get(url, timeout=10)
         if resp.status_code != 200:
-            resp = requests.get(url.replace("&language=es", ""), timeout=10)
+            resp = requests.get(url.replace(f"&language={lang}", ""), timeout=10)
             if resp.status_code != 200: 
                 print(f"❌ Error TMDB ({resp.status_code}) para {tmdb_id}: {resp.text}", flush=True)
                 return poster_local, fanart_local
@@ -1396,6 +1397,122 @@ def match_show(show_data, plex_shows):
 
 
 
+def push_cloud_orphans_to_db():
+    print("Starting CLOUD ORPHAN PUSH from Plex Cloud to local DB...")
+    
+    conn = sqlite3.connect("sync.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    # Pre-cargar IDs existentes por GUID para chequear colisiones
+    cursor.execute("SELECT id, guid, watched_at FROM watch_history WHERE guid IS NOT NULL")
+    local_items_by_guid = {}
+    for r in cursor.fetchall():
+        if r["guid"]:
+            local_items_by_guid[r["guid"]] = {"id": r["id"], "watched_at": r["watched_at"]}
+            
+    url_graphql = "https://community.plex.tv/api"
+    headers_fetch = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "x-plex-client-identifier": "7o448fp80hf1p7gbvqvvaklv",
+        "x-plex-token": PLEX_TOKEN
+    }
+    query_graphql = """
+    query GetActivityFeed($first: PaginationInt!, $after: String, $types: [ActivityType!]!) {
+      activityFeed(first: $first, after: $after, types: $types) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          id date __typename
+          metadataItem { __typename title guid }
+        }
+      }
+    }
+    """
+    
+    has_next = True
+    page_cursor = None
+    lang = os.getenv("SYNC_LANGUAGE", "en")
+    now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    
+    count_orphans = 0
+    count_updates = 0
+    
+    while has_next:
+        payload = {
+            "query": query_graphql,
+            "variables": {"first": 50, "after": page_cursor, "types": ["WATCH_HISTORY", "WATCH_SESSION"]},
+            "operationName": "GetActivityFeed"
+        }
+        
+        try:
+            resp = requests.post(url_graphql, headers=headers_fetch, json=payload, timeout=20)
+            if resp.status_code == 429:
+                time.sleep(5)
+                continue
+            if resp.status_code != 200:
+                print(f"Error {resp.status_code} fetching from Plex Cloud.")
+                break
+                
+            data = resp.json().get("data", {}).get("activityFeed", {})
+            nodes = data.get("nodes", [])
+            page_info = data.get("pageInfo", {})
+            
+            if not nodes: break
+            
+            for node in nodes:
+                cloud_date = node.get("date")
+                meta = node.get("metadataItem")
+                if not meta or not meta.get("guid"): continue
+                
+                guid = meta.get("guid")
+                
+                if guid in local_items_by_guid:
+                    local_date = local_items_by_guid[guid]["watched_at"]
+                    if cloud_date and cloud_date > local_date:
+                        print(f"⬆️ Updating date from {local_date} to {cloud_date} for {meta.get('title')}")
+                        cursor.execute("UPDATE watch_history SET watched_at = ?, created_at = ? WHERE id = ?", (cloud_date, now_utc, local_items_by_guid[guid]["id"]))
+                        local_items_by_guid[guid]["watched_at"] = cloud_date
+                        count_updates += 1
+                        conn.commit()
+                else:
+                    print(f"🌟 Huérfano detectado en Cloud: {meta.get('title')} ({cloud_date})")
+                    try:
+                        plex_metadata_id = guid.split("/")[-1]
+                        meta_url = f"https://metadata.provider.plex.tv/library/metadata/{plex_metadata_id}?X-Plex-Token={PLEX_TOKEN}&X-Plex-Language={lang}"
+                        m_resp = requests.get(meta_url, headers={"Accept": "application/json"}, timeout=10)
+                        if m_resp.status_code == 200:
+                            m_data = m_resp.json().get("MediaContainer", {}).get("Metadata", [])
+                            if m_data:
+                                item = m_data[0]
+                                m_type = item.get("type")
+                                actual_media_type = "movie" if m_type == "movie" else "episode"
+                                
+                                p = build_payload_from_plex(item, actual_media_type)
+                                p["Metadata"]["watched_at"] = cloud_date 
+                                
+                                if process_plex_payload(p, cursor, is_bulk=True):
+                                    conn.commit()
+                                    count_orphans += 1
+                                    cursor.execute("SELECT id FROM watch_history WHERE guid=?", (guid,))
+                                    new_r = cursor.fetchone()
+                                    if new_r:
+                                        local_items_by_guid[guid] = {"id": new_r["id"], "watched_at": cloud_date}
+                    except Exception as e:
+                        print(f"❌ Error rescating orphan {guid}: {e}")
+                        
+            has_next = page_info.get("hasNextPage", False)
+            page_cursor = page_info.get("endCursor")
+            time.sleep(1)
+            
+        except Exception as e:
+            print(f"Error connecting to GraphQL Plex Cloud: {e}")
+            break
+            
+    conn.close()
+    print(f"✅ Cloud Orphan Push completed! Inserted {count_orphans} orphans and updated {count_updates} dates.")
+
+
 def run_sync():
     settings = load_settings()
     last_sync = settings.get("last_sync_date")
@@ -1403,6 +1520,8 @@ def run_sync():
     
     if is_first_sync:
         push_all_to_db()
+        push_cloud_orphans_to_db()
+
     else:
         push_recent_to_db(last_sync)
         

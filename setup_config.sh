@@ -64,6 +64,20 @@ done
 TMDB_API_KEY=$(whiptail --inputbox "Enter your TMDB API Key (Free at themoviedb.org) to load posters:" 10 60 --title "TMDB (The Movie Database)" 3>&1 1>&2 2>&3)
 if [ $? -ne 0 ]; then exit 1; fi
 
+SYNC_LANGUAGE=$(whiptail --menu "Choose your preferred language for metadata:" 16 60 8 \
+"en" "English" \
+"es" "Español" \
+"de" "Deutsch" \
+"fr" "Français" \
+"it" "Italiano" \
+"pt" "Português" \
+"zh" "Chinese (Simplified)" \
+"ja" "Japanese" 3>&1 1>&2 2>&3)
+
+if [ $? -ne 0 ] || [ -z "$SYNC_LANGUAGE" ]; then 
+    SYNC_LANGUAGE="en" 
+fi
+
 # Generate secure hashes and tokens
 SALT=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 16 | head -n 1)
 WEB_HASH=$(echo -n "${SYNC_PASSWORD}${SALT}" | sha256sum | awk '{print $1}')
@@ -81,6 +95,7 @@ SALT=$SALT
 WEB_HASH=$WEB_HASH
 API_HASH=$API_HASH
 TMDB_API_KEY=$TMDB_API_KEY
+SYNC_LANGUAGE=$SYNC_LANGUAGE
 # Save the API_TOKEN as well for MOTD generation later
 API_TOKEN_RAW=$API_TOKEN
 EOF
