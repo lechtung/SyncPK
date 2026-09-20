@@ -1409,7 +1409,7 @@ def push_cloud_orphans_to_db():
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    # Pre-cargar IDs existentes por GUID para chequear colisiones
+    # Pre-load existing IDs by GUID to check for collisions
     cursor.execute("SELECT id, guid, watched_at FROM watch_history WHERE guid IS NOT NULL")
     local_items_by_guid = {}
     for r in cursor.fetchall():
@@ -1481,7 +1481,7 @@ def push_cloud_orphans_to_db():
                         count_updates += 1
                         conn.commit()
                 else:
-                    print(f"🌟 Huérfano detectado en Cloud: {meta.get('title')} ({cloud_date})")
+                    print(f"🌟 Orphan detected in Cloud: {meta.get('title')} ({cloud_date})")
                     try:
                         plex_metadata_id = guid.split("/")[-1]
                         meta_url = f"https://metadata.provider.plex.tv/library/metadata/{plex_metadata_id}?X-Plex-Token={PLEX_TOKEN}&X-Plex-Language={lang}"
@@ -1499,12 +1499,13 @@ def push_cloud_orphans_to_db():
                                 if process_plex_payload(p, cursor, is_bulk=True):
                                     conn.commit()
                                     count_orphans += 1
+                                    # Cache it to avoid retrying in the current loop
                                     cursor.execute("SELECT id FROM watch_history WHERE guid=?", (guid,))
                                     new_r = cursor.fetchone()
                                     if new_r:
                                         local_items_by_guid[guid] = {"id": new_r["id"], "watched_at": cloud_date}
                     except Exception as e:
-                        print(f"❌ Error rescating orphan {guid}: {e}")
+                        print(f"❌ Error rescuing orphan {guid}: {e}")
                         
             has_next = page_info.get("hasNextPage", False)
             page_cursor = page_info.get("endCursor")
