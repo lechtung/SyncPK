@@ -44,6 +44,7 @@ query GetActivityFeed($first: PaginationInt!, $after: String, $types: [ActivityT
       }
       ... on ActivityWatchSession {
         episodeCount
+        history { nodes { id date metadataItem { index title guid parent { index } } } }
       }
     }
     pageInfo { endCursor hasNextPage }
