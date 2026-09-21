@@ -407,3 +407,143 @@ button:hover { background: var(--accent-hover); }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
 /* Responsive overrides removed because Grid handles this automatically! */
+
+/* --- FAB (Speed Dial) --- */
+.fab-container {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: center;
+    gap: 15px;
+    z-index: 1000;
+}
+
+.fab-main {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), #ff9800);
+    color: #000;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(255, 152, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s;
+}
+
+.fab-main:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(255, 152, 0, 0.6);
+}
+
+.fab-icon-plus, .fab-icon-close {
+    position: absolute;
+    transition: transform 0.3s, opacity 0.3s;
+}
+
+.fab-icon-close {
+    opacity: 0;
+    transform: rotate(-90deg);
+}
+
+/* Estado activo del FAB */
+.fab-container.active .fab-main {
+    transform: rotate(45deg);
+    background: linear-gradient(135deg, #f44336, #e53935);
+    box-shadow: 0 4px 15px rgba(244, 67, 54, 0.4);
+}
+
+.fab-container.active .fab-icon-plus {
+    opacity: 0;
+    transform: rotate(90deg);
+}
+
+.fab-container.active .fab-icon-close {
+    opacity: 1;
+    transform: rotate(45deg); /* Compensa la rotación del botón para que la X quede recta */
+}
+
+/* Elementos del Speed Dial */
+.fab-actions {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 12px;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(20px);
+    transition: opacity 0.3s, transform 0.3s;
+}
+
+.fab-container.active .fab-actions {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+
+.fab-action {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: rgba(30, 30, 30, 0.9);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    transition: background 0.2s, transform 0.2s;
+    position: relative;
+    backdrop-filter: blur(10px);
+}
+
+.fab-action:hover {
+    background: var(--accent);
+    color: #000;
+    transform: scale(1.1);
+}
+
+/* Tooltip para el hover del fab-action */
+.fab-action::before {
+    content: attr(title);
+    position: absolute;
+    right: 60px;
+    background: rgba(0,0,0,0.8);
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    font-weight: 500;
+}
+.fab-action:hover::before {
+    opacity: 1;
+}
+
+/* TMDB Search Results */
+.tmdb-search-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.tmdb-search-item:hover {
+    background: rgba(255,255,255,0.1);
+}
+.tmdb-search-item img {
+    width: 40px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 4px;
+    background: #333;
+}

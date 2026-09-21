@@ -238,7 +238,74 @@
         </div>
     </div>
 
-    <script src="app.js?v=5"></script>
+    <!-- Add Manual Modal -->
+    <div id="manual-modal" class="overlay hidden">
+        <div class="login-box glass-panel" style="max-width: 500px; width: 90%;">
+            <h2 data-i18n="add_manual_title" style="margin-top:0;">Añadir Visionado Manual</h2>
+            
+            <div style="margin-top:20px;">
+                <label data-i18n="manual_search" style="display:block; margin-bottom:8px; color:#aaa; font-size:0.9rem;">Buscar en TMDB:</label>
+                <div style="position:relative;">
+                    <input type="text" id="manual-search-input" style="width:100%; padding:12px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.3); color:#fff; font-size:1rem;" data-i18n-placeholder="manual_search_ph" placeholder="Nombre de película o serie..." autocomplete="off">
+                    <!-- Contenedor de resultados TMDB en vivo -->
+                    <div id="manual-search-results" class="glass-panel hidden" style="position:absolute; top:50px; left:0; width:100%; max-height:250px; overflow-y:auto; z-index:100; padding:10px; border-radius:8px;"></div>
+                </div>
+            </div>
+
+            <div id="manual-selected-item" class="hidden" style="margin-top:15px; background:rgba(255,255,255,0.05); padding:10px; border-radius:8px; display:flex; gap:10px; align-items:center;">
+                <img id="manual-poster" src="" style="width:50px; border-radius:4px;" />
+                <div style="text-align:left;">
+                    <div id="manual-title" style="font-weight:bold; font-size:1.1rem; color:#fff;"></div>
+                    <div id="manual-year" style="color:#aaa; font-size:0.9rem;"></div>
+                    <input type="hidden" id="manual-tmdb-id">
+                    <input type="hidden" id="manual-media-type">
+                </div>
+            </div>
+
+            <!-- Campos extra para episodios -->
+            <div id="manual-episode-fields" class="hidden" style="margin-top:15px; display:flex; gap:10px; text-align:left;">
+                <div style="flex:1;">
+                    <label data-i18n="manual_season" style="display:block; margin-bottom:8px; color:#aaa; font-size:0.9rem;">Temporada:</label>
+                    <input type="number" id="manual-season" min="1" value="1" style="width:100%; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.3); color:#fff; font-size:1rem;">
+                </div>
+                <div style="flex:1;">
+                    <label data-i18n="manual_episode" style="display:block; margin-bottom:8px; color:#aaa; font-size:0.9rem;">Episodio:</label>
+                    <input type="number" id="manual-episode" min="1" value="1" style="width:100%; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.3); color:#fff; font-size:1rem;">
+                </div>
+            </div>
+
+            <div style="margin-top:15px; text-align:left;">
+                <label data-i18n="manual_date" style="display:block; margin-bottom:8px; color:#aaa; font-size:0.9rem;">Fecha de visionado:</label>
+                <input type="datetime-local" id="manual-date" required style="width:100%; padding:12px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.3); color:#fff; font-size:1rem;">
+            </div>
+
+            <div style="margin-top:20px; display:flex; align-items:center; gap:10px; text-align:left;">
+                <input type="checkbox" id="manual-sync-plex" checked style="width:20px; height:20px; cursor:pointer;">
+                <label for="manual-sync-plex" data-i18n="manual_sync_plex" style="cursor:pointer; margin:0; color:#fff; font-size:0.9rem;">Sincronizar a Plex Cloud</label>
+            </div>
+
+            <div class="modal-buttons" style="margin-top:25px;">
+                <button id="manual-cancel-btn" data-i18n="action_cancel">Cancelar</button>
+                <button id="manual-save-btn" data-i18n="action_save" disabled>Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating Action Button (Speed Dial) -->
+    <div class="fab-container">
+        <div class="fab-actions">
+            <div class="fab-action" id="fab-add-manual" title="Añadir Manual">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><path d="M12 5v14M5 12h14"/></svg>
+            </div>
+            <!-- Espacio preparado para futuros botones (ej. Journal, Config) -->
+        </div>
+        <button class="fab-main">
+            <svg class="fab-icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:28px;height:28px;"><path d="M12 5v14M5 12h14"/></svg>
+            <svg class="fab-icon-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:28px;height:28px;"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+    </div>
+
+    <script src="app.js?v=6"></script>
 </body>
 
 </html>

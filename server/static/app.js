@@ -751,8 +751,6 @@ window.addEventListener('scroll', () => {
         // Parse the date from the group title element
         let titleEl = visibleGroup.querySelector('.history-group-title');
         if (titleEl) {
-            // Try to parse the date from the title (which is a localized string)
-            // We store a data-date on the group for reliable parsing
             let rawDate = visibleGroup.dataset.date;
             if (rawDate) {
                 let d = new Date(rawDate);
@@ -760,11 +758,185 @@ window.addEventListener('scroll', () => {
                 if (!currentWeekStart || weekStart.toDateString() !== currentWeekStart.toDateString()) {
                     generateTimeline(d);
                 }
-                // Highlight the correct day button
                 document.querySelectorAll('.day-btn').forEach(b => {
                     b.classList.toggle('active', b.dataset.date === d.toDateString());
                 });
             }
         }
+    }
+});
+
+// --- FLOATING ACTION BUTTON & MANUAL ADD ---
+document.addEventListener('DOMContentLoaded', () => {
+    const fabContainer = document.querySelector('.fab-container');
+    const fabMain = document.querySelector('.fab-main');
+    const fabAddManual = document.getElementById('fab-add-manual');
+    const manualModal = document.getElementById('manual-modal');
+    const cancelManualBtn = document.getElementById('manual-cancel-btn');
+    const saveManualBtn = document.getElementById('manual-save-btn');
+    
+    // Toggle FAB Speed Dial
+    if(fabMain) {
+        fabMain.addEventListener('click', () => {
+            fabContainer.classList.toggle('active');
+        });
+    }
+
+    // Open Manual Modal
+    if(fabAddManual) {
+        fabAddManual.addEventListener('click', () => {
+            fabContainer.classList.remove('active');
+            manualModal.classList.remove('hidden');
+            resetManualForm();
+        });
+    }
+
+    // Close Modal
+    if(cancelManualBtn) {
+        cancelManualBtn.addEventListener('click', () => {
+            manualModal.classList.add('hidden');
+        });
+    }
+
+    // TMDB Search Logic
+    const searchInput = document.getElementById('manual-search-input');
+    const searchResults = document.getElementById('manual-search-results');
+    const selectedItem = document.getElementById('manual-selected-item');
+    const episodeFields = document.getElementById('manual-episode-fields');
+    let searchTimeout;
+
+    if(searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            const query = e.target.value.trim();
+            
+            if (query.length < 3) {
+                searchResults.classList.add('hidden');
+                return;
+            }
+
+            searchTimeout = setTimeout(async () => {
+                try {
+                    const lang = navigator.language.split('-')[0] || 'en';
+                    const res = await apiFetch(`/api/tmdb/search?q=${encodeURIComponent(query)}&lang=${lang}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        renderTMDBResults(data.results || []);
+                    }
+                } catch (err) {
+                    console.error("Error searching TMDB", err);
+                }
+            }, 500);
+        });
+    }
+
+    function renderTMDBResults(results) {
+        searchResults.innerHTML = '';
+        if (results.length === 0) {
+            searchResults.innerHTML = '<div style="padding:10px; color:#aaa;">No se encontraron resultados</div>';
+        } else {
+            results.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'tmdb-search-item';
+                
+                const title = item.title || item.name;
+                const year = (item.release_date || item.first_air_date || "").split('-')[0];
+                const poster = item.poster_path ? `https://image.tmdb.org/t/p/w92${item.poster_path}` : '';
+                const type = item.media_type === 'tv' ? 'Serie' : 'Película';
+
+                div.innerHTML = `
+                    <img src="${poster}" alt="poster">
+                    <div>
+                        <div style="font-weight:bold; color:#fff;">${title} <span style="color:#aaa; font-size:0.8rem; font-weight:normal;">(${year})</span></div>
+                        <div style="color:var(--accent); font-size:0.8rem;">${type}</div>
+                    </div>
+                `;
+
+                div.addEventListener('click', () => selectTMDBItem(item, title, year, poster));
+                searchResults.appendChild(div);
+            });
+        }
+        searchResults.classList.remove('hidden');
+    }
+
+    function selectTMDBItem(item, title, year, poster) {
+        searchResults.classList.add('hidden');
+        searchInput.value = '';
+        
+        document.getElementById('manual-title').textContent = title;
+        document.getElementById('manual-year').textContent = year;
+        document.getElementById('manual-poster').src = poster;
+        document.getElementById('manual-tmdb-id').value = item.id;
+        document.getElementById('manual-media-type').value = item.media_type === 'tv' ? 'episode' : 'movie';
+        
+        selectedItem.classList.remove('hidden');
+        
+        if (item.media_type === 'tv') {
+            episodeFields.classList.remove('hidden');
+        } else {
+            episodeFields.classList.add('hidden');
+        }
+        
+        checkManualForm();
+    }
+
+    document.getElementById('manual-date').addEventListener('change', checkManualForm);
+
+    function checkManualForm() {
+        const tmdbId = document.getElementById('manual-tmdb-id').value;
+        const date = document.getElementById('manual-date').value;
+        saveManualBtn.disabled = !(tmdbId && date);
+    }
+
+    function resetManualForm() {
+        searchInput.value = '';
+        searchResults.classList.add('hidden');
+        selectedItem.classList.add('hidden');
+        episodeFields.classList.add('hidden');
+        document.getElementById('manual-tmdb-id').value = '';
+        document.getElementById('manual-date').value = '';
+        saveManualBtn.disabled = true;
+    }
+
+    // Submit Manual Form
+    if (saveManualBtn) {
+        saveManualBtn.addEventListener('click', async () => {
+            saveManualBtn.disabled = true;
+            saveManualBtn.textContent = 'Guardando...';
+
+            const payload = {
+                tmdb_id: document.getElementById('manual-tmdb-id').value,
+                media_type: document.getElementById('manual-media-type').value,
+                title: document.getElementById('manual-title').textContent,
+                watched_at: new Date(document.getElementById('manual-date').value).toISOString(),
+                sync_remote: document.getElementById('manual-sync-plex').checked
+            };
+
+            if (payload.media_type === 'episode') {
+                payload.season = parseInt(document.getElementById('manual-season').value) || 1;
+                payload.episode = parseInt(document.getElementById('manual-episode').value) || 1;
+            }
+
+            try {
+                const res = await apiFetch('/api/manual_add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (res.ok) {
+                    manualModal.classList.add('hidden');
+                    reloadHistory();
+                } else {
+                    alert('Error al guardar el registro manual');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Error de red');
+            } finally {
+                saveManualBtn.textContent = 'Guardar';
+                checkManualForm();
+            }
+        });
     }
 });

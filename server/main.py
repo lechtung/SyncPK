@@ -1596,6 +1596,191 @@ async def startup_event():
         asyncio.create_task(sync_loop())
     else:
         print("Plex Pass detected: Incremental sync loop disabled. Relying purely on webhooks.")
+class ManualAddRequest(BaseModel):
+    tmdb_id: int
+    media_type: str
+    title: str
+    watched_at: str
+    sync_remote: bool
+    season: Optional[int] = None
+    episode: Optional[int] = None
+
+@app.get("/api/tmdb/search")
+def search_tmdb(q: str, lang: str = "es", authorization: str = Depends(verify_api_key)):
+    if not q or len(q) < 3:
+        return {"results": []}
+    
+    url = f"https://api.themoviedb.org/3/search/multi?api_key={TMDB_API_KEY}&language={lang}&query={q}&page=1&include_adult=false"
+    try:
+        res = requests.get(url, timeout=5)
+        if res.status_code == 200:
+            results = res.json().get("results", [])
+            # Filter only movies and tv shows
+            filtered = [r for r in results if r.get("media_type") in ["movie", "tv"]]
+            return {"results": filtered}
+    except Exception as e:
+        print(f"Error searching TMDB: {e}")
+    return {"results": []}
+
+@app.post("/api/manual_add")
+def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_key)):
+    try:
+        # PLEX CLOUD WORKAROUND (Phase 1)
+        plex_guid = None
+        if req.sync_remote:
+            try:
+                # 1. Match item in Plex Cloud
+                match_url = f"{PLEX_URL}/library/metadata/matches"
+                params = {"title": req.title}
+                if req.media_type == "movie":
+                    params["type"] = "1"
+                elif req.media_type == "episode":
+                    params["type"] = "4" # Or 2 for show, but let's try title match
+                
+                # Fetch matching to find plex:// guid
+                # Actually, a simpler way to match is using the TMDB ID!
+                # provider.plex.tv allows searching by tmdb id:
+                guid_query = f"tmdb://{req.tmdb_id}"
+                
+                # Let's search using the standard /library/metadata/matches
+                params = {"title": req.title, "guid": guid_query}
+                if req.media_type == "movie":
+                    params["type"] = "1"
+                else:
+                    params["type"] = "2" # Search for the show first
+                    
+                print(f"Buscando {req.title} en Plex Cloud...")
+                m_res = requests.get(match_url, headers=plex_headers, params=params, timeout=10)
+                
+                target_rating_key = None
+                
+                if m_res.status_code == 200:
+                    matches = m_res.json().get("MediaContainer", {}).get("Metadata", [])
+                    if matches:
+                        # Found the movie or show
+                        if req.media_type == "movie":
+                            target_rating_key = matches[0].get("ratingKey")
+                            plex_guid = matches[0].get("guid")
+                        else:
+                            # It's a show, we need to find the specific episode
+                            show_key = matches[0].get("ratingKey")
+                            ep_url = f"{PLEX_URL}/library/metadata/{show_key}/allLeaves"
+                            ep_res = requests.get(ep_url, headers=plex_headers, timeout=10)
+                            if ep_res.status_code == 200:
+                                eps = ep_res.json().get("MediaContainer", {}).get("Metadata", [])
+                                for ep in eps:
+                                    if ep.get("parentIndex") == req.season and ep.get("index") == req.episode:
+                                        target_rating_key = ep.get("ratingKey")
+                                        plex_guid = ep.get("guid")
+                                        break
+                
+                if target_rating_key:
+                    # 2. Fake Scrobble (Records as "Today")
+                    scrobble_url = f"{PLEX_URL}/:/scrobble?identifier=tv.plex.provider.metadata&key={target_rating_key}"
+                    s_res = requests.get(scrobble_url, headers=plex_headers, timeout=10)
+                    print(f"Scrobble ejecutado para {req.title}: {s_res.status_code}")
+                    
+                    time.sleep(2) # Esperamos 2 segundos para que se asiente en la base de datos de Plex
+                    
+                    # 3. Fetch Activity ID
+                    query_activity = """
+                    query GetActivityFeed($first: Int!) {
+                      user {
+                        activityFeed(first: $first) {
+                          edges {
+                            node {
+                              id
+                              metadata { title guid }
+                            }
+                          }
+                        }
+                      }
+                    }
+                    """
+                    headers_graphql = {
+                        "Accept": "application/json",
+                        "Content-Type": "application/json",
+                        "X-Plex-Token": PLEX_TOKEN
+                    }
+                    payload_q = {"query": query_activity, "variables": {"first": 15}}
+                    a_res = requests.post("https://community.plex.tv/api/graphql", headers=headers_graphql, json=payload_q, timeout=10)
+                    
+                    activity_id = None
+                    if a_res.status_code == 200:
+                        edges = a_res.json().get("data", {}).get("user", {}).get("activityFeed", {}).get("edges", [])
+                        for edge in edges:
+                            node = edge.get("node", {})
+                            meta = node.get("metadata")
+                            if meta and meta.get("guid") == plex_guid:
+                                activity_id = node.get("id")
+                                break
+                                
+                    # 4. GraphQL Date Surgery
+                    if activity_id:
+                        mutation_graphql = """
+                        mutation updateActivityDate($id: ID!, $input: UpdateActivityInput!) {
+                          updateActivity(id: $id, input: $input) { id }
+                        }
+                        """
+                        # Convert to GraphQL Date format (YYYY-MM-DDThh:mm:ss.000Z)
+                        d_obj = datetime.datetime.fromisoformat(req.watched_at.replace('Z', '+00:00'))
+                        watched_at_graphql = d_obj.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+                        
+                        payload_mut = {
+                            "query": mutation_graphql, 
+                            "variables": {"id": activity_id, "input": {"date": watched_at_graphql}}, 
+                            "operationName": "updateActivityDate"
+                        }
+                        
+                        m_res = requests.post("https://community.plex.tv/api/graphql", headers=headers_graphql, json=payload_mut, timeout=10)
+                        print(f"Cirugía temporal aplicada para {req.title}: {m_res.status_code}")
+                    else:
+                        print(f"No se encontró el Activity ID para hacer la cirugía.")
+                else:
+                    print(f"No se encontró el recurso en Plex Cloud para hacer scrobble.")
+            except Exception as e:
+                print(f"Error en Phase 1 (Plex Sync): {e}")
+
+        # TMDB CACHE (Phase 2)
+        poster_path = None
+        fanart_path = None
+        try:
+            p_path, f_path = download_tmdb_images_sync(req.tmdb_id, "tv" if req.media_type == "episode" else "movie")
+            poster_path = p_path
+            fanart_path = f_path
+        except Exception as e:
+            print(f"Error descargando imágenes: {e}")
+
+        # LOCAL DB INSERTION (Phase 3)
+        conn = sqlite3.connect("sync.db")
+        cursor = conn.cursor()
+        
+        # We save it as UTC string
+        d_obj = datetime.datetime.fromisoformat(req.watched_at.replace('Z', '+00:00'))
+        final_watched_at = d_obj.strftime("%Y-%m-%dT%H:%M:%SZ")
+        
+        if req.media_type == "movie":
+            cursor.execute("""
+                INSERT INTO watch_history (origin, title, media_type, tmdb_id, watched_at, poster_path, fanart_path, plex_guid)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, ("manual", req.title, req.media_type, req.tmdb_id, final_watched_at, poster_path, fanart_path, plex_guid))
+        else:
+            # Assuming title from request is Show Title if it's an episode... 
+            # Wait, the search result title is the show title. We don't know the episode title easily without another TMDB call.
+            # Let's save it as "Episodio X" or fetch it if we want.
+            ep_title = f"Episodio {req.episode}"
+            cursor.execute("""
+                INSERT INTO watch_history (origin, title, show_title, media_type, show_tmdb_id, season, episode, watched_at, poster_path, fanart_path, plex_guid)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, ("manual", ep_title, req.title, req.media_type, req.tmdb_id, req.season, req.episode, final_watched_at, poster_path, fanart_path, plex_guid))
+            
+        conn.commit()
+        conn.close()
+        
+        return {"status": "success"}
+    except Exception as e:
+        print(f"Error en manual_add: {e}")
+        return {"status": "error", "message": str(e)}
 
 # --- SERVE FRONTEND ---
 # Mount the static folder at the end to avoid overwriting routes /api/
