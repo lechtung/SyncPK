@@ -1,4 +1,4 @@
-// 1.0.0
+// v9
 
 let currentLangData = {};
 let historyData = [];
@@ -554,17 +554,17 @@ window.openEditModal = function (id, dateStr, mediaType) {
         scopeSelect.classList.add('hidden');
         scopeSelect.dataset.currentValue = 'episode';
     }
-    
+
     // Reset Bulk Options Mode to 'same'
     let distModeSelect = document.getElementById('editDistMode-dd');
-    if(distModeSelect) {
+    if (distModeSelect) {
         distModeSelect.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected'));
         let dmItem = distModeSelect.querySelector('.c-dropdown-item[data-value="same"]');
         if (dmItem) dmItem.classList.add('selected');
         distModeSelect.dataset.currentValue = 'same';
         let dmValEl = document.getElementById('editDistMode-val');
         if (dmValEl && currentLangData.dist_mode_same) dmValEl.textContent = currentLangData.dist_mode_same;
-        
+
         // Setup initial radio listener if not already there
         if (!window.distRadioInit) {
             document.querySelectorAll('input[name="distBetweenType"]').forEach(r => r.addEventListener('change', window.updateBulkOptionsUI));
@@ -577,40 +577,40 @@ window.openEditModal = function (id, dateStr, mediaType) {
             });
             window.distRadioInit = true;
         }
-        
+
         // Trigger initial UI update
-        if(window.updateBulkOptionsUI) window.updateBulkOptionsUI();
+        if (window.updateBulkOptionsUI) window.updateBulkOptionsUI();
     }
 
     modal.classList.remove('hidden');
 }
 
-window.updateBulkOptionsUI = function() {
+window.updateBulkOptionsUI = function () {
     let scopeVal = document.getElementById('editScope-dd').dataset.currentValue || 'episode';
     let bulkContainer = document.getElementById('bulkOptions-container');
-    if(!bulkContainer) return;
-    
+    if (!bulkContainer) return;
+
     if (scopeVal === 'episode') {
         bulkContainer.classList.add('hidden');
         return;
     }
-    
+
     bulkContainer.classList.remove('hidden');
     let mode = document.getElementById('editDistMode-dd').dataset.currentValue || 'same';
-    
+
     let fEnd = document.getElementById('field-end-date');
     let fMin = document.getElementById('field-eps-min');
     let fMax = document.getElementById('field-eps-max');
     let fOrder = document.getElementById('field-order');
     let fBetweenType = document.getElementById('field-between-type');
     let labelMin = document.getElementById('label-eps-min');
-    
+
     fEnd.classList.add('hidden');
     fMin.classList.add('hidden');
     fMax.classList.add('hidden');
     fOrder.classList.add('hidden');
     fBetweenType.classList.add('hidden');
-    
+
     if (mode === 'fixed') {
         fMin.classList.remove('hidden');
         fOrder.classList.remove('hidden');
@@ -637,13 +637,13 @@ document.getElementById('edit-save-btn').addEventListener('click', async () => {
 
     // Convert back to UTC string format used by DB (or local if prefered, backend saves as string)
     let finalDateStr = new Date(newVal).toISOString();
-    
+
     let payload = {
         watched_at: finalDateStr,
         scope: scopeVal,
         sync_remote: document.getElementById('editSyncRemote').checked
     };
-    
+
     if (scopeVal !== 'episode') {
         let distMode = document.getElementById('editDistMode-dd').dataset.currentValue || 'same';
         payload.dist_mode = distMode;
@@ -656,8 +656,8 @@ document.getElementById('edit-save-btn').addEventListener('click', async () => {
             payload.dist_order = document.querySelector('input[name="distOrder"]:checked').value;
         } else if (distMode === 'between') {
             let endDateStr = document.getElementById('edit-end-date-input').value;
-            if(endDateStr) payload.end_date = new Date(endDateStr).toISOString();
-            
+            if (endDateStr) payload.end_date = new Date(endDateStr).toISOString();
+
             let betweenType = document.querySelector('input[name="distBetweenType"]:checked').value;
             payload.dist_between_type = betweenType;
             if (betweenType === 'random') {
@@ -679,8 +679,8 @@ document.getElementById('edit-save-btn').addEventListener('click', async () => {
         if (res.ok) {
             reloadHistory(); // Reload to sort properly
         }
-    } catch (e) { 
-        console.error(e); 
+    } catch (e) {
+        console.error(e);
     } finally {
         document.getElementById('updating-overlay').classList.add('hidden');
     }
@@ -795,11 +795,11 @@ function setupConfigModal() {
     const repeatContainer = document.getElementById('config-repeat-password-container');
     const repeatInput = document.getElementById('config-repeat-password');
     const pwdError = document.getElementById('config-password-error');
-    
+
     const checkPasswords = () => {
-        if(pwdInput.value) {
+        if (pwdInput.value) {
             repeatContainer.classList.remove('hidden');
-            if(repeatInput.value && pwdInput.value !== repeatInput.value) {
+            if (repeatInput.value && pwdInput.value !== repeatInput.value) {
                 pwdError.classList.remove('hidden');
                 saveBtn.disabled = true;
             } else {
@@ -812,24 +812,24 @@ function setupConfigModal() {
             saveBtn.disabled = false;
         }
     };
-    
+
     pwdInput.addEventListener('input', checkPasswords);
     repeatInput.addEventListener('input', checkPasswords);
 
     // Open Config Modal
-    if(fabConfig) {
+    if (fabConfig) {
         fabConfig.addEventListener('click', async () => {
             document.querySelector('.fab-container').classList.remove('active');
             configModal.classList.remove('hidden');
-            
+
             try {
                 let res = await apiFetch('/api/config');
-                if(res.ok) {
+                if (res.ok) {
                     let data = await res.json();
                     document.getElementById('config-plex-url').value = data.plex_url || '';
                     document.getElementById('config-plex-token').value = data.plex_token || '';
                     document.getElementById('config-tmdb-api').value = data.tmdb_api_key || '';
-                    
+
                     let langValue = data.sync_language || 'es';
                     let langDd = document.getElementById('configLang-dd');
                     langDd.dataset.currentValue = langValue;
@@ -842,7 +842,7 @@ function setupConfigModal() {
                         valEl.setAttribute('data-i18n', selectedItem.getAttribute('data-i18n'));
                     }
                     configModal.dataset.originalLang = langValue;
-                    
+
                     // Resetear estado del formulario
                     pwdInput.value = '';
                     repeatInput.value = '';
@@ -857,7 +857,7 @@ function setupConfigModal() {
     // Cancel Config
     cancelBtn.addEventListener('click', () => {
         configModal.classList.add('hidden');
-        if(plexPinPollingInterval) clearInterval(plexPinPollingInterval);
+        if (plexPinPollingInterval) clearInterval(plexPinPollingInterval);
         document.getElementById('config-pin-status').classList.add('hidden');
     });
 
@@ -866,13 +866,13 @@ function setupConfigModal() {
         const statusEl = document.getElementById('config-pin-status');
         statusEl.classList.remove('hidden');
         statusEl.textContent = 'Obteniendo PIN...';
-        
+
         try {
             const formData = new URLSearchParams();
             formData.append("strong", "true");
             formData.append("X-Plex-Product", "SyncPK");
             formData.append("X-Plex-Client-Identifier", "SyncPK-Server-App");
-            
+
             const pinRes = await fetch("https://plex.tv/api/v2/pins", {
                 method: "POST",
                 headers: { "Accept": "application/json" },
@@ -881,47 +881,47 @@ function setupConfigModal() {
             const pinData = await pinRes.json();
             const pinId = pinData.id;
             const pinCode = pinData.code;
-            
+
             const authAppUrl = `https://app.plex.tv/auth#?clientID=SyncPK-Server-App&code=${pinCode}&context%5Bdevice%5D%5Bproduct%5D=SyncPK`;
             window.open(authAppUrl, '_blank');
-            
+
             statusEl.textContent = 'Por favor inicia sesión en la nueva pestaña de Plex...';
-            
-            if(plexPinPollingInterval) clearInterval(plexPinPollingInterval);
+
+            if (plexPinPollingInterval) clearInterval(plexPinPollingInterval);
             plexPinPollingInterval = setInterval(async () => {
                 const checkRes = await fetch(`https://plex.tv/api/v2/pins/${pinId}?X-Plex-Client-Identifier=SyncPK-Server-App`, {
                     headers: { "Accept": "application/json" }
                 });
                 const checkData = await checkRes.json();
-                if(checkData.authToken) {
+                if (checkData.authToken) {
                     clearInterval(plexPinPollingInterval);
                     document.getElementById('config-plex-token').value = checkData.authToken;
                     statusEl.textContent = '¡Token obtenido correctamente!';
                     setTimeout(() => statusEl.classList.add('hidden'), 3000);
                 }
             }, 2000);
-            
-        } catch(e) {
+
+        } catch (e) {
             statusEl.textContent = 'Error obteniendo PIN de Plex.';
             console.error(e);
         }
     });
 
-      // Save Config
-      saveBtn.addEventListener('click', async () => {
-          const origLang = configModal.dataset.originalLang;
-          const newLang = document.getElementById('configLang-dd').dataset.currentValue || 'es';
-          const pwd = pwdInput.value;
-        
+    // Save Config
+    saveBtn.addEventListener('click', async () => {
+        const origLang = configModal.dataset.originalLang;
+        const newLang = document.getElementById('configLang-dd').dataset.currentValue || 'es';
+        const pwd = pwdInput.value;
+
         const payload = {
             plex_url: document.getElementById('config-plex-url').value,
             plex_token: document.getElementById('config-plex-token').value,
             tmdb_api_key: document.getElementById('config-tmdb-api').value,
             sync_language: newLang
         };
-        
+
         if (pwd) payload.master_password = pwd;
-        
+
         if (newLang !== origLang) {
             if (!confirm('Has cambiado el idioma. ¿Deseas re-escanear TODA tu biblioteca (Títulos y Pósters) para aplicar el nuevo idioma? (Esto puede tardar unos minutos)')) {
                 return; // Wait or just save without rescan? Let's just save. Actually, if they say NO, maybe just save. Let's do a custom modal or just native confirm.
@@ -929,10 +929,10 @@ function setupConfigModal() {
                 payload.force_rescan = true;
             }
         }
-        
+
         saveBtn.disabled = true;
         saveBtn.textContent = 'Guardando...';
-        
+
         try {
             let res = await apiFetch('/api/config', {
                 method: 'POST',
@@ -947,8 +947,8 @@ function setupConfigModal() {
             } else {
                 alert('Error al guardar configuración');
             }
-        } catch(e) { console.error(e); }
-        
+        } catch (e) { console.error(e); }
+
         saveBtn.disabled = false;
         saveBtn.textContent = 'Guardar';
     });
@@ -964,15 +964,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const manualModal = document.getElementById('manual-modal');
     const cancelManualBtn = document.getElementById('manual-cancel-btn');
     const saveManualBtn = document.getElementById('manual-save-btn');
-    
+
     // Toggle FAB Speed Dial
-    if(fabMain) {
+    if (fabMain) {
         fabMain.addEventListener('click', () => {
             fabContainer.classList.toggle('active');
         });
     }
 
-    if(fabLogs) {
+    if (fabLogs) {
         fabLogs.addEventListener('click', () => {
             fabContainer.classList.remove('active');
             openLogViewer();
@@ -980,7 +980,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Open Manual Modal
-    if(fabAddManual) {
+    if (fabAddManual) {
         fabAddManual.addEventListener('click', () => {
             fabContainer.classList.remove('active');
             manualModal.classList.remove('hidden');
@@ -989,7 +989,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Close Modal
-    if(cancelManualBtn) {
+    if (cancelManualBtn) {
         cancelManualBtn.addEventListener('click', () => {
             manualModal.classList.add('hidden');
         });
@@ -1002,11 +1002,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const episodeFields = document.getElementById('manual-episode-fields');
     let searchTimeout;
 
-    if(searchInput) {
+    if (searchInput) {
         searchInput.addEventListener('input', (e) => {
             clearTimeout(searchTimeout);
             const query = e.target.value.trim();
-            
+
             if (query.length < 3) {
                 searchResults.classList.add('hidden');
                 return;
@@ -1035,7 +1035,7 @@ document.addEventListener('DOMContentLoaded', () => {
             results.forEach(item => {
                 const div = document.createElement('div');
                 div.className = 'tmdb-search-item';
-                
+
                 const title = item.title || item.name;
                 const year = (item.release_date || item.first_air_date || "").split('-')[0];
                 const poster = item.poster_path ? `https://image.tmdb.org/t/p/w92${item.poster_path}` : '';
@@ -1059,21 +1059,21 @@ document.addEventListener('DOMContentLoaded', () => {
     function selectTMDBItem(item, title, year, poster) {
         searchResults.classList.add('hidden');
         searchInput.value = '';
-        
+
         document.getElementById('manual-title').textContent = title;
         document.getElementById('manual-year').textContent = year;
         document.getElementById('manual-poster').src = poster;
         document.getElementById('manual-tmdb-id').value = item.id;
         document.getElementById('manual-media-type').value = item.media_type === 'tv' ? 'episode' : 'movie';
-        
+
         selectedItem.classList.remove('hidden');
-        
+
         if (item.media_type === 'tv') {
             episodeFields.classList.remove('hidden');
         } else {
             episodeFields.classList.add('hidden');
         }
-        
+
         checkManualForm();
     }
 
