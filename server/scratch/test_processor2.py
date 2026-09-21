@@ -64,7 +64,7 @@ def fetch_show_history(show_id, show_title, out_file):
             "operationName": "GetActivityFeed"
         }
         
-        resp = requests.post("https://community.plex.tv/api/graphql", headers=headers_fetch, json=payload, timeout=30)
+        resp = requests.post("https://community.plex.tv/api", headers=headers_fetch, json=payload, timeout=30)
         
         if resp.status_code == 429:
             retry = int(resp.headers.get("Retry-After", "60"))
