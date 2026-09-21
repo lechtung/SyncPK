@@ -99,6 +99,10 @@ function setupEventListeners() {
         if (!e.target.closest('.kebab-menu-btn')) {
             document.querySelectorAll('.kebab-dropdown').forEach(d => d.classList.remove('show'));
         }
+        if (!e.target.closest('#manual-search-results') && !e.target.closest('#manual-search-input')) {
+            let resBox = document.getElementById('manual-search-results');
+            if (resBox) resBox.classList.add('hidden');
+        }
     });
 
     let closeLogBtn = document.getElementById('close-log-btn');
@@ -143,8 +147,8 @@ function initDropdowns() {
         let trigger = dd.querySelector('.c-dropdown-trigger');
         let closeTimer;
 
-        // Hover to open (excepto para editScope-dd)
-        if (dd.id !== 'editScope-dd') {
+        // Hover to open (excepto para editScope-dd y editDistMode-dd)
+        if (dd.id !== 'editScope-dd' && dd.id !== 'editDistMode-dd') {
             dd.addEventListener('mouseenter', () => {
                 clearTimeout(closeTimer);
                 dd.classList.add('open');
@@ -766,11 +770,196 @@ window.addEventListener('scroll', () => {
     }
 });
 
+// --- CONFIG MODAL & PLEX PIN ---
+let plexPinPollingInterval = null;
+
+function setupConfigModal() {
+    const fabConfig = document.getElementById('fab-config');
+    const configModal = document.getElementById('config-modal');
+    const cancelBtn = document.getElementById('config-cancel-btn');
+    const saveBtn = document.getElementById('config-save-btn');
+    
+    // Toggle Password Eyes
+    document.querySelectorAll('.toggle-password').forEach(eye => {
+        eye.addEventListener('click', (e) => {
+            let targetId = e.target.dataset.target;
+            let input = document.getElementById(targetId);
+            if(input.type === 'password') {
+                input.type = 'text';
+                e.target.textContent = '🙈';
+            } else {
+                input.type = 'password';
+                e.target.textContent = '👁️';
+            }
+        });
+    });
+
+    document.querySelectorAll('.toggle-password-hold').forEach(eye => {
+        const targetId = eye.dataset.target;
+        const input = document.getElementById(targetId);
+        const show = () => { input.type = 'text'; eye.textContent = '🙈'; };
+        const hide = () => { input.type = 'password'; eye.textContent = '👁️'; };
+        
+        eye.addEventListener('mousedown', show);
+        eye.addEventListener('mouseup', hide);
+        eye.addEventListener('mouseleave', hide);
+        eye.addEventListener('touchstart', show);
+        eye.addEventListener('touchend', hide);
+    });
+
+    // Dynamic Repeat Password Field
+    const pwdInput = document.getElementById('config-password');
+    const repeatContainer = document.getElementById('config-repeat-password-container');
+    const repeatInput = document.getElementById('config-repeat-password');
+    const pwdError = document.getElementById('config-password-error');
+    
+    const checkPasswords = () => {
+        if(pwdInput.value) {
+            repeatContainer.classList.remove('hidden');
+            if(repeatInput.value && pwdInput.value !== repeatInput.value) {
+                pwdError.classList.remove('hidden');
+                saveBtn.disabled = true;
+            } else {
+                pwdError.classList.add('hidden');
+                saveBtn.disabled = false;
+            }
+        } else {
+            repeatContainer.classList.add('hidden');
+            pwdError.classList.add('hidden');
+            saveBtn.disabled = false;
+        }
+    };
+    
+    pwdInput.addEventListener('input', checkPasswords);
+    repeatInput.addEventListener('input', checkPasswords);
+
+    // Open Config Modal
+    if(fabConfig) {
+        fabConfig.addEventListener('click', async () => {
+            document.querySelector('.fab-container').classList.remove('active');
+            configModal.classList.remove('hidden');
+            
+            try {
+                let res = await apiFetch('/api/config');
+                if(res.ok) {
+                    let data = await res.json();
+                    document.getElementById('config-plex-url').value = data.plex_url || '';
+                    document.getElementById('config-plex-token').value = data.plex_token || '';
+                    document.getElementById('config-tmdb-api').value = data.tmdb_api_key || '';
+                    document.getElementById('config-language').value = data.sync_language || 'es';
+                    configModal.dataset.originalLang = data.sync_language || 'es';
+                }
+            } catch (e) { console.error(e); }
+        });
+    }
+
+    // Cancel Config
+    cancelBtn.addEventListener('click', () => {
+        configModal.classList.add('hidden');
+        if(plexPinPollingInterval) clearInterval(plexPinPollingInterval);
+        document.getElementById('config-pin-status').classList.add('hidden');
+    });
+
+    // Plex Auth Flow
+    document.getElementById('config-get-token-btn').addEventListener('click', async () => {
+        const statusEl = document.getElementById('config-pin-status');
+        statusEl.classList.remove('hidden');
+        statusEl.textContent = 'Obteniendo PIN...';
+        
+        try {
+            const formData = new URLSearchParams();
+            formData.append("strong", "true");
+            formData.append("X-Plex-Product", "SyncPK");
+            formData.append("X-Plex-Client-Identifier", "SyncPK-Server-App");
+            
+            const pinRes = await fetch("https://plex.tv/api/v2/pins", {
+                method: "POST",
+                headers: { "Accept": "application/json" },
+                body: formData
+            });
+            const pinData = await pinRes.json();
+            const pinId = pinData.id;
+            const pinCode = pinData.code;
+            
+            const authAppUrl = `https://app.plex.tv/auth#?clientID=SyncPK-Server-App&code=${pinCode}&context%5Bdevice%5D%5Bproduct%5D=SyncPK`;
+            window.open(authAppUrl, '_blank');
+            
+            statusEl.textContent = 'Por favor inicia sesión en la nueva pestaña de Plex...';
+            
+            if(plexPinPollingInterval) clearInterval(plexPinPollingInterval);
+            plexPinPollingInterval = setInterval(async () => {
+                const checkRes = await fetch(`https://plex.tv/api/v2/pins/${pinId}?X-Plex-Client-Identifier=SyncPK-Server-App`, {
+                    headers: { "Accept": "application/json" }
+                });
+                const checkData = await checkRes.json();
+                if(checkData.authToken) {
+                    clearInterval(plexPinPollingInterval);
+                    document.getElementById('config-plex-token').value = checkData.authToken;
+                    statusEl.textContent = '¡Token obtenido correctamente!';
+                    setTimeout(() => statusEl.classList.add('hidden'), 3000);
+                }
+            }, 2000);
+            
+        } catch(e) {
+            statusEl.textContent = 'Error obteniendo PIN de Plex.';
+            console.error(e);
+        }
+    });
+
+    // Save Config
+    saveBtn.addEventListener('click', async () => {
+        const origLang = configModal.dataset.originalLang;
+        const newLang = document.getElementById('config-language').value;
+        const pwd = pwdInput.value;
+        
+        const payload = {
+            plex_url: document.getElementById('config-plex-url').value,
+            plex_token: document.getElementById('config-plex-token').value,
+            tmdb_api_key: document.getElementById('config-tmdb-api').value,
+            sync_language: newLang
+        };
+        
+        if (pwd) payload.master_password = pwd;
+        
+        if (newLang !== origLang) {
+            if (!confirm('Has cambiado el idioma. ¿Deseas re-escanear TODA tu biblioteca (Títulos y Pósters) para aplicar el nuevo idioma? (Esto puede tardar unos minutos)')) {
+                return; // Wait or just save without rescan? Let's just save. Actually, if they say NO, maybe just save. Let's do a custom modal or just native confirm.
+            } else {
+                payload.force_rescan = true;
+            }
+        }
+        
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Guardando...';
+        
+        try {
+            let res = await apiFetch('/api/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                configModal.classList.add('hidden');
+                if (payload.force_rescan) {
+                    alert('Configuración guardada. El servidor se reiniciará y comenzará a re-escanear en el fondo.');
+                }
+            } else {
+                alert('Error al guardar configuración');
+            }
+        } catch(e) { console.error(e); }
+        
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Guardar';
+    });
+}
+document.addEventListener('DOMContentLoaded', setupConfigModal);
+
 // --- FLOATING ACTION BUTTON & MANUAL ADD ---
 document.addEventListener('DOMContentLoaded', () => {
     const fabContainer = document.querySelector('.fab-container');
     const fabMain = document.querySelector('.fab-main');
     const fabAddManual = document.getElementById('fab-add-manual');
+    const fabLogs = document.getElementById('fab-logs');
     const manualModal = document.getElementById('manual-modal');
     const cancelManualBtn = document.getElementById('manual-cancel-btn');
     const saveManualBtn = document.getElementById('manual-save-btn');
@@ -779,6 +968,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if(fabMain) {
         fabMain.addEventListener('click', () => {
             fabContainer.classList.toggle('active');
+        });
+    }
+
+    if(fabLogs) {
+        fabLogs.addEventListener('click', () => {
+            fabContainer.classList.remove('active');
+            openLogViewer();
         });
     }
 

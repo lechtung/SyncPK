@@ -57,7 +57,7 @@ body {
 .login-box h2, .login-box h3 { margin-bottom: 8px; color: #fff; }
 .login-box p { margin-bottom: 24px; color: var(--text-secondary); }
 
-input[type="password"], input[type="text"], input[type="datetime-local"], select {
+input[type="password"], input[type="text"], input[type="datetime-local"], input[type="number"], select {
     width: 100%;
     padding: 12px;
     margin-bottom: 16px;
@@ -67,6 +67,7 @@ input[type="password"], input[type="text"], input[type="datetime-local"], select
     color: #fff;
     font-family: 'Inter', sans-serif;
     outline: none;
+    color-scheme: dark; /* Obliga al navegador a renderizar flechas y calendarios en modo oscuro */
 }
 input:focus, select:focus { border-color: var(--accent); }
 
@@ -424,47 +425,32 @@ button:hover { background: var(--accent-hover); }
     width: 64px;
     height: 64px;
     border-radius: 50%;
-    background: linear-gradient(135deg, var(--accent), #ff9800);
+    background: var(--accent);
     color: #000;
     border: none;
     cursor: pointer;
-    box-shadow: 0 4px 15px rgba(255, 152, 0, 0.4);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s;
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), background 0.3s, box-shadow 0.3s;
 }
 
 .fab-main:hover {
     transform: scale(1.05);
-    box-shadow: 0 6px 20px rgba(255, 152, 0, 0.6);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
 }
 
-.fab-icon-plus, .fab-icon-close {
-    position: absolute;
-    transition: transform 0.3s, opacity 0.3s;
-}
-
-.fab-icon-close {
-    opacity: 0;
-    transform: rotate(-90deg);
+.fab-icon-main {
+    transition: transform 0.4s ease;
 }
 
 /* Estado activo del FAB */
 .fab-container.active .fab-main {
-    transform: rotate(45deg);
-    background: linear-gradient(135deg, #f44336, #e53935);
-    box-shadow: 0 4px 15px rgba(244, 67, 54, 0.4);
-}
-
-.fab-container.active .fab-icon-plus {
-    opacity: 0;
-    transform: rotate(90deg);
-}
-
-.fab-container.active .fab-icon-close {
-    opacity: 1;
-    transform: rotate(45deg); /* Compensa la rotación del botón para que la X quede recta */
+    transform: rotate(-270deg);
+    background: #2d333b; /* Gris oscuro neutro */
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
 /* Elementos del Speed Dial */
@@ -528,6 +514,14 @@ button:hover { background: var(--accent-hover); }
 }
 
 /* TMDB Search Results */
+#manual-search-results {
+    background: #1e1e1e !important; /* Fondo totalmente opaco */
+    box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+    border: 1px solid #333;
+    backdrop-filter: none; /* Deshabilita el difuminado del glass-panel */
+    -webkit-backdrop-filter: none;
+}
+
 .tmdb-search-item {
     display: flex;
     align-items: center;

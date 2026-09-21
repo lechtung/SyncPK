@@ -1883,6 +1883,119 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
         print(f"Error en manual_add: {e}")
         return {"status": "error", "message": str(e)}
 
+# --- CONFIGURACION ---
+@app.get("/api/config", dependencies=[Depends(verify_api_key)])
+def get_config():
+    return {
+        "plex_url": os.getenv("PLEX_URL", ""),
+        "plex_token": os.getenv("PLEX_TOKEN", ""),
+        "tmdb_api_key": os.getenv("TMDB_API_KEY", ""),
+        "sync_language": os.getenv("SYNC_LANGUAGE", "es")
+    }
+
+class ConfigPayload(BaseModel):
+    plex_url: str
+    plex_token: str
+    tmdb_api_key: str
+    sync_language: str
+    master_password: Optional[str] = None
+    force_rescan: Optional[bool] = False
+
+@app.post("/api/config", dependencies=[Depends(verify_api_key)])
+def save_config(payload: ConfigPayload):
+    env_path = ".env"
+    env_vars = {}
+    
+    # Leer el entorno actual
+    if os.path.exists(env_path):
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    env_vars[k.strip()] = v.strip().strip('"').strip("'")
+    
+    # Actualizar valores
+    env_vars["PLEX_URL"] = payload.plex_url
+    env_vars["PLEX_TOKEN"] = payload.plex_token
+    env_vars["TMDB_API_KEY"] = payload.tmdb_api_key
+    env_vars["SYNC_LANGUAGE"] = payload.sync_language
+    
+    if payload.master_password:
+        salt = env_vars.get("SALT", os.getenv("SALT", ""))
+        new_hash = hashlib.sha256((payload.master_password + salt).encode()).hexdigest()
+        env_vars["WEB_HASH"] = new_hash
+    
+    # Guardar a archivo
+    with open(env_path, "w", encoding="utf-8") as f:
+        for k, v in env_vars.items():
+            f.write(f'{k}="{v}"\n')
+            os.environ[k] = str(v)
+            
+    # Actualizar variables en memoria
+    global PLEX_URL, PLEX_TOKEN, TMDB_API_KEY, WEB_HASH
+    PLEX_URL = payload.plex_url
+    PLEX_TOKEN = payload.plex_token
+    TMDB_API_KEY = payload.tmdb_api_key
+    if payload.master_password:
+        WEB_HASH = env_vars["WEB_HASH"]
+        
+    if payload.force_rescan:
+        def rescan_task():
+            print(f"Iniciando re-escaneo para adaptar al idioma: {payload.sync_language}")
+            try:
+                conn = sqlite3.connect("sync.db")
+                cursor = conn.cursor()
+                cursor.execute("SELECT id, tmdb_id, show_tmdb_id, media_type, season, episode FROM watch_history")
+                rows = cursor.fetchall()
+                
+                for row in rows:
+                    h_id, m_tmdb_id, s_tmdb_id, m_type, s_season, s_ep = row
+                    
+                    # Usar el idioma nuevo
+                    lang_param = f"&language={payload.sync_language}"
+                    
+                    if m_type == "movie" and m_tmdb_id:
+                        # Re-descargar metadatos
+                        tmdb_url = f"https://api.themoviedb.org/3/movie/{m_tmdb_id}?api_key={payload.tmdb_api_key}{lang_param}"
+                        res = requests.get(tmdb_url)
+                        if res.status_code == 200:
+                            data = res.json()
+                            title = data.get("title", "")
+                            p_path = f"https://image.tmdb.org/t/p/w500{data.get('poster_path')}" if data.get("poster_path") else ""
+                            f_path = f"https://image.tmdb.org/t/p/original{data.get('backdrop_path')}" if data.get("backdrop_path") else ""
+                            
+                            cursor.execute("UPDATE watch_history SET title=?, poster_path=?, fanart_path=? WHERE id=?", (title, p_path, f_path, h_id))
+                    
+                    elif m_type == "episode" and s_tmdb_id:
+                        # Sacar metadatos del episodio
+                        tmdb_url = f"https://api.themoviedb.org/3/tv/{s_tmdb_id}/season/{s_season}/episode/{s_ep}?api_key={payload.tmdb_api_key}{lang_param}"
+                        res = requests.get(tmdb_url)
+                        if res.status_code == 200:
+                            data = res.json()
+                            ep_title = data.get("name", f"Episodio {s_ep}")
+                            p_path = f"https://image.tmdb.org/t/p/w500{data.get('still_path')}" if data.get("still_path") else ""
+                            
+                            # Y el show title
+                            show_url = f"https://api.themoviedb.org/3/tv/{s_tmdb_id}?api_key={payload.tmdb_api_key}{lang_param}"
+                            s_res = requests.get(show_url)
+                            if s_res.status_code == 200:
+                                show_data = s_res.json()
+                                s_title = show_data.get("name", "")
+                                f_path = f"https://image.tmdb.org/t/p/original{show_data.get('backdrop_path')}" if show_data.get("backdrop_path") else ""
+                                
+                                cursor.execute("UPDATE watch_history SET title=?, show_title=?, poster_path=?, fanart_path=? WHERE id=?", (ep_title, s_title, p_path, f_path, h_id))
+                                
+                conn.commit()
+                conn.close()
+                print("Re-escaneo masivo completado con éxito.")
+            except Exception as e:
+                print(f"Error en rescan_task: {e}")
+                
+        threading.Thread(target=rescan_task, daemon=True).start()
+        
+    return {"status": "success"}
+
 # --- SERVE FRONTEND ---
 # Mount the static folder at the end to avoid overwriting routes /api/
 os.makedirs("static", exist_ok=True)
