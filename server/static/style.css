@@ -83,6 +83,14 @@ button {
     transition: background 0.2s;
 }
 button:hover { background: var(--accent-hover); }
+button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+.btn-disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
 
 .error-text { color: var(--danger) !important; margin-top: 12px; margin-bottom: 0 !important; font-size: 0.9em; }
 

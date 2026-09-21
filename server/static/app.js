@@ -1,4 +1,4 @@
-// v9
+// v10
 
 let currentLangData = {};
 let historyData = [];
@@ -1082,7 +1082,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function checkManualForm() {
         const tmdbId = document.getElementById('manual-tmdb-id').value;
         const date = document.getElementById('manual-date').value;
-        saveManualBtn.disabled = !(tmdbId && date);
+        if (tmdbId && date) {
+            saveManualBtn.classList.remove('btn-disabled');
+        } else {
+            saveManualBtn.classList.add('btn-disabled');
+        }
     }
 
     function resetManualForm() {
@@ -1092,7 +1096,8 @@ document.addEventListener('DOMContentLoaded', () => {
         episodeFields.classList.add('hidden');
         document.getElementById('manual-tmdb-id').value = '';
         document.getElementById('manual-date').value = '';
-        saveManualBtn.disabled = true;
+        saveManualBtn.classList.add('btn-disabled');
+        saveManualBtn.disabled = false; // allow click for error message
     }
 
     // Submit Manual Form
@@ -1106,6 +1111,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            saveManualBtn.classList.add('btn-disabled');
             saveManualBtn.disabled = true;
             saveManualBtn.textContent = currentLangData.saving || 'Saving...';
 
@@ -1140,6 +1146,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Error de red');
             } finally {
                 saveManualBtn.textContent = currentLangData.btn_save || 'Save';
+                saveManualBtn.disabled = false;
                 checkManualForm();
             }
         });
