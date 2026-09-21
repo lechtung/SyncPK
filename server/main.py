@@ -1412,7 +1412,7 @@ def match_show(show_data, plex_shows):
 
 
 def push_cloud_orphans_to_db():
-    print("Starting CLOUD ORPHAN PUSH from Plex Cloud to local DB...")
+    print("Starting SMART EXTRACTOR V2 from Plex Cloud to local DB...")
     
     conn = sqlite3.connect("sync.db")
     conn.row_factory = sqlite3.Row
@@ -1432,14 +1432,41 @@ def push_cloud_orphans_to_db():
         "x-plex-client-identifier": "7o448fp80hf1p7gbvqvvaklv",
         "x-plex-token": PLEX_TOKEN
     }
-    query_graphql = """
+    
+    query_primary = """
     query GetActivityFeed($first: PaginationInt!, $after: String, $types: [ActivityType!]!) {
       activityFeed(first: $first, after: $after, types: $types) {
         pageInfo { hasNextPage endCursor }
         nodes {
           id date __typename
-          metadataItem { __typename title guid }
+          metadataItem { 
+             __typename title type guid index 
+             parent { index title }
+             grandparent { title guid }
+          }
         }
+      }
+    }
+    """
+    
+    query_secondary = """
+    query GetActivityFeed($first: PaginationInt!, $after: String, $metadataID: ID, $types: [ActivityType!]!, $includeDescendants: Boolean = false) {
+      activityFeed(
+        first: $first
+        after: $after
+        metadataID: $metadataID
+        types: $types
+        includeDescendants: $includeDescendants
+      ) {
+        nodes {
+          date
+          metadataItem {
+            title type index guid
+            parent { index title }
+            grandparent { title guid }
+          }
+        }
+        pageInfo { endCursor hasNextPage }
       }
     }
     """
@@ -1452,9 +1479,110 @@ def push_cloud_orphans_to_db():
     count_orphans = 0
     count_updates = 0
     
+    processed_shows = set()
+    
+    def process_item_node(node, is_secondary=False):
+        nonlocal count_orphans, count_updates
+        cloud_date = node.get("date")
+        meta = node.get("metadataItem")
+        if not meta or not meta.get("guid"): return
+        
+        guid = meta.get("guid")
+        
+        if guid in local_items_by_guid:
+            local_date = local_items_by_guid[guid]["watched_at"]
+            if cloud_date and cloud_date < local_date:
+                print(f"⬇️ Updating date from {local_date} to {cloud_date} for {meta.get('title')}")
+                cursor.execute("UPDATE watch_history SET watched_at = ?, created_at = ? WHERE id = ?", (cloud_date, now_utc, local_items_by_guid[guid]["id"]))
+                local_items_by_guid[guid]["watched_at"] = cloud_date
+                count_updates += 1
+                conn.commit()
+        else:
+            print(f"🌟 Orphan detected in Cloud: {meta.get('title')} ({cloud_date})")
+            try:
+                plex_metadata_id = guid.split("/")[-1]
+                meta_url = f"https://metadata.provider.plex.tv/library/metadata/{plex_metadata_id}?X-Plex-Token={PLEX_TOKEN}&X-Plex-Language={lang}"
+                m_resp = requests.get(meta_url, headers={"Accept": "application/json"}, timeout=10)
+                if m_resp.status_code == 200:
+                    m_data = m_resp.json().get("MediaContainer", {}).get("Metadata", [])
+                    if m_data:
+                        item = m_data[0]
+                        m_type = item.get("type")
+                        if m_type not in ["movie", "episode"]:
+                            print(f"⚠️ Ignorando huérfano global (tipo '{m_type}'): {meta.get('title')}")
+                            return
+                            
+                        actual_media_type = m_type
+                        
+                        p = build_payload_from_plex(item, actual_media_type)
+                        p["Metadata"]["watched_at"] = cloud_date 
+                        
+                        if actual_media_type == "episode" and "grandparentGuid" in item:
+                            gp_guid = item["grandparentGuid"]
+                            gp_id = gp_guid.split("/")[-1]
+                            try:
+                                gp_url = f"https://metadata.provider.plex.tv/library/metadata/{gp_id}?X-Plex-Token={PLEX_TOKEN}"
+                                gp_resp = requests.get(gp_url, headers={"Accept": "application/json"}, timeout=5)
+                                if gp_resp.status_code == 200:
+                                    gp_data = gp_resp.json().get("MediaContainer", {}).get("Metadata", [])
+                                    if gp_data:
+                                        p["Metadata"]["grandparentGuids"] = gp_data[0].get("Guid", [])
+                            except Exception:
+                                pass
+                        
+                        if process_plex_payload(p, cursor, is_bulk=True):
+                            conn.commit()
+                            count_orphans += 1
+                            # Cache it to avoid retrying in the current loop
+                            cursor.execute("SELECT id FROM watch_history WHERE plex_guid=?", (guid,))
+                            new_r = cursor.fetchone()
+                            if new_r:
+                                local_items_by_guid[guid] = {"id": new_r["id"], "watched_at": cloud_date}
+            except Exception as e:
+                print(f"❌ Error rescuing orphan {guid}: {e}")
+
+    def fetch_show_history_db(show_id, show_title):
+        h_next = True
+        p_cursor = None
+        print(f"\n📡 [API] Obteniendo historial completo de la serie: {show_title} ({show_id})...")
+        while h_next:
+            payload_sec = {
+                "query": query_secondary,
+                "variables": {
+                    "first": 50,
+                    "after": p_cursor,
+                    "types": ["WATCH_HISTORY"],
+                    "includeDescendants": True,
+                    "metadataID": show_id
+                },
+                "operationName": "GetActivityFeed"
+            }
+            try:
+                resp_sec = requests.post(url_graphql, headers=headers_fetch, json=payload_sec, timeout=30)
+                if resp_sec.status_code == 429:
+                    retry = int(resp_sec.headers.get("Retry-After", "60"))
+                    print(f"⏳ [429] Esperando {retry}s...")
+                    time.sleep(retry)
+                    continue
+                if resp_sec.status_code != 200:
+                    break
+                data_sec = resp_sec.json().get("data", {}).get("activityFeed", {})
+                nodes_sec = data_sec.get("nodes", [])
+                for n_sec in nodes_sec:
+                    m_sec = n_sec.get("metadataItem")
+                    if m_sec and m_sec.get("type") == "EPISODE":
+                        process_item_node(n_sec, is_secondary=True)
+                p_info = data_sec.get("pageInfo", {})
+                h_next = p_info.get("hasNextPage", False)
+                p_cursor = p_info.get("endCursor")
+                time.sleep(1)
+            except Exception as e:
+                print(f"Error fetching show history: {e}")
+                break
+
     while has_next:
         payload = {
-            "query": query_graphql,
+            "query": query_primary,
             "variables": {"first": 50, "after": page_cursor, "types": ["WATCH_HISTORY", "WATCH_SESSION"]},
             "operationName": "GetActivityFeed"
         }
@@ -1475,65 +1603,38 @@ def push_cloud_orphans_to_db():
             if not nodes: break
             
             for node in nodes:
-                cloud_date = node.get("date")
                 meta = node.get("metadataItem")
-                if not meta or not meta.get("guid"): continue
+                if not meta: continue
+                m_type = meta.get("type")
                 
-                guid = meta.get("guid")
-                
-                if guid in local_items_by_guid:
-                    local_date = local_items_by_guid[guid]["watched_at"]
-                    if cloud_date and cloud_date < local_date:
-                        print(f"⬇️ Updating date from {local_date} to {cloud_date} for {meta.get('title')}")
-                        cursor.execute("UPDATE watch_history SET watched_at = ?, created_at = ? WHERE id = ?", (cloud_date, now_utc, local_items_by_guid[guid]["id"]))
-                        local_items_by_guid[guid]["watched_at"] = cloud_date
-                        count_updates += 1
-                        conn.commit()
-                else:
-                    print(f"🌟 Orphan detected in Cloud: {meta.get('title')} ({cloud_date})")
-                    try:
-                        plex_metadata_id = guid.split("/")[-1]
-                        meta_url = f"https://metadata.provider.plex.tv/library/metadata/{plex_metadata_id}?X-Plex-Token={PLEX_TOKEN}&X-Plex-Language={lang}"
-                        m_resp = requests.get(meta_url, headers={"Accept": "application/json"}, timeout=10)
-                        if m_resp.status_code == 200:
-                            m_data = m_resp.json().get("MediaContainer", {}).get("Metadata", [])
-                            if m_data:
-                                item = m_data[0]
-                                m_type = item.get("type")
-                                if m_type not in ["movie", "episode"]:
-                                    print(f"⚠️ Ignorando huérfano global (tipo '{m_type}'): {meta.get('title')}")
-                                    continue
-                                    
-                                actual_media_type = m_type
-                                
-                                p = build_payload_from_plex(item, actual_media_type)
-                                p["Metadata"]["watched_at"] = cloud_date 
-                                
-                                # Si es un episodio huérfano, necesitamos los IDs de la serie desde la nube
-                                if actual_media_type == "episode" and "grandparentGuid" in item:
-                                    gp_guid = item["grandparentGuid"]
-                                    gp_id = gp_guid.split("/")[-1]
-                                    try:
-                                        gp_url = f"https://metadata.provider.plex.tv/library/metadata/{gp_id}?X-Plex-Token={PLEX_TOKEN}"
-                                        gp_resp = requests.get(gp_url, headers={"Accept": "application/json"}, timeout=5)
-                                        if gp_resp.status_code == 200:
-                                            gp_data = gp_resp.json().get("MediaContainer", {}).get("Metadata", [])
-                                            if gp_data:
-                                                p["Metadata"]["grandparentGuids"] = gp_data[0].get("Guid", [])
-                                    except Exception:
-                                        pass
-                                
-                                if process_plex_payload(p, cursor, is_bulk=True):
-                                    conn.commit()
-                                    count_orphans += 1
-                                    # Cache it to avoid retrying in the current loop
-                                    cursor.execute("SELECT id FROM watch_history WHERE plex_guid=?", (guid,))
-                                    new_r = cursor.fetchone()
-                                    if new_r:
-                                        local_items_by_guid[guid] = {"id": new_r["id"], "watched_at": cloud_date}
-                    except Exception as e:
-                        print(f"❌ Error rescuing orphan {guid}: {e}")
-                        
+                if m_type == "MOVIE":
+                    process_item_node(node)
+                elif m_type == "EPISODE":
+                    gp = meta.get("grandparent")
+                    if not gp:
+                        process_item_node(node)
+                        continue
+                    show_guid = gp.get("guid")
+                    show_title = gp.get("title")
+                    if not show_guid:
+                        process_item_node(node)
+                        continue
+                    show_id = show_guid.split("/")[-1]
+                    if show_id in processed_shows:
+                        continue
+                    processed_shows.add(show_id)
+                    fetch_show_history_db(show_id, show_title)
+                elif m_type == "SHOW":
+                    show_guid = meta.get("guid")
+                    show_title = meta.get("title")
+                    if not show_guid:
+                        continue
+                    show_id = show_guid.split("/")[-1]
+                    if show_id in processed_shows:
+                        continue
+                    processed_shows.add(show_id)
+                    fetch_show_history_db(show_id, show_title)
+                    
             has_next = page_info.get("hasNextPage", False)
             page_cursor = page_info.get("endCursor")
             time.sleep(1)
@@ -1543,7 +1644,7 @@ def push_cloud_orphans_to_db():
             break
             
     conn.close()
-    print(f"✅ Cloud Orphan Push completed! Inserted {count_orphans} orphans and updated {count_updates} dates.")
+    print(f"✅ Smart Extractor V2 completed! Inserted {count_orphans} orphans and updated {count_updates} dates.")
 
 
 def run_sync():
