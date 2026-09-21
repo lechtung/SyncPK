@@ -86,5 +86,11 @@
     "fab_add_manual": "手动添加",
     "fab_config": "设置",
     "fab_logs": "查看日志",
-    "fab_sync": "强制同步"
+    "fab_sync": "强制同步",
+    "no_results": "未找到结果",
+    "type_series": "剧集",
+    "type_movie": "电影",
+    "manual_missing_fields": "请在保存前选择标题和日期。",
+    "saving": "保存中...",
+    "manual_save_error": "保存记录时出错"
 }

@@ -86,5 +86,11 @@
     "fab_add_manual": "Aggiungi Manuale",
     "fab_config": "Impostazioni",
     "fab_logs": "Vedi Journal",
-    "fab_sync": "Forza Sincronizzazione"
+    "fab_sync": "Forza Sincronizzazione",
+    "no_results": "Nessun risultato trovato",
+    "type_series": "Serie",
+    "type_movie": "Film",
+    "manual_missing_fields": "Seleziona un titolo e una data prima di salvare.",
+    "saving": "Salvataggio...",
+    "manual_save_error": "Errore durante il salvataggio"
 }

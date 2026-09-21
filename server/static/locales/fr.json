@@ -86,5 +86,11 @@
     "fab_add_manual": "Ajout Manuel",
     "fab_config": "Paramètres",
     "fab_logs": "Voir Journal",
-    "fab_sync": "Forcer Sync"
+    "fab_sync": "Forcer Sync",
+    "no_results": "Aucun résultat trouvé",
+    "type_series": "Série",
+    "type_movie": "Film",
+    "manual_missing_fields": "Veuillez sélectionner un titre et une date avant d'enregistrer.",
+    "saving": "Enregistrement...",
+    "manual_save_error": "Erreur lors de l'enregistrement"
 }

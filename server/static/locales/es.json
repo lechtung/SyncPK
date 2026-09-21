@@ -86,5 +86,20 @@
     "fab_add_manual": "Añadir Manual",
     "fab_config": "Configuración",
     "fab_logs": "Ver Journal",
-    "fab_sync": "Forzar Sincronización"
+    "fab_sync": "Forzar Sincronización",
+    "no_results": "No se encontraron resultados",
+    "type_series": "Serie",
+    "type_movie": "Película",
+    "manual_missing_fields": "Por favor selecciona un título y una fecha antes de guardar.",
+    "saving": "Guardando...",
+    "manual_save_error": "Error al guardar el registro manual",
+    "add_manual_title": "Añadir Visionado Manual",
+    "manual_search": "Buscar en TMDB:",
+    "manual_search_ph": "Nombre de película o serie...",
+    "manual_season": "Temporada:",
+    "manual_episode": "Episodio:",
+    "manual_date": "Fecha de visionado:",
+    "manual_sync_plex": "Sincronizar a Plex Cloud",
+    "action_cancel": "Cancelar",
+    "action_save": "Guardar"
 }

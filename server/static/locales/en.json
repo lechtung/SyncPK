@@ -86,5 +86,20 @@
     "fab_add_manual": "Add Manual",
     "fab_config": "Settings",
     "fab_logs": "View Journal",
-    "fab_sync": "Force Sync"
+    "fab_sync": "Force Sync",
+    "no_results": "No results found",
+    "type_series": "Series",
+    "type_movie": "Movie",
+    "manual_missing_fields": "Please select a title and a date before saving.",
+    "saving": "Saving...",
+    "manual_save_error": "Error saving the manual record",
+    "add_manual_title": "Add Manual Entry",
+    "manual_search": "Search in TMDB:",
+    "manual_search_ph": "Movie or series name...",
+    "manual_season": "Season:",
+    "manual_episode": "Episode:",
+    "manual_date": "Watch date:",
+    "manual_sync_plex": "Sync to Plex Cloud",
+    "action_cancel": "Cancel",
+    "action_save": "Save"
 }

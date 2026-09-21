@@ -19,7 +19,7 @@
     "stat_total_hours": "Horas Totais",
     "edit_title": "Alterar Data de Visualização",
     "btn_cancel": "Cancelar",
-    "btn_save": "Salvar",
+    "btn_save": "Guardar",
     "action_delete": "Excluir do histórico",
     "action_edit": "Alterar data",
     "edit_scope_episode": "Apenas este episódio",
@@ -86,5 +86,11 @@
     "fab_add_manual": "Adicionar Manual",
     "fab_config": "Configurações",
     "fab_logs": "Ver Journal",
-    "fab_sync": "Forçar Sincronização"
+    "fab_sync": "Forçar Sincronização",
+    "no_results": "Nenhum resultado encontrado",
+    "type_series": "Série",
+    "type_movie": "Filme",
+    "manual_missing_fields": "Por favor selecione um título e uma data antes de guardar.",
+    "saving": "A guardar...",
+    "manual_save_error": "Erro ao guardar o registo manual"
 }

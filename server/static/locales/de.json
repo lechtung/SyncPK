@@ -86,5 +86,11 @@
     "fab_add_manual": "Manuell Hinzufügen",
     "fab_config": "Einstellungen",
     "fab_logs": "Journal Ansehen",
-    "fab_sync": "Sync Erzwingen"
+    "fab_sync": "Sync Erzwingen",
+    "no_results": "Keine Ergebnisse gefunden",
+    "type_series": "Serie",
+    "type_movie": "Film",
+    "manual_missing_fields": "Bitte wählen Sie einen Titel und ein Datum aus, bevor Sie speichern.",
+    "saving": "Wird gespeichert...",
+    "manual_save_error": "Fehler beim Speichern"
 }

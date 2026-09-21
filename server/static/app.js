@@ -1030,7 +1030,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderTMDBResults(results) {
         searchResults.innerHTML = '';
         if (results.length === 0) {
-            searchResults.innerHTML = '<div style="padding:10px; color:#aaa;">No se encontraron resultados</div>';
+            searchResults.innerHTML = `<div style="padding:10px; color:#aaa;">${currentLangData.no_results || 'No results found'}</div>`;
         } else {
             results.forEach(item => {
                 const div = document.createElement('div');
@@ -1039,7 +1039,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const title = item.title || item.name;
                 const year = (item.release_date || item.first_air_date || "").split('-')[0];
                 const poster = item.poster_path ? `https://image.tmdb.org/t/p/w92${item.poster_path}` : '';
-                const type = item.media_type === 'tv' ? 'Serie' : 'Película';
+                const type = item.media_type === 'tv' ? (currentLangData.type_series || 'Series') : (currentLangData.type_movie || 'Movie');
 
                 div.innerHTML = `
                     <img src="${poster}" alt="poster">
@@ -1098,8 +1098,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Submit Manual Form
     if (saveManualBtn) {
         saveManualBtn.addEventListener('click', async () => {
+            // Explicit validation before sending
+            const tmdbIdCheck = document.getElementById('manual-tmdb-id').value;
+            const dateCheck = document.getElementById('manual-date').value;
+            if (!tmdbIdCheck || !dateCheck) {
+                alert(currentLangData.manual_missing_fields || 'Please select a title and a date before saving.');
+                return;
+            }
+
             saveManualBtn.disabled = true;
-            saveManualBtn.textContent = 'Guardando...';
+            saveManualBtn.textContent = currentLangData.saving || 'Saving...';
 
             const payload = {
                 tmdb_id: document.getElementById('manual-tmdb-id').value,
@@ -1125,13 +1133,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     manualModal.classList.add('hidden');
                     reloadHistory();
                 } else {
-                    alert('Error al guardar el registro manual');
+                    alert(currentLangData.manual_save_error || 'Error saving the manual record');
                 }
             } catch (err) {
                 console.error(err);
                 alert('Error de red');
             } finally {
-                saveManualBtn.textContent = 'Guardar';
+                saveManualBtn.textContent = currentLangData.btn_save || 'Save';
                 checkManualForm();
             }
         });
