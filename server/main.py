@@ -1,3 +1,4 @@
+#v8
 from fastapi import FastAPI, Request, Query, Depends, HTTPException, Header
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
@@ -828,16 +829,24 @@ def perform_plex_surgery(item: dict, watched_at_local: str):
     if not node_id:
         print(f"No node for {item.get('title')}, triggering scrobble...")
         scrobble_single_item_to_plex(item.get("title"), item.get("show_title"), item.get("season"), item.get("episode"), item.get("media_type"))
-        time.sleep(2)
-        for intento in range(3):
+        # Plex Cloud needs time to process the scrobble and create the activity node.
+        # We use progressive waits to give it enough time.
+        wait_times = [8, 12, 15]
+        for intento, wait in enumerate(wait_times):
+            print(f"  Waiting {wait}s for Plex Cloud to process scrobble (attempt {intento+1}/{len(wait_times)})...")
+            time.sleep(wait)
             try:
                 r = requests.post(url_graphql, headers=headers_fetch, json=payload_get, timeout=20)
                 if r.status_code == 200:
                     nodes = r.json().get("data", {}).get("activityFeed", {}).get("nodes", [])
-                    if nodes: node_id = nodes[0]["id"]
-                    break
-            except Exception:
-                time.sleep(2)
+                    if nodes:
+                        node_id = nodes[0]["id"]
+                        print(f"  ✅ Activity node found after scrobble on attempt {intento+1}")
+                        break
+                    else:
+                        print(f"  Still no node on attempt {intento+1}...")
+            except Exception as ex:
+                print(f"  Error fetching node on attempt {intento+1}: {ex}")
                 
     if node_id:
         headers_mutate = dict(headers_fetch)
