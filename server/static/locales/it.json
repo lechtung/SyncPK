@@ -73,5 +73,14 @@
     "order_asc": "Crescente",
     "order_desc": "Decrescente",
     "help_order_asc": "Il primo episodio verrà assegnato alla data selezionata e i seguenti a date successive.",
-    "help_order_desc": "L'ultimo episodio verrà assegnato alla data selezionata e i seguenti a date precedenti."
+    "help_order_desc": "L'ultimo episodio verrà assegnato alla data selezionata e i seguenti a date precedenti.",
+    "lang_en": "Inglese",
+    "lang_es": "Spagnolo",
+    "lang_fr": "Francese",
+    "lang_de": "Tedesco",
+    "lang_it": "Italiano",
+    "lang_ja": "Giapponese",
+    "lang_pt": "Portoghese",
+    "lang_zh": "Cinese",
+    "updating_msg": "Aggiornamento in corso, potrebbe richiedere alcuni minuti..."
 }

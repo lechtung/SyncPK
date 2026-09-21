@@ -73,5 +73,14 @@
     "order_asc": "Ascending",
     "order_desc": "Descending",
     "help_order_asc": "First episode will be assigned to selected date and the following to later dates.",
-    "help_order_desc": "Last episode will be assigned to selected date and the following to earlier dates."
+    "help_order_desc": "Last episode will be assigned to selected date and the following to earlier dates.",
+    "lang_en": "English",
+    "lang_es": "Spanish",
+    "lang_fr": "French",
+    "lang_de": "German",
+    "lang_it": "Italian",
+    "lang_ja": "Japanese",
+    "lang_pt": "Portuguese",
+    "lang_zh": "Chinese",
+    "updating_msg": "Updating, this may take a few minutes..."
 }

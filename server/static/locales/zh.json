@@ -73,5 +73,14 @@
     "order_asc": "升序",
     "order_desc": "降序",
     "help_order_asc": "第一集将分配给所选日期，后续集分配给较晚日期。",
-    "help_order_desc": "最后一集将分配给所选日期，后续集分配给较早日期。"
+    "help_order_desc": "最后一集将分配给所选日期，后续集分配给较早日期。",
+    "lang_en": "英语",
+    "lang_es": "西班牙语",
+    "lang_fr": "法语",
+    "lang_de": "德语",
+    "lang_it": "意大利语",
+    "lang_ja": "日语",
+    "lang_pt": "葡萄牙语",
+    "lang_zh": "中文",
+    "updating_msg": "正在更新，这可能需要几分钟时间..."
 }

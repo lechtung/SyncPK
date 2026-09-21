@@ -529,7 +529,7 @@ def scrobble_single_item_to_plex(title, show_title, season, episode, media_type)
         plex_movies, plex_shows = get_plex_items_map()
         if media_type == "movie":
             matched = match_movie({"movie": {"title": title}}, plex_movies)
-            if matched and matched.get("viewCount", 0) == 0:
+            if matched:
                 r_key = matched.get("ratingKey")
                 requests.get(f"{PLEX_URL}/:/scrobble?identifier=com.plexapp.plugins.library&key={r_key}", headers=plex_headers)
                 print(f"✅ [Direct] Marked movie in Plex: {title}")
@@ -541,9 +541,8 @@ def scrobble_single_item_to_plex(title, show_title, season, episode, media_type)
                     plex_eps = r_eps.json().get("MediaContainer", {}).get("Metadata", [])
                     for pep in plex_eps:
                         if pep.get("parentIndex") == season and pep.get("index") == episode:
-                            if pep.get("viewCount", 0) == 0:
-                                requests.get(f"{PLEX_URL}/:/scrobble?identifier=com.plexapp.plugins.library&key={pep['ratingKey']}", headers=plex_headers)
-                                print(f"✅ [Direct] Marked episode in Plex: {show_title} T{season}E{episode} - {title}")
+                            requests.get(f"{PLEX_URL}/:/scrobble?identifier=com.plexapp.plugins.library&key={pep['ratingKey']}", headers=plex_headers)
+                            print(f"✅ [Direct] Marked episode in Plex: {show_title} T{season}E{episode} - {title}")
                             break
     except Exception as e:
         print(f"Error en scrobble_single_item_to_plex: {e}")
@@ -878,6 +877,39 @@ def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: 
     scope = req.scope or "episode"
     
     # 1. Fetch all items that will be modified
+    if item["media_type"] == "episode" and scope != "episode":
+        plex_movies, plex_shows = get_plex_items_map()
+        s_key = match_show({"show": {"title": item["show_title"]}}, plex_shows)
+        if s_key:
+            r_eps = requests.get(f"{PLEX_URL}/library/metadata/{s_key}/allLeaves", headers=plex_headers)
+            if r_eps.status_code == 200:
+                plex_eps = r_eps.json().get("MediaContainer", {}).get("Metadata", [])
+                
+                cursor.execute("SELECT plex_guid FROM watch_history WHERE show_title = ?", (item["show_title"],))
+                existing_guids = {r["plex_guid"] for r in cursor.fetchall() if r["plex_guid"]}
+                
+                now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                for pep in plex_eps:
+                    p_season = pep.get("parentIndex")
+                    p_episode = pep.get("index")
+                    
+                    # Filter by scope before inserting
+                    if scope == "season" and p_season != item["season"]:
+                        continue
+                    if scope == "onwards" and (p_season < item["season"] or (p_season == item["season"] and p_episode < item["episode"])):
+                        continue
+                        
+                    p_guid = pep.get("guid")
+                    p_show_guid = pep.get("grandparentGuid")
+                    p_title = pep.get("title", f"Episodio {p_episode}")
+                    
+                    if p_guid and p_guid not in existing_guids:
+                        cursor.execute("""
+                            INSERT INTO watch_history (origin, title, show_title, media_type, season, episode, plex_guid, plex_show_guid, watched_at, created_at, duration)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, ('manual', p_title, item["show_title"], 'episode', p_season, p_episode, p_guid, p_show_guid, item["watched_at"], now_utc, pep.get("duration", 0)))
+                conn.commit()
+
     items_to_modify = []
     if item["media_type"] == "episode":
         if scope == "episode":
@@ -893,8 +925,9 @@ def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: 
         
     items_to_modify = [dict(r) for r in cursor.fetchall()]
     total_items = len(items_to_modify)
+    conn.close() # CERRAR AQUI PARA NO BLOQUEAR DURANTE LAS PETICIONES A PLEX
+    
     if total_items == 0:
-        conn.close()
         return {"success": True}
         
     # Sort chronologically (S1E1, S1E2...)
@@ -997,14 +1030,23 @@ def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: 
     for item, assign_dt in zip(sorted_items, assigned_dates):
         watched_str = assign_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
         
+        should_update_db = True
         if req.sync_remote:
-            perform_plex_surgery(item, watched_str)
-            cursor.execute("UPDATE watch_history SET watched_at = ?, created_at = ? WHERE id = ?", (watched_str, now_utc, item["id"]))
-        else:
-            cursor.execute("UPDATE watch_history SET watched_at = ? WHERE id = ?", (watched_str, item["id"]))
+            success = perform_plex_surgery(item, watched_str)
+            if not success:
+                should_update_db = False
+                print(f"Skipping DB update for {item.get('title')} because Plex surgery failed.")
+                
+        if should_update_db:
+            conn_update = sqlite3.connect("sync.db")
+            c_update = conn_update.cursor()
+            if req.sync_remote:
+                c_update.execute("UPDATE watch_history SET watched_at = ?, created_at = ? WHERE id = ?", (watched_str, now_utc, item["id"]))
+            else:
+                c_update.execute("UPDATE watch_history SET watched_at = ? WHERE id = ?", (watched_str, item["id"]))
+            conn_update.commit()
+            conn_update.close()
         
-    conn.commit()
-    conn.close()
     return {"success": True}
 
 @app.post("/api/dismiss-sync")
@@ -1887,9 +1929,9 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
 @app.get("/api/config", dependencies=[Depends(verify_api_key)])
 def get_config():
     return {
-        "plex_url": os.getenv("PLEX_URL", ""),
-        "plex_token": os.getenv("PLEX_TOKEN", ""),
-        "tmdb_api_key": os.getenv("TMDB_API_KEY", ""),
+        "plex_url": PLEX_URL,
+        "plex_token": PLEX_TOKEN,
+        "tmdb_api_key": TMDB_API_KEY,
         "sync_language": os.getenv("SYNC_LANGUAGE", "es")
     }
 

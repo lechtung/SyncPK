@@ -73,5 +73,14 @@
     "order_asc": "Ascendente",
     "order_desc": "Descendente",
     "help_order_asc": "Se asignará el primer episodio a la fecha seleccionada y se irán asignando los siguientes a fechas posteriores.",
-    "help_order_desc": "Se asignará el último episodio a la fecha seleccionada y se irán asignando los siguientes a fechas anteriores."
+    "help_order_desc": "Se asignará el último episodio a la fecha seleccionada y se irán asignando los siguientes a fechas anteriores.",
+    "lang_en": "Inglés",
+    "lang_es": "Español",
+    "lang_fr": "Francés",
+    "lang_de": "Alemán",
+    "lang_it": "Italiano",
+    "lang_ja": "Japonés",
+    "lang_pt": "Portugués",
+    "lang_zh": "Chino",
+    "updating_msg": "Actualizando, esto puede tardar unos minutos..."
 }

@@ -73,5 +73,14 @@
     "order_asc": "昇順",
     "order_desc": "降順",
     "help_order_asc": "最初のエピソードが選択した日付に割り当てられ、以降はそれより後の日付になります。",
-    "help_order_desc": "最後のエピソードが選択した日付に割り当てられ、以降はそれより前の日付になります。"
+    "help_order_desc": "最後のエピソードが選択した日付に割り当てられ、以降はそれより前の日付になります。",
+    "lang_en": "英語 (Eigo)",
+    "lang_es": "スペイン語 (Supeingo)",
+    "lang_fr": "フランス語 (Furansugo)",
+    "lang_de": "ドイツ語 (Doitsugo)",
+    "lang_it": "イタリア語 (Itariago)",
+    "lang_ja": "日本語 (Nihongo)",
+    "lang_pt": "ポルトガル語 (Porutogarugo)",
+    "lang_zh": "中国語 (Chūgokugo)",
+    "updating_msg": "更新中... 数分かかる場合があります..."
 }

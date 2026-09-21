@@ -147,8 +147,8 @@ function initDropdowns() {
         let trigger = dd.querySelector('.c-dropdown-trigger');
         let closeTimer;
 
-        // Hover to open (excepto para editScope-dd y editDistMode-dd)
-        if (dd.id !== 'editScope-dd' && dd.id !== 'editDistMode-dd') {
+        // Hover to open (excepto para editScope-dd, editDistMode-dd y configLang-dd)
+        if (dd.id !== 'editScope-dd' && dd.id !== 'editDistMode-dd' && dd.id !== 'configLang-dd') {
             dd.addEventListener('mouseenter', () => {
                 clearTimeout(closeTimer);
                 dd.classList.add('open');
@@ -662,6 +662,10 @@ document.getElementById('edit-save-btn').addEventListener('click', async () => {
         }
     }
 
+    // Ocultar modal de edición y mostrar de actualización
+    document.getElementById('edit-modal').classList.add('hidden');
+    document.getElementById('updating-overlay').classList.remove('hidden');
+
     try {
         let res = await apiFetch(`/api/history/${currentEditId}`, {
             method: 'PUT',
@@ -669,10 +673,13 @@ document.getElementById('edit-save-btn').addEventListener('click', async () => {
             body: JSON.stringify(payload)
         });
         if (res.ok) {
-            document.getElementById('edit-modal').classList.add('hidden');
             reloadHistory(); // Reload to sort properly
         }
-    } catch (e) { console.error(e); }
+    } catch (e) { 
+        console.error(e); 
+    } finally {
+        document.getElementById('updating-overlay').classList.add('hidden');
+    }
 });
 
 // --- TIMELINE NAVIGATOR ---
@@ -778,34 +785,6 @@ function setupConfigModal() {
     const configModal = document.getElementById('config-modal');
     const cancelBtn = document.getElementById('config-cancel-btn');
     const saveBtn = document.getElementById('config-save-btn');
-    
-    // Toggle Password Eyes
-    document.querySelectorAll('.toggle-password').forEach(eye => {
-        eye.addEventListener('click', (e) => {
-            let targetId = e.target.dataset.target;
-            let input = document.getElementById(targetId);
-            if(input.type === 'password') {
-                input.type = 'text';
-                e.target.textContent = '🙈';
-            } else {
-                input.type = 'password';
-                e.target.textContent = '👁️';
-            }
-        });
-    });
-
-    document.querySelectorAll('.toggle-password-hold').forEach(eye => {
-        const targetId = eye.dataset.target;
-        const input = document.getElementById(targetId);
-        const show = () => { input.type = 'text'; eye.textContent = '🙈'; };
-        const hide = () => { input.type = 'password'; eye.textContent = '👁️'; };
-        
-        eye.addEventListener('mousedown', show);
-        eye.addEventListener('mouseup', hide);
-        eye.addEventListener('mouseleave', hide);
-        eye.addEventListener('touchstart', show);
-        eye.addEventListener('touchend', hide);
-    });
 
     // Dynamic Repeat Password Field
     const pwdInput = document.getElementById('config-password');
@@ -846,8 +825,26 @@ function setupConfigModal() {
                     document.getElementById('config-plex-url').value = data.plex_url || '';
                     document.getElementById('config-plex-token').value = data.plex_token || '';
                     document.getElementById('config-tmdb-api').value = data.tmdb_api_key || '';
-                    document.getElementById('config-language').value = data.sync_language || 'es';
-                    configModal.dataset.originalLang = data.sync_language || 'es';
+                    
+                    let langValue = data.sync_language || 'es';
+                    let langDd = document.getElementById('configLang-dd');
+                    langDd.dataset.currentValue = langValue;
+                    langDd.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected'));
+                    let selectedItem = langDd.querySelector(`.c-dropdown-item[data-value="${langValue}"]`);
+                    if (selectedItem) {
+                        selectedItem.classList.add('selected');
+                        let valEl = langDd.querySelector('.c-dropdown-value');
+                        valEl.textContent = selectedItem.textContent;
+                        valEl.setAttribute('data-i18n', selectedItem.getAttribute('data-i18n'));
+                    }
+                    configModal.dataset.originalLang = langValue;
+                    
+                    // Resetear estado del formulario
+                    pwdInput.value = '';
+                    repeatInput.value = '';
+                    repeatContainer.classList.add('hidden');
+                    pwdError.classList.add('hidden');
+                    saveBtn.disabled = false;
                 }
             } catch (e) { console.error(e); }
         });
@@ -906,11 +903,11 @@ function setupConfigModal() {
         }
     });
 
-    // Save Config
-    saveBtn.addEventListener('click', async () => {
-        const origLang = configModal.dataset.originalLang;
-        const newLang = document.getElementById('config-language').value;
-        const pwd = pwdInput.value;
+      // Save Config
+      saveBtn.addEventListener('click', async () => {
+          const origLang = configModal.dataset.originalLang;
+          const newLang = document.getElementById('configLang-dd').dataset.currentValue || 'es';
+          const pwd = pwdInput.value;
         
         const payload = {
             plex_url: document.getElementById('config-plex-url').value,

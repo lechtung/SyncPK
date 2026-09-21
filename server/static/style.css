@@ -44,7 +44,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: 2000;
 }
 
 .login-box {
@@ -210,16 +210,15 @@ button:hover { background: var(--accent-hover); }
     text-overflow: ellipsis;
     max-width: 130px;
 }
-#editScope-val {
+#editScope-val, #editDistMode-val {
     max-width: none;
 }
 .c-dropdown-arrow {
     position: absolute;
-    right: 10px;
+    right: 16px;
     top: 50%;
     transform: translateY(-40%);
     color: var(--text-secondary);
-    font-size: 1rem;
     transition: transform 0.2s;
     pointer-events: none;
 }
@@ -415,7 +414,7 @@ button:hover { background: var(--accent-hover); }
     bottom: 30px;
     right: 30px;
     display: flex;
-    flex-direction: column-reverse;
+    flex-direction: column;
     align-items: center;
     gap: 15px;
     z-index: 1000;
@@ -442,15 +441,19 @@ button:hover { background: var(--accent-hover); }
 }
 
 .fab-icon-main {
-    transition: transform 0.4s ease;
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    transform: rotate(0deg);
 }
 
 /* Estado activo del FAB */
 .fab-container.active .fab-main {
-    transform: rotate(-270deg);
     background: #2d333b; /* Gris oscuro neutro */
     color: #fff;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.fab-container.active .fab-icon-main {
+    transform: rotate(-270deg);
 }
 
 /* Elementos del Speed Dial */

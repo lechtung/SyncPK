@@ -73,5 +73,14 @@
     "order_asc": "Crescente",
     "order_desc": "Decrescente",
     "help_order_asc": "O primeiro episódio será atribuído à data selecionada e os seguintes a datas posteriores.",
-    "help_order_desc": "O último episódio será atribuído à data selecionada e os seguintes a datas anteriores."
+    "help_order_desc": "O último episódio será atribuído à data selecionada e os seguintes a datas anteriores.",
+    "lang_en": "Inglês",
+    "lang_es": "Espanhol",
+    "lang_fr": "Francês",
+    "lang_de": "Alemão",
+    "lang_it": "Italiano",
+    "lang_ja": "Japonês",
+    "lang_pt": "Português",
+    "lang_zh": "Chinês",
+    "updating_msg": "Atualizando, isso pode levar alguns minutos..."
 }
