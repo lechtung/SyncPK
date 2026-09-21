@@ -92,5 +92,9 @@
     "type_movie": "Filme",
     "manual_missing_fields": "Por favor selecione um título e uma data antes de guardar.",
     "saving": "A guardar...",
-    "manual_save_error": "Erro ao guardar o registo manual"
+    "manual_save_error": "Erro ao guardar o registo manual",
+    "config_saved": "Configurações guardadas.",
+    "config_saved_rescan": "Configurações guardadas. Re-scan iniciado em segundo plano.",
+    "config_save_error": "Erro ao guardar as configurações.",
+    "network_error": "Erro de rede. Por favor tente novamente."
 }

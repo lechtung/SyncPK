@@ -92,5 +92,9 @@
     "type_movie": "电影",
     "manual_missing_fields": "请在保存前选择标题和日期。",
     "saving": "保存中...",
-    "manual_save_error": "保存记录时出错"
+    "manual_save_error": "保存记录时出错",
+    "config_saved": "设置已保存。",
+    "config_saved_rescan": "设置已保存。后台重新扫描已启动。",
+    "config_save_error": "保存设置时出错。",
+    "network_error": "网络错误，请重试。"
 }

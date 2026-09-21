@@ -516,7 +516,7 @@ def process_kodi_payload(payload, cursor, is_bulk=False):
     except Exception as e:
         print(f"Error asignando carátulas Kodi: {e}")
             
-    # Asíncronamente marcar en Plex como visto usando su API
+    # Asynchronously mark as watched in Plex using its API
     if not existing_id:
         import threading
         s_season = int(season) if season is not None else None
@@ -716,7 +716,7 @@ def get_stats(type: str = "all", year: str = "all", month: str = "all", search: 
         base_query += " AND (title LIKE ? OR show_title LIKE ?)"
         params.extend([f"%{search}%", f"%{search}%"])
     
-    # Añadimos la misma condición extra para media_type
+    # Add the same extra condition for media_type
     
     # Movies stats
     cursor.execute("SELECT COUNT(*), SUM(duration)" + base_query + " AND media_type = 'movie'", params)
@@ -729,7 +729,7 @@ def get_stats(type: str = "all", year: str = "all", month: str = "all", search: 
     row = cursor.fetchone()
     episodes_count = row[0] or 0
     episodes_hours = round((row[1] or 0) / 60.0, 1)
-    # Obtener años disponibles globales
+    # Get global available years
     cursor.execute("SELECT DISTINCT strftime('%Y', watched_at) FROM watch_history WHERE watched_at IS NOT NULL ORDER BY 1 DESC")
     available_years = [str(r[0]) for r in cursor.fetchall() if r[0]]
     
@@ -750,7 +750,7 @@ import subprocess
 @app.get("/api/logs")
 def get_logs(authorization: str = Depends(verify_api_key)):
     try:
-        # Pide las últimas 200 líneas del servicio en Proxmox
+        # Request the last 200 lines of the service in Proxmox
         out = subprocess.check_output(['journalctl', '-u', 'syncpk-server', '-n', '200', '--no-pager']).decode('utf-8')
         return {"logs": out}
     except Exception as e:
@@ -760,7 +760,7 @@ def get_logs(authorization: str = Depends(verify_api_key)):
 def download_logs():
     try:
         from fastapi.responses import Response
-        # Pide TODO el historial del servicio en formato texto sin paginar
+        # Request FULL text history of the service without pagination
         out = subprocess.check_output(['journalctl', '-u', 'syncpk-server', '--no-pager']).decode('utf-8')
         return Response(content=out, media_type="text/plain", headers={"Content-Disposition": "attachment; filename=syncpk_journal.txt"})
     except Exception as e:
@@ -1065,10 +1065,6 @@ def dismiss_sync(authorization: str = Depends(verify_api_key)):
     save_settings(settings)
     return {"success": True}
 
-@app.get("/api/config")
-def get_config():
-    # Only return API KEY to authenticated frontend (optional) but TMDB API_KEY is not secret
-    return {"tmdb_api_key": TMDB_API_KEY}
 
 # --- PLEX SYNC BACKGROUND LOGIC ---
 import requests
@@ -1227,7 +1223,7 @@ def build_payload_from_plex(item, media_type, show_map=None):
             print(f"🔄 Date fixed from {watched_at} to {real_date} for: {item.get('title')}", flush=True)
             watched_at = real_date
     else:
-        # Fallback si no tiene lastViewedAt pero tiene viewCount
+        # Fallback if no lastViewedAt but has viewCount
         watched_at = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
         
     guids = []
@@ -1252,7 +1248,7 @@ def build_payload_from_plex(item, media_type, show_map=None):
         payload["Metadata"]["index"] = item.get("index")
         payload["Metadata"]["grandparentKey"] = item.get("grandparentKey")
         
-        # Recuperar IDs globales del Show usando el show_map (Fase A)
+        # Recover global Show IDs using show_map (Phase A)
         parent_key = item.get("grandparentRatingKey")
         if parent_key and parent_key in show_map:
             show_data = show_map[parent_key]
@@ -1282,7 +1278,7 @@ def push_all_to_db():
     payloads = []
     sections = get_plex_libraries()
     
-    # Fase A: Mapeo en Memoria de todas las Series (con paginación)
+    # Phase A: In-Memory Mapping of all Shows (with pagination)
     show_map = {}
     for sec in sections:
         if sec["type"] == "show":
@@ -1309,7 +1305,7 @@ def push_all_to_db():
                     print(f"Error mapping shows in section {sec['key']}: {e}")
                     break
 
-    # Fase B: Extracción e Inserción Inmediata
+    # Phase B: Immediate Extraction and Insertion
     conn = sqlite3.connect("sync.db")
     cursor = conn.cursor()
     count = 0
@@ -1357,7 +1353,7 @@ def push_all_to_db():
                             if process_plex_payload(p, cursor, is_bulk=True):
                                 count += 1
                                 
-                            # Escribimos en BD al vuelo para verlo en el dashboard en tiempo real
+                            # Write to DB on the fly to see it in the dashboard in real time
                             conn.commit()
                             
                             sec_processed += 1
@@ -1727,7 +1723,7 @@ async def sync_loop():
 async def background_initial_task():
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, run_sync)
-    # Una vez terminada la carga en BD, descargamos las imágenes asíncronamente
+    # Once DB loading is finished, download images asynchronously
     await bulk_download_tmdb_images()
 
 @app.on_event("startup")
@@ -1777,123 +1773,181 @@ def search_tmdb(q: str, lang: str = "es", authorization: str = Depends(verify_ap
 @app.post("/api/manual_add")
 def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_key)):
     try:
-        # PLEX CLOUD WORKAROUND (Phase 1)
+        # --- PHASE 0: Check for duplicate in local DB ---
+        conn_check = sqlite3.connect("sync.db")
+        conn_check.row_factory = sqlite3.Row
+        cur_check = conn_check.cursor()
+        if req.media_type == "movie":
+            cur_check.execute(
+                "SELECT id FROM watch_history WHERE media_type='movie' AND tmdb_id=?",
+                (req.tmdb_id,)
+            )
+        else:
+            cur_check.execute(
+                "SELECT id FROM watch_history WHERE media_type='episode' AND show_tmdb_id=? AND season=? AND episode=?",
+                (req.tmdb_id, req.season, req.episode)
+            )
+        existing = cur_check.fetchone()
+        conn_check.close()
+
+        if existing:
+            print(f"[manual_add] Duplicate detected for '{req.title}' - already in local DB (id={existing['id']})")
+            return {"status": "duplicate", "message": "Already in watch history"}
+
+        # --- PHASE 1: Plex Sync (if requested) ---
         plex_guid = None
         if req.sync_remote:
             try:
-                # 1. Match item in Plex Cloud
-                match_url = f"{PLEX_URL}/library/metadata/matches"
-                params = {"title": req.title}
-                if req.media_type == "movie":
-                    params["type"] = "1"
-                elif req.media_type == "episode":
-                    params["type"] = "4" # Or 2 for show, but let's try title match
-                
-                # Fetch matching to find plex:// guid
-                # Actually, a simpler way to match is using the TMDB ID!
-                # provider.plex.tv allows searching by tmdb id:
-                guid_query = f"tmdb://{req.tmdb_id}"
-                
-                # Let's search using the standard /library/metadata/matches
-                params = {"title": req.title, "guid": guid_query}
-                if req.media_type == "movie":
-                    params["type"] = "1"
-                else:
-                    params["type"] = "2" # Search for the show first
-                    
-                print(f"Buscando {req.title} en Plex Cloud...")
-                m_res = requests.get(match_url, headers=plex_headers, params=params, timeout=10)
-                
                 target_rating_key = None
+
+                # 1. Search in Plex Cloud (discover.provider.plex.tv)
+                import urllib.parse
+                import os
                 
-                if m_res.status_code == 200:
-                    matches = m_res.json().get("MediaContainer", {}).get("Metadata", [])
-                    if matches:
-                        # Found the movie or show
-                        if req.media_type == "movie":
-                            target_rating_key = matches[0].get("ratingKey")
-                            plex_guid = matches[0].get("guid")
-                        else:
-                            # It's a show, we need to find the specific episode
-                            show_key = matches[0].get("ratingKey")
-                            ep_url = f"{PLEX_URL}/library/metadata/{show_key}/allLeaves"
-                            ep_res = requests.get(ep_url, headers=plex_headers, timeout=10)
-                            if ep_res.status_code == 200:
-                                eps = ep_res.json().get("MediaContainer", {}).get("Metadata", [])
-                                for ep in eps:
-                                    if ep.get("parentIndex") == req.season and ep.get("index") == req.episode:
-                                        target_rating_key = ep.get("ratingKey")
-                                        plex_guid = ep.get("guid")
-                                        break
-                
+                search_type = "movies" if req.media_type == "movie" else "shows"
+                search_lang = os.getenv("SYNC_LANGUAGE", "es")
+                cloud_headers = {
+                    "Accept": "application/json",
+                    "x-plex-token": PLEX_TOKEN,
+                    "x-plex-client-identifier": "7o448fp80hf1p7gbvqvvaklv"
+                }
+                if search_lang:
+                    cloud_headers["x-plex-language"] = search_lang
+
+                # First, get the original_title and EXACT YEAR from TMDB
+                search_titles = [req.title]
+                target_year = None
+                if req.tmdb_id and TMDB_API_KEY:
+                    tmdb_type = "movie" if req.media_type == "movie" else "tv"
+                    tmdb_url = f"https://api.themoviedb.org/3/{tmdb_type}/{req.tmdb_id}?api_key={TMDB_API_KEY}"
+                    try:
+                        tmdb_res = requests.get(tmdb_url, timeout=5)
+                        if tmdb_res.status_code == 200:
+                            data = tmdb_res.json()
+                            orig_title = data.get("original_title" if req.media_type == "movie" else "original_name")
+                            if orig_title and orig_title.lower() != req.title.lower():
+                                search_titles.append(orig_title)
+                            
+                            # Extract release year
+                            date_str = data.get("release_date" if req.media_type == "movie" else "first_air_date", "")
+                            if date_str and len(date_str) >= 4:
+                                target_year = int(date_str[:4])
+                    except Exception as e:
+                        print(f"[manual_add] Failed getting extra data from TMDB: {e}")
+
+                # Search iterating over titles (first local, then original)
+                for title_to_search in search_titles:
+                    print(f"[manual_add] Searching '{title_to_search}' in Plex Cloud (Discover)...")
+                    cloud_search_url = (
+                        f"https://discover.provider.plex.tv/library/search"
+                        f"?query={urllib.parse.quote(title_to_search)}&limit=15"
+                        f"&searchTypes={search_type}&includeMetadata=1&searchProviders=discover"
+                    )
+                    
+                    c_res = requests.get(cloud_search_url, headers=cloud_headers, timeout=15)
+                    if c_res.status_code == 200:
+                        cloud_meta = []
+                        search_results = c_res.json().get("MediaContainer", {}).get("SearchResults", [])
+                        for sr in search_results:
+                            for item in sr.get("SearchResult", []):
+                                if "Metadata" in item:
+                                    cloud_meta.append(item["Metadata"])
+                                    
+                        if cloud_meta:
+                            # Iterate results to find a YEAR match (+/- 1 year margin)
+                            for item in cloud_meta:
+                                item_year = item.get("year")
+                                
+                                # If we have TMDB year, verify it matches
+                                if target_year and item_year:
+                                    if abs(int(item_year) - target_year) > 1:
+                                        continue # Not our year, skip to next
+                                        
+                                # Perfect match found!
+                                if req.media_type == "movie":
+                                    target_rating_key = item.get("ratingKey")
+                                    plex_guid = item.get("guid")
+                                    print(f"[manual_add] Exact match! Found in Plex Cloud: {item.get('title')} ({item_year}) (key={target_rating_key})")
+                                    break
+                                else:
+                                    show_key = item.get("ratingKey")
+                                    plex_guid = item.get("guid")
+                                    print(f"[manual_add] Exact match! Found show in Plex Cloud: {item.get('title')} ({item_year}) (key={show_key})")
+                                    target_rating_key = show_key
+                                    break
+                                    
+                            if target_rating_key:
+                                break # If found, stop searching for other titles
+                    else:
+                        print(f"[manual_add] Plex Cloud search failed for '{title_to_search}': HTTP {c_res.status_code}")
+
+                if not target_rating_key:
+                    print(f"[manual_add] '{req.title}' NOT FOUND in Plex Cloud after exhausting attempts or year mismatch.")
+
+
                 if target_rating_key:
-                    # 2. Fake Scrobble (Records as "Today")
-                    scrobble_url = f"{PLEX_URL}/:/scrobble?identifier=tv.plex.provider.metadata&key={target_rating_key}"
-                    s_res = requests.get(scrobble_url, headers=plex_headers, timeout=10)
-                    print(f"Scrobble ejecutado para {req.title}: {s_res.status_code}")
+                    # 2. Direct Cloud Scrobble
+                    scrobble_url = f"https://metadata.provider.plex.tv/actions/scrobble?key={target_rating_key}&identifier=tv.plex.provider.metadata"
+                    s_res = requests.get(scrobble_url, headers=cloud_headers, timeout=10)
+                    print(f"[manual_add] Cloud Scrobble executed for '{req.title}': HTTP {s_res.status_code}")
                     
-                    time.sleep(2) # Esperamos 2 segundos para que se asiente en la base de datos de Plex
+                    time.sleep(3) # Wait for scrobble to settle in Plex
                     
-                    # 3. Fetch Activity ID
+                    # 3. GraphQL Date Surgery
                     query_activity = """
-                    query GetActivityFeed($first: Int!) {
-                      user {
-                        activityFeed(first: $first) {
-                          edges {
-                            node {
-                              id
-                              metadata { title guid }
-                            }
-                          }
+                    query GetActivityFeed($first: PaginationInt!, $after: String, $types: [ActivityType!]!) {
+                      activityFeed(first: $first, after: $after, types: $types) {
+                        nodes {
+                          id date __typename
+                          metadataItem { __typename title guid type }
                         }
                       }
                     }
                     """
-                    headers_graphql = {
+                    gql_headers = {
                         "Accept": "application/json",
                         "Content-Type": "application/json",
-                        "X-Plex-Token": PLEX_TOKEN
+                        "X-Plex-Token": PLEX_TOKEN,
+                        "origin": "https://app.plex.tv"
                     }
-                    payload_q = {"query": query_activity, "variables": {"first": 15}}
-                    a_res = requests.post("https://community.plex.tv/api/graphql", headers=headers_graphql, json=payload_q, timeout=10)
+                    payload_q = {
+                        "query": query_activity,
+                        "variables": {"first": 15, "after": None, "types": ["WATCH_HISTORY", "WATCH_SESSION"]},
+                        "operationName": "GetActivityFeed"
+                    }
+                    a_res = requests.post("https://community.plex.tv/api", headers=gql_headers, json=payload_q, timeout=10)
                     
                     activity_id = None
                     if a_res.status_code == 200:
-                        edges = a_res.json().get("data", {}).get("user", {}).get("activityFeed", {}).get("edges", [])
-                        for edge in edges:
-                            node = edge.get("node", {})
-                            meta = node.get("metadata")
+                        nodes = a_res.json().get("data", {}).get("activityFeed", {}).get("nodes", [])
+                        for node in nodes:
+                            meta = node.get("metadataItem")
                             if meta and meta.get("guid") == plex_guid:
                                 activity_id = node.get("id")
                                 break
-                                
-                    # 4. GraphQL Date Surgery
+
                     if activity_id:
                         mutation_graphql = """
                         mutation updateActivityDate($id: ID!, $input: UpdateActivityInput!) {
                           updateActivity(id: $id, input: $input) { id }
                         }
                         """
-                        # Convert to GraphQL Date format (YYYY-MM-DDThh:mm:ss.000Z)
                         d_obj = datetime.datetime.fromisoformat(req.watched_at.replace('Z', '+00:00'))
                         watched_at_graphql = d_obj.strftime("%Y-%m-%dT%H:%M:%S.000Z")
-                        
                         payload_mut = {
-                            "query": mutation_graphql, 
-                            "variables": {"id": activity_id, "input": {"date": watched_at_graphql}}, 
+                            "query": mutation_graphql,
+                            "variables": {"id": activity_id, "input": {"date": watched_at_graphql}},
                             "operationName": "updateActivityDate"
                         }
-                        
-                        m_res = requests.post("https://community.plex.tv/api/graphql", headers=headers_graphql, json=payload_mut, timeout=10)
-                        print(f"Cirugía temporal aplicada para {req.title}: {m_res.status_code}")
+                        m_res = requests.post("https://community.plex.tv/api", headers=gql_headers, json=payload_mut, timeout=10)
+                        print(f"[manual_add] Date surgery for '{req.title}': HTTP {m_res.status_code}")
                     else:
-                        print(f"No se encontró el Activity ID para hacer la cirugía.")
-                else:
-                    print(f"No se encontró el recurso en Plex Cloud para hacer scrobble.")
-            except Exception as e:
-                print(f"Error en Phase 1 (Plex Sync): {e}")
+                        print(f"[manual_add] Activity ID not found for surgery in '{req.title}'")
 
-        # TMDB CACHE (Phase 2)
+            except Exception as e:
+                print(f"[manual_add] Error in Plex sync for '{req.title}': {e}")
+
+        # --- PHASE 2: Download TMDB images ---
         poster_path = None
         fanart_path = None
         try:
@@ -1901,40 +1955,36 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
             poster_path = p_path
             fanart_path = f_path
         except Exception as e:
-            print(f"Error descargando imágenes: {e}")
+            print(f"[manual_add] Error downloading images for '{req.title}': {e}")
 
-        # LOCAL DB INSERTION (Phase 3)
+        # --- PHASE 3: Insert in local DB ---
         conn = sqlite3.connect("sync.db")
         cursor = conn.cursor()
-        
-        # We save it as UTC string
         d_obj = datetime.datetime.fromisoformat(req.watched_at.replace('Z', '+00:00'))
         final_watched_at = d_obj.strftime("%Y-%m-%dT%H:%M:%SZ")
-        
+
         if req.media_type == "movie":
             cursor.execute("""
                 INSERT INTO watch_history (origin, title, media_type, tmdb_id, watched_at, poster_path, fanart_path, plex_guid)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """, ("manual", req.title, req.media_type, req.tmdb_id, final_watched_at, poster_path, fanart_path, plex_guid))
         else:
-            # Assuming title from request is Show Title if it's an episode... 
-            # Wait, the search result title is the show title. We don't know the episode title easily without another TMDB call.
-            # Let's save it as "Episodio X" or fetch it if we want.
-            ep_title = f"Episodio {req.episode}"
+            ep_title = f"Episode {req.episode}"
             cursor.execute("""
                 INSERT INTO watch_history (origin, title, show_title, media_type, show_tmdb_id, season, episode, watched_at, poster_path, fanart_path, plex_guid)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, ("manual", ep_title, req.title, req.media_type, req.tmdb_id, req.season, req.episode, final_watched_at, poster_path, fanart_path, plex_guid))
-            
+
         conn.commit()
         conn.close()
-        
+        print(f"[manual_add] '{req.title}' saved to local DB successfully.")
         return {"status": "success"}
+
     except Exception as e:
-        print(f"Error en manual_add: {e}")
+        print(f"[manual_add] Unexpected error: {e}")
         return {"status": "error", "message": str(e)}
 
-# --- CONFIGURACION ---
+# --- CONFIGURATION ---
 @app.get("/api/config", dependencies=[Depends(verify_api_key)])
 def get_config():
     return {
@@ -1957,7 +2007,7 @@ def save_config(payload: ConfigPayload):
     env_path = ".env"
     env_vars = {}
     
-    # Leer el entorno actual
+    # Read current environment
     if os.path.exists(env_path):
         with open(env_path, "r", encoding="utf-8") as f:
             for line in f:
@@ -1966,7 +2016,7 @@ def save_config(payload: ConfigPayload):
                     k, v = line.split("=", 1)
                     env_vars[k.strip()] = v.strip().strip('"').strip("'")
     
-    # Actualizar valores
+    # Update values
     env_vars["PLEX_URL"] = payload.plex_url
     env_vars["PLEX_TOKEN"] = payload.plex_token
     env_vars["TMDB_API_KEY"] = payload.tmdb_api_key
@@ -1977,13 +2027,13 @@ def save_config(payload: ConfigPayload):
         new_hash = hashlib.sha256((payload.master_password + salt).encode()).hexdigest()
         env_vars["WEB_HASH"] = new_hash
     
-    # Guardar a archivo
+    # Save to file
     with open(env_path, "w", encoding="utf-8") as f:
         for k, v in env_vars.items():
             f.write(f'{k}="{v}"\n')
             os.environ[k] = str(v)
             
-    # Actualizar variables en memoria
+    # Update variables in memory
     global PLEX_URL, PLEX_TOKEN, TMDB_API_KEY, WEB_HASH
     PLEX_URL = payload.plex_url
     PLEX_TOKEN = payload.plex_token
@@ -1993,7 +2043,7 @@ def save_config(payload: ConfigPayload):
         
     if payload.force_rescan:
         def rescan_task():
-            print(f"Iniciando re-escaneo para adaptar al idioma: {payload.sync_language}")
+            print(f"Starting rescan to adapt to language: {payload.sync_language}")
             try:
                 conn = sqlite3.connect("sync.db")
                 cursor = conn.cursor()
@@ -2003,11 +2053,11 @@ def save_config(payload: ConfigPayload):
                 for row in rows:
                     h_id, m_tmdb_id, s_tmdb_id, m_type, s_season, s_ep = row
                     
-                    # Usar el idioma nuevo
+                    # Use new language
                     lang_param = f"&language={payload.sync_language}"
                     
                     if m_type == "movie" and m_tmdb_id:
-                        # Re-descargar metadatos
+                        # Re-download metadata
                         tmdb_url = f"https://api.themoviedb.org/3/movie/{m_tmdb_id}?api_key={payload.tmdb_api_key}{lang_param}"
                         res = requests.get(tmdb_url)
                         if res.status_code == 200:
@@ -2019,7 +2069,7 @@ def save_config(payload: ConfigPayload):
                             cursor.execute("UPDATE watch_history SET title=?, poster_path=?, fanart_path=? WHERE id=?", (title, p_path, f_path, h_id))
                     
                     elif m_type == "episode" and s_tmdb_id:
-                        # Sacar metadatos del episodio
+                        # Extract episode metadata
                         tmdb_url = f"https://api.themoviedb.org/3/tv/{s_tmdb_id}/season/{s_season}/episode/{s_ep}?api_key={payload.tmdb_api_key}{lang_param}"
                         res = requests.get(tmdb_url)
                         if res.status_code == 200:
@@ -2027,7 +2077,7 @@ def save_config(payload: ConfigPayload):
                             ep_title = data.get("name", f"Episodio {s_ep}")
                             p_path = f"https://image.tmdb.org/t/p/w500{data.get('still_path')}" if data.get("still_path") else ""
                             
-                            # Y el show title
+                            # And the show title
                             show_url = f"https://api.themoviedb.org/3/tv/{s_tmdb_id}?api_key={payload.tmdb_api_key}{lang_param}"
                             s_res = requests.get(show_url)
                             if s_res.status_code == 200:
@@ -2039,9 +2089,9 @@ def save_config(payload: ConfigPayload):
                                 
                 conn.commit()
                 conn.close()
-                print("Re-escaneo masivo completado con éxito.")
+                print("Massive rescan completed successfully.")
             except Exception as e:
-                print(f"Error en rescan_task: {e}")
+                print(f"Error in rescan_task: {e}")
                 
         threading.Thread(target=rescan_task, daemon=True).start()
         

@@ -92,5 +92,9 @@
     "type_movie": "Film",
     "manual_missing_fields": "Veuillez sélectionner un titre et une date avant d'enregistrer.",
     "saving": "Enregistrement...",
-    "manual_save_error": "Erreur lors de l'enregistrement"
+    "manual_save_error": "Erreur lors de l'enregistrement",
+    "config_saved": "Paramètres enregistrés.",
+    "config_saved_rescan": "Paramètres enregistrés. Ré-analyse démarrée en arrière-plan.",
+    "config_save_error": "Erreur lors de l'enregistrement.",
+    "network_error": "Erreur réseau. Veuillez réessayer."
 }

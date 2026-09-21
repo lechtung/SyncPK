@@ -92,5 +92,9 @@
     "type_movie": "Film",
     "manual_missing_fields": "Seleziona un titolo e una data prima di salvare.",
     "saving": "Salvataggio...",
-    "manual_save_error": "Errore durante il salvataggio"
+    "manual_save_error": "Errore durante il salvataggio",
+    "config_saved": "Impostazioni salvate.",
+    "config_saved_rescan": "Impostazioni salvate. Scansione avviata in background.",
+    "config_save_error": "Errore durante il salvataggio.",
+    "network_error": "Errore di rete. Riprova."
 }

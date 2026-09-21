@@ -349,7 +349,8 @@
 
             <label style="color:#aaa; font-size:0.9rem; margin-top: 10px;">Plex Token:</label>
             <div style="display:flex; gap: 8px;">
-                <input type="text" id="config-plex-token" style="margin-bottom: 0;" placeholder="Ingresa tu token">
+                <input type="text" id="config-plex-token" style="margin-bottom: 0;"
+                    placeholder="Enter your token">
                 <button id="config-get-token-btn" style="width: auto; padding: 0 16px; background: #333;"
                     title="Obtener Token mediante PIN">🔑</button>
             </div>
@@ -359,11 +360,7 @@
             <div style="margin-bottom: 16px;"></div> <!-- Spacer -->
 
             <label style="color:#aaa; font-size:0.9rem;">TMDB API Key:</label>
-            <div style="position: relative;">
-                <input type="password" id="config-tmdb-api" placeholder="TMDB v3 API Key">
-                <span class="toggle-password" data-target="config-tmdb-api"
-                    style="position: absolute; right: 12px; top: 12px; cursor: pointer; user-select: none;">👁️</span>
-            </div>
+            <input type="text" id="config-tmdb-api" placeholder="TMDB v3 API Key">
 
             <label style="color:#aaa; font-size:0.9rem;">Idioma preferido:</label>
             <div class="c-dropdown" id="configLang-dd" style="margin-bottom: 8px;">
@@ -450,6 +447,9 @@
             </svg>
         </button>
     </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container"></div>
 
 </body>
 

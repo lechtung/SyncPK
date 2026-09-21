@@ -101,5 +101,9 @@
     "manual_date": "Watch date:",
     "manual_sync_plex": "Sync to Plex Cloud",
     "action_cancel": "Cancel",
-    "action_save": "Save"
+    "action_save": "Save",
+    "config_saved": "Settings saved.",
+    "config_saved_rescan": "Settings saved. Rescan started in background.",
+    "config_save_error": "Error saving settings.",
+    "network_error": "Network error. Please try again."
 }

@@ -92,5 +92,9 @@
     "type_movie": "映画",
     "manual_missing_fields": "保存する前にタイトルと日付を選択してください。",
     "saving": "保存中...",
-    "manual_save_error": "保存エラー"
+    "manual_save_error": "保存エラー",
+    "config_saved": "設定を保存しました。",
+    "config_saved_rescan": "設定を保存しました。バックグラウンドで再スキャンを開始しました。",
+    "config_save_error": "設定の保存中にエラーが発生しました。",
+    "network_error": "ネットワークエラー。もう一度お試しください。"
 }

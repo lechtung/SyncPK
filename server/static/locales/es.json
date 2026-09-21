@@ -101,5 +101,9 @@
     "manual_date": "Fecha de visionado:",
     "manual_sync_plex": "Sincronizar a Plex Cloud",
     "action_cancel": "Cancelar",
-    "action_save": "Guardar"
+    "action_save": "Guardar",
+    "config_saved": "Configuración guardada.",
+    "config_saved_rescan": "Configuración guardada. Re-escaneo iniciado en segundo plano.",
+    "config_save_error": "Error al guardar la configuración.",
+    "network_error": "Error de red. Por favor inténtalo de nuevo."
 }

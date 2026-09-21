@@ -10,6 +10,23 @@ let currentFilters = { type: 'all', year: 'all', month: 'all', search: '' };
 let statsCache = { movies: 0, moviesHours: 0, episodes: 0, episodesHours: 0 };
 let logInterval = null;
 
+// --- TOAST NOTIFICATION SYSTEM ---
+function showToast(message, type = 'info', duration = 4000) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    const icons = { error: '⚠️', success: '✅', info: 'ℹ️' };
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.innerHTML = `<span class="toast-icon">${icons[type] || icons.info}</span><span>${message}</span>`;
+    container.appendChild(toast);
+    const remove = () => {
+        toast.classList.add('toast-out');
+        toast.addEventListener('animationend', () => toast.remove(), { once: true });
+    };
+    setTimeout(remove, duration);
+    toast.addEventListener('click', remove);
+}
+
 // Helper to get token value
 function getAuthToken() {
     return localStorage.getItem('syncpk_token') || "";
@@ -942,10 +959,12 @@ function setupConfigModal() {
             if (res.ok) {
                 configModal.classList.add('hidden');
                 if (payload.force_rescan) {
-                    alert('Configuración guardada. El servidor se reiniciará y comenzará a re-escanear en el fondo.');
+                    showToast(currentLangData.config_saved_rescan || 'Settings saved. Rescan started in background.', 'success', 5000);
+                } else {
+                    showToast(currentLangData.config_saved || 'Settings saved.', 'success');
                 }
             } else {
-                alert('Error al guardar configuración');
+                showToast(currentLangData.config_save_error || 'Error saving settings.', 'error');
             }
         } catch (e) { console.error(e); }
 
@@ -1107,7 +1126,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const tmdbIdCheck = document.getElementById('manual-tmdb-id').value;
             const dateCheck = document.getElementById('manual-date').value;
             if (!tmdbIdCheck || !dateCheck) {
-                alert(currentLangData.manual_missing_fields || 'Please select a title and a date before saving.');
+                showToast(currentLangData.manual_missing_fields || 'Please select a title and a date before saving.', 'info');
                 return;
             }
 
@@ -1136,14 +1155,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 if (res.ok) {
-                    manualModal.classList.add('hidden');
-                    reloadHistory();
+                    const data = await res.json();
+                    if (data.status === 'duplicate') {
+                        showToast(currentLangData.manual_duplicate || 'This title is already in your watch history.', 'info');
+                    } else if (data.status === 'success') {
+                        manualModal.classList.add('hidden');
+                        reloadHistory();
+                        showToast(currentLangData.manual_saved || 'Entry saved successfully.', 'success');
+                    } else {
+                        showToast(currentLangData.manual_save_error || 'Error saving the manual record.', 'error');
+                    }
                 } else {
-                    alert(currentLangData.manual_save_error || 'Error saving the manual record');
+                    showToast(currentLangData.manual_save_error || 'Error saving the manual record.', 'error');
                 }
             } catch (err) {
                 console.error(err);
-                alert('Error de red');
+                showToast(currentLangData.network_error || 'Network error. Please try again.', 'error');
             } finally {
                 saveManualBtn.textContent = currentLangData.btn_save || 'Save';
                 saveManualBtn.disabled = false;

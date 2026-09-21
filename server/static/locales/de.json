@@ -92,5 +92,9 @@
     "type_movie": "Film",
     "manual_missing_fields": "Bitte wählen Sie einen Titel und ein Datum aus, bevor Sie speichern.",
     "saving": "Wird gespeichert...",
-    "manual_save_error": "Fehler beim Speichern"
+    "manual_save_error": "Fehler beim Speichern",
+    "config_saved": "Einstellungen gespeichert.",
+    "config_saved_rescan": "Einstellungen gespeichert. Erneutes Scannen gestartet.",
+    "config_save_error": "Fehler beim Speichern der Einstellungen.",
+    "network_error": "Netzwerkfehler. Bitte versuchen Sie es erneut."
 }
