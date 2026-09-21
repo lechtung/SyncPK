@@ -1,3 +1,4 @@
+#v2
 import os
 import json
 import time
@@ -40,7 +41,7 @@ query GetActivityFeed($first: PaginationInt!, $after: String, $types: [ActivityT
         index
         guid
         parent { index title type }
-        grandparent { index title type guid Guid { id } }
+        grandparent { index title type guid }
       }
       ... on ActivityWatchSession {
         episodeCount
