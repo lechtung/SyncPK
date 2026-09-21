@@ -82,5 +82,9 @@
     "lang_ja": "日语",
     "lang_pt": "葡萄牙语",
     "lang_zh": "中文",
-    "updating_msg": "正在更新，这可能需要几分钟时间..."
+    "updating_msg": "正在更新，这可能需要几分钟时间...",
+    "fab_add_manual": "手动添加",
+    "fab_config": "设置",
+    "fab_logs": "查看日志",
+    "fab_sync": "强制同步"
 }

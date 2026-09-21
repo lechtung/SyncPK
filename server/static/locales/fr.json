@@ -82,5 +82,9 @@
     "lang_ja": "Japonais",
     "lang_pt": "Portugais",
     "lang_zh": "Chinois",
-    "updating_msg": "Mise à jour en cours, cela peut prendre quelques minutes..."
+    "updating_msg": "Mise à jour en cours, cela peut prendre quelques minutes...",
+    "fab_add_manual": "Ajout Manuel",
+    "fab_config": "Paramètres",
+    "fab_logs": "Voir Journal",
+    "fab_sync": "Forcer Sync"
 }

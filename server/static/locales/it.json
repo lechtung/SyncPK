@@ -82,5 +82,9 @@
     "lang_ja": "Giapponese",
     "lang_pt": "Portoghese",
     "lang_zh": "Cinese",
-    "updating_msg": "Aggiornamento in corso, potrebbe richiedere alcuni minuti..."
+    "updating_msg": "Aggiornamento in corso, potrebbe richiedere alcuni minuti...",
+    "fab_add_manual": "Aggiungi Manuale",
+    "fab_config": "Impostazioni",
+    "fab_logs": "Vedi Journal",
+    "fab_sync": "Forza Sincronizzazione"
 }

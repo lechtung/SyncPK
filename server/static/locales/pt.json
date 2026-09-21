@@ -82,5 +82,9 @@
     "lang_ja": "Japonês",
     "lang_pt": "Português",
     "lang_zh": "Chinês",
-    "updating_msg": "Atualizando, isso pode levar alguns minutos..."
+    "updating_msg": "Atualizando, isso pode levar alguns minutos...",
+    "fab_add_manual": "Adicionar Manual",
+    "fab_config": "Configurações",
+    "fab_logs": "Ver Journal",
+    "fab_sync": "Forçar Sincronização"
 }

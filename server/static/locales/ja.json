@@ -82,5 +82,9 @@
     "lang_ja": "日本語 (Nihongo)",
     "lang_pt": "ポルトガル語 (Porutogarugo)",
     "lang_zh": "中国語 (Chūgokugo)",
-    "updating_msg": "更新中... 数分かかる場合があります..."
+    "updating_msg": "更新中... 数分かかる場合があります...",
+    "fab_add_manual": "手動追加",
+    "fab_config": "設定",
+    "fab_logs": "ジャーナルを見る",
+    "fab_sync": "同期を強制"
 }

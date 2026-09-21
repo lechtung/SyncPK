@@ -67,6 +67,10 @@ async function loadTranslations() {
         let key = el.getAttribute('data-i18n-placeholder');
         if (currentLangData[key]) el.placeholder = currentLangData[key];
     });
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+        let key = el.getAttribute('data-i18n-title');
+        if (currentLangData[key]) el.title = currentLangData[key];
+    });
 }
 
 

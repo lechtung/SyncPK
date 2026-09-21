@@ -82,5 +82,9 @@
     "lang_ja": "Japanese",
     "lang_pt": "Portuguese",
     "lang_zh": "Chinese",
-    "updating_msg": "Updating, this may take a few minutes..."
+    "updating_msg": "Updating, this may take a few minutes...",
+    "fab_add_manual": "Add Manual",
+    "fab_config": "Settings",
+    "fab_logs": "View Journal",
+    "fab_sync": "Force Sync"
 }
