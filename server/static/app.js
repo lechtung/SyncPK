@@ -755,6 +755,7 @@ document.getElementById('edit-save-btn').addEventListener('click', async () => {
     }
 
     // Usar nuevo overlay de carga
+    document.getElementById('edit-modal').classList.add('hidden');
     showProcessingOverlay(
         currentLangData.overlay_processing || 'Processing request', 
         currentLangData.updating_msg || 'Updating, this may take a few minutes...'
@@ -770,15 +771,16 @@ document.getElementById('edit-save-btn').addEventListener('click', async () => {
             reloadHistory(); // Reload to sort properly
             updateOverlayResult('success', currentLangData.config_saved || 'Saved successfully', '');
             hideOverlay(2000);
-            setTimeout(() => document.getElementById('edit-modal').classList.add('hidden'), 2000);
         } else {
             updateOverlayResult('error', currentLangData.manual_save_error || 'Error saving.', '');
             hideOverlay(3000);
+            setTimeout(() => document.getElementById('edit-modal').classList.remove('hidden'), 3000);
         }
     } catch (e) {
         console.error(e);
         updateOverlayResult('error', currentLangData.network_error || 'Network error.', '');
         hideOverlay(3000);
+        setTimeout(() => document.getElementById('edit-modal').classList.remove('hidden'), 3000);
     }
 });
 
@@ -1026,6 +1028,7 @@ function setupConfigModal() {
             }
         }
 
+        configModal.classList.add('hidden');
         showProcessingOverlay(currentLangData.overlay_processing || 'Processing request', currentLangData.overlay_wait || 'Please wait...');
 
         try {
@@ -1035,21 +1038,29 @@ function setupConfigModal() {
                 body: JSON.stringify(payload)
             });
             if (res.ok) {
-                if (payload.force_rescan) {
-                    updateOverlayResult('success', currentLangData.config_saved_rescan || 'Settings saved. Rescan started in background.');
+                const data = await res.json();
+                if (data.status === 'success') {
+                    if (data.rescan_started) {
+                        updateOverlayResult('success', currentLangData.config_saved_rescan || 'Settings saved. Rescan started in background.');
+                    } else {
+                        updateOverlayResult('success', currentLangData.config_saved || 'Settings saved.');
+                    }
+                    hideOverlay(2000);
                 } else {
-                    updateOverlayResult('success', currentLangData.config_saved || 'Settings saved.');
+                    updateOverlayResult('error', currentLangData.config_save_error || 'Error saving settings.');
+                    hideOverlay(3000);
+                    setTimeout(() => configModal.classList.remove('hidden'), 3000);
                 }
-                hideOverlay(2000);
-                setTimeout(() => configModal.classList.add('hidden'), 2000);
             } else {
-                updateOverlayResult('error', currentLangData.config_save_error || 'Error saving settings.');
+                updateOverlayResult('error', currentLangData.network_error || 'Network error.');
                 hideOverlay(3000);
+                setTimeout(() => configModal.classList.remove('hidden'), 3000);
             }
         } catch (e) {
             console.error(e);
             updateOverlayResult('error', currentLangData.network_error || 'Network error.');
             hideOverlay(3000);
+            setTimeout(() => configModal.classList.remove('hidden'), 3000);
         }
     });
 }
@@ -1211,6 +1222,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            manualModal.classList.add('hidden');
             showProcessingOverlay(currentLangData.overlay_processing || 'Processing request', currentLangData.overlay_wait || 'Please wait...');
 
             const payload = {
@@ -1238,23 +1250,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (data.status === 'duplicate') {
                         updateOverlayResult('error', currentLangData.manual_duplicate || 'This title is already in your watch history.', '');
                         hideOverlay(3000);
+                        setTimeout(() => manualModal.classList.remove('hidden'), 3000);
                     } else if (data.status === 'success') {
                         reloadHistory();
                         updateOverlayResult('success', currentLangData.manual_saved || 'Entry saved successfully.', '');
                         hideOverlay(2000);
-                        setTimeout(() => manualModal.classList.add('hidden'), 2000);
                     } else {
                         updateOverlayResult('error', currentLangData.manual_save_error || 'Error saving the manual record.', '');
                         hideOverlay(3000);
+                        setTimeout(() => manualModal.classList.remove('hidden'), 3000);
                     }
                 } else {
                     updateOverlayResult('error', currentLangData.manual_save_error || 'Error saving the manual record.', '');
                     hideOverlay(3000);
+                    setTimeout(() => manualModal.classList.remove('hidden'), 3000);
                 }
             } catch (err) {
                 console.error(err);
                 updateOverlayResult('error', currentLangData.network_error || 'Network error. Please try again.', '');
                 hideOverlay(3000);
+                setTimeout(() => manualModal.classList.remove('hidden'), 3000);
             } finally {
                 checkManualForm();
             }
