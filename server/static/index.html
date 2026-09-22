@@ -5,9 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SyncPK Dashboard</title>
-    <link rel="stylesheet" href="/style.css?v=15">
+    <link rel="stylesheet" href="/style.css?v=16">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <script src="/app.js?v=15" defer></script>
+    <script src="/app.js?v=16" defer></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -247,7 +247,8 @@
 
     <!-- CUSTOM CONFIRM MODAL -->
     <div id="confirm-modal" class="overlay hidden">
-        <div class="login-box glass-panel" style="max-width:340px; text-align:center;">
+        <div class="login-box glass-panel"
+            style="min-width:340px; width:fit-content; max-width:90vw; text-align:center;">
             <p id="confirm-message" style="margin-bottom:24px; color:#fff; font-size:1rem;" data-i18n="confirm_delete">
                 Delete this item from history?</p>
             <label
