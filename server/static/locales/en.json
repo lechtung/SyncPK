@@ -105,5 +105,7 @@
     "config_saved": "Settings saved.",
     "config_saved_rescan": "Settings saved. Rescan started in background.",
     "config_save_error": "Error saving settings.",
-    "network_error": "Network error. Please try again."
+    "network_error": "Network error. Please try again.",
+    "overlay_processing": "Processing request",
+    "overlay_wait": "Plex Cloud is syncing. Please wait..."
 }

@@ -105,5 +105,7 @@
     "config_saved": "Configuración guardada.",
     "config_saved_rescan": "Configuración guardada. Re-escaneo iniciado en segundo plano.",
     "config_save_error": "Error al guardar la configuración.",
-    "network_error": "Error de red. Por favor inténtalo de nuevo."
+    "network_error": "Error de red. Por favor inténtalo de nuevo.",
+    "overlay_processing": "Procesando petición",
+    "overlay_wait": "Plex Cloud está sincronizando. Espere por favor..."
 }

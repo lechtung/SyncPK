@@ -14,7 +14,7 @@ let logInterval = null;
 function showToast(message, type = 'info', duration = 4000) {
     const container = document.getElementById('toast-container');
     if (!container) return;
-    const icons = { error: '⚠️', success: '✅', info: 'ℹ️' };
+    const icons = { error: '<i class="fas fa-times-circle"></i>', success: '<i class="fas fa-check-circle"></i>', info: '<i class="fas fa-info-circle"></i>' };
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     toast.innerHTML = `<span class="toast-icon">${icons[type] || icons.info}</span><span>${message}</span>`;
@@ -25,6 +25,66 @@ function showToast(message, type = 'info', duration = 4000) {
     };
     setTimeout(remove, duration);
     toast.addEventListener('click', remove);
+}
+
+// --- FULLSCREEN OVERLAY SYSTEM ---
+function showProcessingOverlay(title, subtitle) {
+    const overlay = document.getElementById('loading-overlay');
+    if (!overlay) return;
+    document.getElementById('overlay-title').textContent = title || currentLangData.overlay_processing || 'Processing request';
+    document.getElementById('overlay-subtitle').textContent = subtitle || currentLangData.overlay_wait || 'Please wait...';
+    
+    const icon = document.getElementById('overlay-icon');
+    // Restaurar spinner inicial
+    const iconContainer = document.getElementById('overlay-icon-container');
+    if (iconContainer) {
+        iconContainer.innerHTML = '<div class="spinner-premium"></div>';
+    }
+    
+    overlay.classList.remove('hidden');
+}
+
+function updateOverlayResult(type, title, subtitle) {
+    const overlay = document.getElementById('loading-overlay');
+    if (!overlay) return;
+    
+    document.getElementById('overlay-title').textContent = title;
+    
+    const subtitleEl = document.getElementById('overlay-subtitle');
+    if (subtitle !== undefined) {
+        subtitleEl.textContent = subtitle;
+        subtitleEl.style.display = subtitle ? 'block' : 'none';
+    } else {
+        subtitleEl.textContent = '';
+        subtitleEl.style.display = 'none';
+    }
+    
+    const iconContainer = document.getElementById('overlay-icon-container');
+    if (iconContainer) {
+        if (type === 'success') {
+            iconContainer.innerHTML = `
+                <svg class="svg-anim" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+                    <circle class="circle" cx="26" cy="26" r="25" stroke="#3fb950"/>
+                    <path class="check" stroke="#3fb950" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+                </svg>
+            `;
+        } else {
+            iconContainer.innerHTML = `
+                <svg class="svg-anim" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+                    <circle class="circle" cx="26" cy="26" r="25" stroke="#f85149"/>
+                    <path class="cross" stroke="#f85149" d="M16 16 36 36 M36 16 16 36"/>
+                </svg>
+            `;
+        }
+    }
+}
+
+function hideOverlay(delay = 2000) {
+    const overlay = document.getElementById('loading-overlay');
+    if (!overlay) return;
+    setTimeout(() => {
+        overlay.classList.add('hidden');
+    }, delay);
 }
 
 // Helper to get token value
@@ -398,7 +458,7 @@ async function loadStats() {
 
                 if (data.sync_state === 1) {
                     banner.style.cssText = "background-color: rgba(255, 152, 0, 0.2); color: #ffb74d; border: 1px solid #ffb74d; padding: 15px 20px; text-align: center; font-weight: bold; margin-bottom: 20px; border-radius: 8px; display: flex; justify-content: center; align-items: center; gap: 20px; flex-wrap: wrap;";
-                    let msg = currentLangData.sync_in_progress_msg || 'El servidor todavía está realizando la carga inicial. Puede que algunas carátulas o fichas no estén disponibles.';
+                    let msg = currentLangData.sync_in_progress_msg || 'The server is still performing the initial load. Some images or metadata might not be available.';
                     banner.innerHTML = `<span>${msg}</span><button id="btn-view-logs" style="padding: 6px 12px; background: #ffb74d; color: #000; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; font-family: 'Inter', sans-serif;">Ver Terminal</button>`;
 
                     document.getElementById('btn-view-logs').addEventListener('click', openLogViewer);
@@ -647,7 +707,10 @@ window.updateBulkOptionsUI = function () {
 
 document.getElementById('edit-save-btn').addEventListener('click', async () => {
     let newVal = document.getElementById('edit-date-input').value; // YYYY-MM-DDThh:mm
-    if (!newVal) return;
+    if (!newVal) {
+        showToast(currentLangData.manual_missing_fields || 'Please fill all required fields.', 'info');
+        return;
+    }
 
     let scopeSelect = document.getElementById('editScope-dd');
     let scopeVal = scopeSelect.dataset.currentValue || 'episode';
@@ -665,27 +728,37 @@ document.getElementById('edit-save-btn').addEventListener('click', async () => {
         let distMode = document.getElementById('editDistMode-dd').dataset.currentValue || 'same';
         payload.dist_mode = distMode;
         if (distMode === 'fixed') {
-            payload.eps_per_day = parseInt(document.getElementById('input-eps-min').value) || 1;
+            let valMin = document.getElementById('input-eps-min').value;
+            if (!valMin) { showToast(currentLangData.manual_missing_fields || 'Please fill all required fields.', 'info'); return; }
+            payload.eps_per_day = parseInt(valMin) || 1;
             payload.dist_order = document.querySelector('input[name="distOrder"]:checked').value;
         } else if (distMode === 'random') {
-            payload.eps_min = parseInt(document.getElementById('input-eps-min').value) || 1;
-            payload.eps_max = parseInt(document.getElementById('input-eps-max').value) || 3;
+            let valMin = document.getElementById('input-eps-min').value;
+            let valMax = document.getElementById('input-eps-max').value;
+            if (!valMin || !valMax) { showToast(currentLangData.manual_missing_fields || 'Please fill all required fields.', 'info'); return; }
+            payload.eps_min = parseInt(valMin) || 1;
+            payload.eps_max = parseInt(valMax) || 3;
             payload.dist_order = document.querySelector('input[name="distOrder"]:checked').value;
         } else if (distMode === 'between') {
             let endDateStr = document.getElementById('edit-end-date-input').value;
-            if (endDateStr) payload.end_date = new Date(endDateStr).toISOString();
+            if (!endDateStr) { showToast(currentLangData.manual_missing_fields || 'Please fill all required fields.', 'info'); return; }
+            payload.end_date = new Date(endDateStr).toISOString();
 
             let betweenType = document.querySelector('input[name="distBetweenType"]:checked').value;
             payload.dist_between_type = betweenType;
             if (betweenType === 'random') {
-                payload.eps_max = parseInt(document.getElementById('input-eps-max').value) || 3;
+                let valMax = document.getElementById('input-eps-max').value;
+                if (!valMax) { showToast(currentLangData.manual_missing_fields || 'Please fill all required fields.', 'info'); return; }
+                payload.eps_max = parseInt(valMax) || 3;
             }
         }
     }
 
-    // Ocultar modal de edición y mostrar de actualización
-    document.getElementById('edit-modal').classList.add('hidden');
-    document.getElementById('updating-overlay').classList.remove('hidden');
+    // Usar nuevo overlay de carga
+    showProcessingOverlay(
+        currentLangData.overlay_processing || 'Processing request', 
+        currentLangData.updating_msg || 'Updating, this may take a few minutes...'
+    );
 
     try {
         let res = await apiFetch(`/api/history/${currentEditId}`, {
@@ -695,11 +768,17 @@ document.getElementById('edit-save-btn').addEventListener('click', async () => {
         });
         if (res.ok) {
             reloadHistory(); // Reload to sort properly
+            updateOverlayResult('success', currentLangData.config_saved || 'Saved successfully', '');
+            hideOverlay(2000);
+            setTimeout(() => document.getElementById('edit-modal').classList.add('hidden'), 2000);
+        } else {
+            updateOverlayResult('error', currentLangData.manual_save_error || 'Error saving.', '');
+            hideOverlay(3000);
         }
     } catch (e) {
         console.error(e);
-    } finally {
-        document.getElementById('updating-overlay').classList.add('hidden');
+        updateOverlayResult('error', currentLangData.network_error || 'Network error.', '');
+        hideOverlay(3000);
     }
 });
 
@@ -940,15 +1019,14 @@ function setupConfigModal() {
         if (pwd) payload.master_password = pwd;
 
         if (newLang !== origLang) {
-            if (!confirm('Has cambiado el idioma. ¿Deseas re-escanear TODA tu biblioteca (Títulos y Pósters) para aplicar el nuevo idioma? (Esto puede tardar unos minutos)')) {
+            if (!confirm('You have changed the language. Do you want to rescan your ENTIRE library (Titles and Posters) to apply the new language? (This may take a few minutes)')) {
                 return; // Wait or just save without rescan? Let's just save. Actually, if they say NO, maybe just save. Let's do a custom modal or just native confirm.
             } else {
                 payload.force_rescan = true;
             }
         }
 
-        saveBtn.disabled = true;
-        saveBtn.textContent = 'Guardando...';
+        showProcessingOverlay(currentLangData.overlay_processing || 'Processing request', currentLangData.overlay_wait || 'Please wait...');
 
         try {
             let res = await apiFetch('/api/config', {
@@ -957,19 +1035,22 @@ function setupConfigModal() {
                 body: JSON.stringify(payload)
             });
             if (res.ok) {
-                configModal.classList.add('hidden');
                 if (payload.force_rescan) {
-                    showToast(currentLangData.config_saved_rescan || 'Settings saved. Rescan started in background.', 'success', 5000);
+                    updateOverlayResult('success', currentLangData.config_saved_rescan || 'Settings saved. Rescan started in background.');
                 } else {
-                    showToast(currentLangData.config_saved || 'Settings saved.', 'success');
+                    updateOverlayResult('success', currentLangData.config_saved || 'Settings saved.');
                 }
+                hideOverlay(2000);
+                setTimeout(() => configModal.classList.add('hidden'), 2000);
             } else {
-                showToast(currentLangData.config_save_error || 'Error saving settings.', 'error');
+                updateOverlayResult('error', currentLangData.config_save_error || 'Error saving settings.');
+                hideOverlay(3000);
             }
-        } catch (e) { console.error(e); }
-
-        saveBtn.disabled = false;
-        saveBtn.textContent = 'Guardar';
+        } catch (e) {
+            console.error(e);
+            updateOverlayResult('error', currentLangData.network_error || 'Network error.');
+            hideOverlay(3000);
+        }
     });
 }
 document.addEventListener('DOMContentLoaded', setupConfigModal);
@@ -1130,9 +1211,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            saveManualBtn.classList.add('btn-disabled');
-            saveManualBtn.disabled = true;
-            saveManualBtn.textContent = currentLangData.saving || 'Saving...';
+            showProcessingOverlay(currentLangData.overlay_processing || 'Processing request', currentLangData.overlay_wait || 'Please wait...');
 
             const payload = {
                 tmdb_id: document.getElementById('manual-tmdb-id').value,
@@ -1157,23 +1236,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (res.ok) {
                     const data = await res.json();
                     if (data.status === 'duplicate') {
-                        showToast(currentLangData.manual_duplicate || 'This title is already in your watch history.', 'info');
+                        updateOverlayResult('error', currentLangData.manual_duplicate || 'This title is already in your watch history.', '');
+                        hideOverlay(3000);
                     } else if (data.status === 'success') {
-                        manualModal.classList.add('hidden');
                         reloadHistory();
-                        showToast(currentLangData.manual_saved || 'Entry saved successfully.', 'success');
+                        updateOverlayResult('success', currentLangData.manual_saved || 'Entry saved successfully.', '');
+                        hideOverlay(2000);
+                        setTimeout(() => manualModal.classList.add('hidden'), 2000);
                     } else {
-                        showToast(currentLangData.manual_save_error || 'Error saving the manual record.', 'error');
+                        updateOverlayResult('error', currentLangData.manual_save_error || 'Error saving the manual record.', '');
+                        hideOverlay(3000);
                     }
                 } else {
-                    showToast(currentLangData.manual_save_error || 'Error saving the manual record.', 'error');
+                    updateOverlayResult('error', currentLangData.manual_save_error || 'Error saving the manual record.', '');
+                    hideOverlay(3000);
                 }
             } catch (err) {
                 console.error(err);
-                showToast(currentLangData.network_error || 'Network error. Please try again.', 'error');
+                updateOverlayResult('error', currentLangData.network_error || 'Network error. Please try again.', '');
+                hideOverlay(3000);
             } finally {
-                saveManualBtn.textContent = currentLangData.btn_save || 'Save';
-                saveManualBtn.disabled = false;
                 checkManualForm();
             }
         });

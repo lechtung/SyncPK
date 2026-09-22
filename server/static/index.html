@@ -5,9 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SyncPK Dashboard</title>
-    <link rel="stylesheet" href="/style.css?v=10">
+    <link rel="stylesheet" href="/style.css?v=11">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <script src="/app.js?v=10" defer></script>
+    <script src="/app.js?v=11" defer></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -349,8 +349,7 @@
 
             <label style="color:#aaa; font-size:0.9rem; margin-top: 10px;">Plex Token:</label>
             <div style="display:flex; gap: 8px;">
-                <input type="text" id="config-plex-token" style="margin-bottom: 0;"
-                    placeholder="Enter your token">
+                <input type="text" id="config-plex-token" style="margin-bottom: 0;" placeholder="Enter your token">
                 <button id="config-get-token-btn" style="width: auto; padding: 0 16px; background: #333;"
                     title="Obtener Token mediante PIN">🔑</button>
             </div>
@@ -446,6 +445,18 @@
                 <circle cx="12" cy="19" r="2" />
             </svg>
         </button>
+    </div>
+
+    <!-- MOCKUP: OVERLAY DE CARGA (NUEVO DISEÑO) -->
+    <div id="loading-overlay" class="overlay hidden" style="z-index: 9999;">
+        <div class="login-box loading-box">
+            <div id="overlay-icon-container">
+                <div class="spinner-premium"></div>
+            </div>
+            <div id="overlay-title" class="loading-title" data-i18n="overlay_processing">Processing request</div>
+            <div id="overlay-subtitle" class="loading-subtitle" data-i18n="overlay_wait">Plex Cloud is syncing. Please
+                wait...</div>
+        </div>
     </div>
 
     <!-- Toast Notifications -->

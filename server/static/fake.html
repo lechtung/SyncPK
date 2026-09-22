@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Evitar bloqueos de TMDB al abrir desde file:// -->
+    <meta name="referrer" content="no-referrer">
+    <title>SyncPK Dashboard (FAKE)</title>
+    <!-- Ruta relativa para que funcione abriéndolo directamente desde Windows -->
+    <link rel="stylesheet" href="./style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Estilos específicos para el Mockup del Toast y el Overlay de carga */
+
+        /* 1. MOCKUP: Toast de éxito flotante y muy visible */
+        .toast-container {
+            position: fixed;
+            bottom: 32px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            pointer-events: none;
+        }
+
+        .mockup-toast {
+            background: rgba(22, 27, 34, 0.92);
+            /* Color original verde: 
+               border: 1px solid rgba(63, 185, 80, 0.4); 
+               border-left: 4px solid #3fb950; 
+            */
+            border: 1px solid rgba(88, 166, 255, 0.4);
+            border-left: 4px solid var(--accent);
+            color: white;
+            padding: 14px 20px;
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 500;
+            backdrop-filter: blur(16px);
+            animation: toastIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            pointer-events: auto;
+        }
+        .mockup-toast.toast-out {
+            animation: toastOut 0.3s ease forwards;
+        }
+        .mockup-toast i {
+            font-size: 18px;
+            /* Color original verde: color: #3fb950; */
+            color: var(--accent);
+        }
+
+        @keyframes toastIn {
+            from { transform: translateY(16px) scale(0.95); opacity: 0; }
+            to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        @keyframes toastOut {
+            from { transform: translateY(0) scale(1); opacity: 1; }
+            to { transform: translateY(16px) scale(0.95); opacity: 0; }
+        }
+
+        /* 2. MOCKUP: Loading Overlay más premium */
+        #mockup-loading-overlay {
+            background-color: rgba(13, 17, 23, 0.85);
+            /* Oscurece todo el fondo */
+            backdrop-filter: blur(8px);
+        }
+
+        .loading-box {
+            text-align: center;
+            background: transparent;
+            border: none;
+            box-shadow: none;
+        }
+
+        /* Nuevo spinner animado a 270 grados y con pulse */
+        .spinner-premium {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(88, 166, 255, 0.1);
+            border-top: 4px solid var(--accent);
+            border-radius: 50%;
+            margin: 0 auto 20px;
+            animation: spinPremium 1s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+        }
+
+        @keyframes spinPremium {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Animated SVG (Check & Cross) */
+        .svg-anim {
+            width: 70px;
+            height: 70px;
+            display: block;
+            margin: 0 auto 20px;
+        }
+        .svg-anim .circle {
+            stroke-dasharray: 166;
+            stroke-dashoffset: 166;
+            stroke-width: 3;
+            stroke-miterlimit: 10;
+            fill: none;
+            animation: strokeAnim 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+        }
+        .svg-anim .check, .svg-anim .cross {
+            stroke-dasharray: 48;
+            stroke-dashoffset: 48;
+            stroke-width: 3;
+            fill: none;
+            animation: strokeAnim 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.6s forwards;
+        }
+        @keyframes strokeAnim {
+            100% { stroke-dashoffset: 0; }
+        }
+
+        .loading-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: white;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+
+        .loading-subtitle {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- MAIN DASHBOARD (MOCKUP ESTÁTICO) -->
+    <div id="dashboard">
+        <!-- STICKY HEADER -->
+        <header class="sticky-header glass-panel">
+            <div class="header-left">
+                <img src="./favicon.ico" class="logo-icon" alt="SyncPK Logo"
+                    onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwb2x5Z29uIHBvaW50cz0iNSA1IDIwIDEyIDUgMTkgNSA1Ii8+PC9zdmc+'">
+                <h1 class="logo" style="margin-right:20px; font-weight:700;">SyncPK</h1>
+                <div class="day-selector" id="day-selector">
+                    <button class="day-btn active">
+                        <span class="d-weekday">LUN</span><span class="d-month">SEP</span><span class="d-num">21</span>
+                        <div class="d-dot" style="display:block"></div>
+                    </button>
+                    <button class="day-btn">
+                        <span class="d-weekday">MAR</span><span class="d-month">SEP</span><span class="d-num">22</span>
+                    </button>
+                    <button class="day-btn">
+                        <span class="d-weekday">MIÉ</span><span class="d-month">SEP</span><span class="d-num">23</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="header-right">
+                <input type="text" id="search-input" placeholder="Buscar título...">
+
+                <div class="c-dropdown">
+                    <div class="c-dropdown-trigger">
+                        <span class="c-dropdown-label">TIPO</span>
+                        <div class="c-dropdown-bottom">
+                            <span class="c-dropdown-value">Todo el historial</span>
+                            <span class="c-dropdown-arrow">▾</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="c-dropdown" id="fake-year-dd">
+                    <div class="c-dropdown-trigger"
+                        onclick="document.getElementById('fake-year-menu').classList.toggle('hidden')">
+                        <span class="c-dropdown-label">AÑO</span>
+                        <div class="c-dropdown-bottom">
+                            <span class="c-dropdown-value">Todos</span>
+                            <span class="c-dropdown-arrow">▾</span>
+                        </div>
+                    </div>
+                    <div class="c-dropdown-menu glass-panel hidden" id="fake-year-menu">
+                        <div class="c-dropdown-item selected">Todos</div>
+                        <div class="c-dropdown-item">2026</div>
+                        <div class="c-dropdown-item">2025</div>
+                    </div>
+                </div>
+
+                <div class="c-dropdown">
+                    <div class="c-dropdown-trigger">
+                        <span class="c-dropdown-label">MES</span>
+                        <div class="c-dropdown-bottom">
+                            <span class="c-dropdown-value">Todos</span>
+                            <span class="c-dropdown-arrow">▾</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- STATS SECTION -->
+        <div class="stats-container">
+            <div class="stat-card glass-panel">
+                <span class="stat-value">79</span>
+                <span class="stat-label">PELÍCULAS</span>
+            </div>
+            <div class="stat-card glass-panel">
+                <span class="stat-value">154h</span>
+                <span class="stat-label">HORAS PELÍCULAS</span>
+            </div>
+            <div class="stat-card glass-panel">
+                <span class="stat-value">1525</span>
+                <span class="stat-label">EPISODIOS</span>
+            </div>
+            <div class="stat-card glass-panel">
+                <span class="stat-value">1188h</span>
+                <span class="stat-label">HORAS SERIES</span>
+            </div>
+            <div class="stat-card glass-panel highlight">
+                <span class="stat-value">1342h</span>
+                <span class="stat-label">HORAS TOTALES</span>
+            </div>
+        </div>
+
+        <!-- HISTORY FEED -->
+        <div class="history-feed">
+
+            <div class="history-group">
+                <div class="history-group-title">19 de septiembre de 2026</div>
+                <div class="cards-grid">
+                    <div class="c-card" onclick="showFakeToast()">
+                        <div class="c-poster"
+                            style="background-image: url('https://static.tvmaze.com/uploads/images/medium_portrait/173/433868.jpg')">
+                        </div>
+                        <div class="c-fanart-content"
+                            style="background-image: url('https://static.tvmaze.com/uploads/images/original_untouched/173/433868.jpg')">
+                            <div class="c-fanart-overlay"></div>
+                            <div class="card-content">
+                                <div class="card-title">Big Bang</div>
+                                <div class="card-subtitle">T2 - E10 - El enigma Vartabedian</div>
+                                <div class="card-time">22:03</div>
+                            </div>
+                            <button class="kebab-menu-btn" onclick="toggleDropdown('menu-1')">⋮</button>
+                            <div class="kebab-dropdown glass-panel hidden" id="menu-1">
+                                <div class="dropdown-item">Editar Fecha</div>
+                                <div class="dropdown-item danger">Eliminar</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="history-group">
+                <div class="history-group-title">17 de septiembre de 2026</div>
+                <div class="cards-grid">
+                    <div class="c-card" onclick="showFakeToast()">
+                        <div class="c-poster"
+                            style="background-image: url('https://media.themoviedb.org/t/p/w300_and_h450_face/3AnlxZ5CZnhKKzjgFyY6EHxmOyl.jpg')">
+                        </div>
+                        <div class="c-fanart-content"
+                            style="background-image: url('https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/bMJdVmo6QqoUHpUsjWyei6MN02x.jpg')">
+                            <div class="c-fanart-overlay"></div>
+                            <div class="card-content">
+                                <div class="card-title">Pitch Black</div>
+                                <div class="card-subtitle"></div>
+                                <div class="card-time">21:34</div>
+                            </div>
+                            <button class="kebab-menu-btn" onclick="toggleDropdown('menu-2')">⋮</button>
+                            <div class="kebab-dropdown glass-panel hidden" id="menu-2">
+                                <div class="dropdown-item">Editar Fecha</div>
+                                <div class="dropdown-item danger">Eliminar</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="history-group">
+                <div class="history-group-title">16 de septiembre de 2026</div>
+                <div class="cards-grid">
+                    <div class="c-card" onclick="showFakeToast()">
+                        <div class="c-poster"
+                            style="background-image: url('https://static.tvmaze.com/uploads/images/medium_portrait/557/1392576.jpg')">
+                        </div>
+                        <div class="c-fanart-content"
+                            style="background-image: url('https://static.tvmaze.com/uploads/images/original_untouched/557/1392576.jpg')">
+                            <div class="c-fanart-overlay"></div>
+                            <div class="card-content">
+                                <div class="card-title">1923</div>
+                                <div class="card-subtitle">T1 - E1 - 1923</div>
+                                <div class="card-time">21:05</div>
+                            </div>
+                            <button class="kebab-menu-btn" onclick="toggleDropdown('menu-3')">⋮</button>
+                            <div class="kebab-dropdown glass-panel hidden" id="menu-3">
+                                <div class="dropdown-item">Editar Fecha</div>
+                                <div class="dropdown-item danger">Eliminar</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- MOCKUP: BOTÓN FLOTANTE ESTILO MATERIAL -->
+    <div class="fab-container">
+        <button onclick="toggleOverlay()" class="fab-main"
+            style="border:none; cursor:pointer; color:#fff; display:flex; align-items:center; justify-content:center; font-size:24px; box-shadow:0 4px 15px rgba(0,0,0,0.5)">
+            <i class="fas fa-play"></i>
+        </button>
+    </div>
+
+    <!-- MOCKUP: OVERLAY DE CARGA (NUEVO DISEÑO) -->
+    <div id="mockup-loading-overlay" class="overlay hidden" style="z-index: 9999;">
+        <div class="login-box loading-box">
+            <div id="mockup-icon-container">
+                <div class="spinner-premium"></div>
+            </div>
+            <div id="mockup-title" class="loading-title">Procesando petición</div>
+            <div id="mockup-subtitle" class="loading-subtitle">Plex Cloud está sincronizando. Espere por favor...</div>
+        </div>
+    </div>
+
+    <!-- Contenedor de Toasts -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script>
+        function toggleDropdown(id) {
+            document.querySelectorAll('.kebab-dropdown').forEach(d => {
+                if (d.id !== id) d.classList.add('hidden');
+            });
+            document.getElementById(id).classList.toggle('hidden');
+        }
+        
+        let testType = 'success';
+        function toggleOverlay() {
+            const overlay = document.getElementById('mockup-loading-overlay');
+            const iconContainer = document.getElementById('mockup-icon-container');
+            const title = document.getElementById('mockup-title');
+            const subtitle = document.getElementById('mockup-subtitle');
+
+            // Reset to Loading
+            iconContainer.innerHTML = '<div class="spinner-premium"></div>';
+            title.textContent = 'Procesando petición';
+            subtitle.textContent = 'Plex Cloud está sincronizando. Espere por favor...';
+            subtitle.style.display = 'block';
+            
+            overlay.classList.remove('hidden');
+
+            // Simulate network request finished
+            setTimeout(() => {
+                subtitle.style.display = 'none'; // Clear subtitle
+
+                if (testType === 'success') {
+                    title.textContent = 'Guardado con éxito';
+                    iconContainer.innerHTML = `
+                        <svg class="svg-anim" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+                            <circle class="circle" cx="26" cy="26" r="25" stroke="#3fb950"/>
+                            <path class="check" stroke="#3fb950" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+                        </svg>
+                    `;
+                    testType = 'error'; // Next click will be error
+                } else {
+                    title.textContent = 'Error al sincronizar';
+                    iconContainer.innerHTML = `
+                        <svg class="svg-anim" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+                            <circle class="circle" cx="26" cy="26" r="25" stroke="#f85149"/>
+                            <path class="cross" stroke="#f85149" d="M16 16 36 36 M36 16 16 36"/>
+                        </svg>
+                    `;
+                    testType = 'success'; // Next click will be success
+                }
+
+                // Hide after 2 seconds showing the result
+                setTimeout(() => {
+                    overlay.classList.add('hidden');
+                }, 2000);
+
+            }, 2000);
+        }
+        function showFakeToast() {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'mockup-toast';
+            toast.innerHTML = '<i class="fas fa-check-circle"></i><span>Guardado con éxito en Plex Cloud y Base de datos local.</span>';
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.add('toast-out');
+                toast.addEventListener('animationend', () => toast.remove());
+            }, 3000);
+        }
+    </script>
+</body>
+
+</html>
