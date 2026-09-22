@@ -611,7 +611,18 @@ window.deleteItem = function (id) {
             let syncRemote = document.getElementById('deleteSyncRemote') ? document.getElementById('deleteSyncRemote').checked : false;
             let res = await apiFetch(`/api/history/${id}?sync_remote=${syncRemote}`, { method: 'DELETE' });
             if (res.ok) {
-                document.getElementById(`card-${id}`).remove();
+                let card = document.getElementById(`card-${id}`);
+                if (card) {
+                    let group = card.closest('.history-group');
+                    card.remove();
+                    if (group) {
+                        let grid = group.querySelector('.cards-grid');
+                        if (grid && grid.children.length === 0) {
+                            group.remove();
+                            if (typeof generateTimeline === 'function') generateTimeline();
+                        }
+                    }
+                }
             }
         } catch (e) { console.error(e); }
     });

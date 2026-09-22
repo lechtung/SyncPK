@@ -869,7 +869,7 @@ def unscrobble_plex(item):
     season = item.get("season")
     episode = item.get("episode")
     
-    plex_movies, plex_shows = fetch_plex_library()
+    plex_movies, plex_shows = get_plex_items_map()
     rating_key = None
     
     if media_type == "movie":
@@ -2108,23 +2108,24 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
         except Exception as e:
             print(f"[manual_add] Error downloading images for '{req.title}': {e}")
 
-        # --- PHASE 3: Insert in local DB ---
         conn = sqlite3.connect("sync.db")
         cursor = conn.cursor()
         d_obj = datetime.datetime.fromisoformat(req.watched_at.replace('Z', '+00:00'))
         final_watched_at = d_obj.strftime("%Y-%m-%dT%H:%M:%SZ")
+        
+        final_origin = "manual" if req.sync_remote else "kodi"
 
         if req.media_type == "movie":
             cursor.execute("""
                 INSERT INTO watch_history (origin, title, media_type, tmdb_id, watched_at, poster_path, fanart_path, plex_guid)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, ("manual", req.title, req.media_type, req.tmdb_id, final_watched_at, poster_path, fanart_path, plex_guid))
+            """, (final_origin, req.title, req.media_type, req.tmdb_id, final_watched_at, poster_path, fanart_path, plex_guid))
         else:
             ep_title = f"Episode {req.episode}"
             cursor.execute("""
                 INSERT INTO watch_history (origin, title, show_title, media_type, show_tmdb_id, season, episode, watched_at, poster_path, fanart_path, plex_guid)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, ("manual", ep_title, req.title, req.media_type, req.tmdb_id, req.season, req.episode, final_watched_at, poster_path, fanart_path, plex_guid))
+            """, (final_origin, ep_title, req.title, req.media_type, req.tmdb_id, req.season, req.episode, final_watched_at, poster_path, fanart_path, plex_guid))
 
         conn.commit()
         conn.close()
