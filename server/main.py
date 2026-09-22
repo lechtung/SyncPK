@@ -19,6 +19,17 @@ import time
 import threading
 import queue
 
+#### TODOLIST ####
+# last minute found: python plex api: https://github.com/pushingkarmaorg/python-plexapi
+# check the plex api of the previous proyect
+# delete or replace the "x-plex-client-identifier" header, problably is not needed.
+# add the watchlist option, we can have it in dashboard and when one of the whatchlist items is added to bd, automatically deleted from watchlist
+# more statistics options
+# maybe a small mark in the dashboard to see what items are not in the plex library anymore (need to see how we can detect when the user delete something in plex)
+# manual option to re-scan the plex library to import in our local db
+# implement something to check if the use has pless pass, maybe with the api to get user information?
+
+
 # Manual .env fallback
 if os.path.exists(".env"):
     with open(".env", "r") as f:
