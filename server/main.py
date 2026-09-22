@@ -1953,7 +1953,7 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
             import urllib.parse
             import os
             
-            search_type = "movies" if req.media_type == "movie" else "shows"
+            search_type = "movies" if req.media_type == "movie" else "tv"
             search_lang = os.getenv("SYNC_LANGUAGE", "es")
             cloud_headers = {
                 "Accept": "application/json",

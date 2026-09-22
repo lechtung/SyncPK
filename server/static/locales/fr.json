@@ -107,5 +107,6 @@
     "manual_search":  "Rechercher dans TMDB :",
     "manual_search_ph":  "Nom du film ou de la série...",
     "add_manual_title":  "Ajouter une entrée manuelle",
-    "manual_episode":  "Épisode :"
+    "manual_episode":  "Épisode :",
+    "delete_success":  "Entrée supprimée avec succès."
 }

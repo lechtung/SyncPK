@@ -107,5 +107,7 @@
     "manual_search":  "TMDBで検索:",
     "manual_search_ph":  "映画またはシリーズ名...",
     "add_manual_title":  "手動エントリを追加",
-    "manual_episode":  "エピソード:"
+    "manual_episode":  "エピソード:",
+    "delete_success": "Entry deleted successfully."
 }
+

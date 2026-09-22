@@ -94,6 +94,7 @@
     "saving":  "Wird gespeichert...",
     "manual_save_error":  "Fehler beim Speichern",
     "config_saved":  "Einstellungen gespeichert.",
+    "delete_success": "Eintrag erfolgreich gelöscht.",
     "config_saved_rescan":  "Einstellungen gespeichert. Neuscan im Hintergrund gestartet.",
     "config_save_error":  "Fehler beim Speichern der Einstellungen.",
     "network_error":  "Netzwerkfehler. Bitte versuchen Sie es erneut.",

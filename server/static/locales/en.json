@@ -103,6 +103,7 @@
     "action_cancel": "Cancel",
     "action_save": "Save",
     "config_saved": "Settings saved.",
+    "delete_success": "Entry deleted successfully.",
     "config_saved_rescan": "Settings saved. Rescan started in background.",
     "config_save_error": "Error saving settings.",
     "network_error": "Network error. Please try again.",

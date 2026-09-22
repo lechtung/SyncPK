@@ -107,5 +107,7 @@
     "manual_search":  "在TMDB中搜索:",
     "manual_search_ph":  "电影或剧集名称...",
     "add_manual_title":  "添加手动条目",
-    "manual_episode":  "集:"
+    "manual_episode":  "集:",
+    "delete_success": "Entry deleted successfully."
 }
+

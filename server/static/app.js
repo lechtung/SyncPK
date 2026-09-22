@@ -629,7 +629,7 @@ window.deleteItem = function (id) {
                         }
                     }
                 }
-                updateOverlayResult('success', currentLangData.config_saved || 'Deleted successfully', '');
+                updateOverlayResult('success', currentLangData.delete_success || 'Entry deleted successfully.', '');
                 hideOverlay(2000);
             } else {
                 updateOverlayResult('error', currentLangData.manual_save_error || 'Error deleting.', '');
