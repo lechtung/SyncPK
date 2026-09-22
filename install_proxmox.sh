@@ -141,7 +141,7 @@ pct exec $CTID -- mkdir -p /opt/syncpk
 pct push $CTID .env /opt/syncpk/.env
 
 echo "[Info] Launching automated system installer inside LXC..."
-pct exec $CTID -- bash -c "cd /opt/syncpk && curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/setup_system.sh -o setup_system.sh && chmod +x setup_system.sh && ./setup_system.sh"
+# pct exec $CTID -- bash -c "cd /opt/syncpk && curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/setup_system.sh -o setup_system.sh && chmod +x setup_system.sh && ./setup_system.sh"
 pct exec $CTID -- bash -c "apt-get update >/dev/null 2>&1 && apt-get install -y curl ca-certificates >/dev/null 2>&1 && cd /opt/syncpk && curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/setup_system.sh -o setup_system.sh && chmod +x setup_system.sh && ./setup_system.sh"
 
 source .env
