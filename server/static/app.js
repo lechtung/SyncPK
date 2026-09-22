@@ -608,7 +608,8 @@ window.deleteItem = function (id) {
     newYes.addEventListener('click', async () => {
         modal.classList.add('hidden');
         try {
-            let res = await apiFetch(`/api/history/${id}`, { method: 'DELETE' });
+            let syncRemote = document.getElementById('deleteSyncRemote') ? document.getElementById('deleteSyncRemote').checked : false;
+            let res = await apiFetch(`/api/history/${id}?sync_remote=${syncRemote}`, { method: 'DELETE' });
             if (res.ok) {
                 document.getElementById(`card-${id}`).remove();
             }

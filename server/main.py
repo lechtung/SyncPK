@@ -103,6 +103,19 @@ def init_db():
             fanart_path TEXT
         )
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS deleted_history (
+            id INTEGER PRIMARY KEY,
+            media_type TEXT,
+            title TEXT,
+            show_title TEXT,
+            season INTEGER,
+            episode INTEGER,
+            tmdb_id TEXT,
+            show_tmdb_id TEXT,
+            deleted_at TEXT
+        )
+    """)
     try:
         cursor.execute("ALTER TABLE watch_history ADD COLUMN duration INTEGER DEFAULT 0")
     except sqlite3.OperationalError:
@@ -630,9 +643,27 @@ def get_all_items(client: Optional[str] = Query("kodi"), date_from: Optional[str
             "seasons": seasons_list
         })
         
+    cursor.execute("SELECT * FROM deleted_history WHERE deleted_at >= ?", (date_from,))
+    deleted_rows = cursor.fetchall()
+    deleted_movies = []
+    deleted_shows = []
+    
+    for row in deleted_rows:
+        item = dict(row)
+        if item["media_type"] == "movie":
+            deleted_movies.append(item)
+        elif item["media_type"] == "episode":
+            deleted_shows.append(item)
+        
     conn.close()
     now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    return {"movies": movies, "shows": shows_list, "server_time": now_utc}
+    return {
+        "movies": movies,
+        "shows": shows_list,
+        "deleted_movies": deleted_movies,
+        "deleted_shows": deleted_shows,
+        "server_time": now_utc
+    }
 
 @app.get("/api/time")
 def get_server_time():
@@ -767,13 +798,104 @@ def download_logs():
         return {"error": f"Error descargando logs: {e}"}
 
 @app.delete("/api/history/{item_id}")
-def delete_history_item(item_id: int, authorization: str = Depends(verify_api_key)):
+def delete_history_item(item_id: int, sync_remote: bool = False, authorization: str = Depends(verify_api_key)):
     conn = sqlite3.connect("sync.db")
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
+    
+    cursor.execute("SELECT * FROM watch_history WHERE id = ?", (item_id,))
+    row = cursor.fetchone()
+    if row:
+        item = dict(row)
+        if sync_remote:
+            now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            cursor.execute("""
+                INSERT INTO deleted_history (id, media_type, title, show_title, season, episode, tmdb_id, show_tmdb_id, deleted_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (item["id"], item["media_type"], item["title"], item.get("show_title"), item.get("season"), item.get("episode"), item.get("tmdb_id"), item.get("show_tmdb_id"), now_utc))
+            import threading
+            threading.Thread(target=unscrobble_plex, args=(item,)).start()
+        
     cursor.execute("DELETE FROM watch_history WHERE id = ?", (item_id,))
     conn.commit()
     conn.close()
     return {"success": True}
+
+def unscrobble_plex(item):
+    import requests
+    # 1. Cloud
+    plex_guid = item.get("plex_guid")
+    if plex_guid:
+        metadata_id = plex_guid.split("/")[-1]
+        url_graphql = "https://community.plex.tv/api"
+        headers = {
+            "Accept": "application/json",
+            "x-plex-token": PLEX_TOKEN,
+            "x-plex-client-identifier": "7o448fp80hf1p7gbvqvvaklv"
+        }
+        
+        payload_get = {
+            "query": "query GetActivityFeed($metadataId: ID!) { activityFeed(metadataId: $metadataId) { nodes { id } } }",
+            "variables": {"metadataId": metadata_id},
+            "operationName": "GetActivityFeed"
+        }
+        
+        node_id = None
+        try:
+            r = requests.post(url_graphql, headers=headers, json=payload_get, timeout=10)
+            if r.status_code == 200:
+                nodes = r.json().get("data", {}).get("activityFeed", {}).get("nodes", [])
+                if nodes:
+                    node_id = nodes[0]["id"]
+        except Exception: pass
+            
+        if node_id:
+            payload_del = {
+                "query": "mutation removeActivity($input: RemoveActivityInput!) {\n  removeActivity(input: $input)\n}\n",
+                "variables": {"input": {"id": node_id, "type": "WATCH_HISTORY"}},
+                "operationName": "removeActivity"
+            }
+            try:
+                requests.post(url_graphql, headers=headers, json=payload_del, timeout=10)
+                print(f"🗑️ Deleting Plex Cloud activity {node_id} for {item.get('title')}")
+            except Exception: pass
+
+    # 2. Local Unscrobble
+    media_type = item.get("media_type")
+    title = item.get("title")
+    show_title = item.get("show_title")
+    tmdb_id = item.get("tmdb_id")
+    show_tmdb_id = item.get("show_tmdb_id")
+    season = item.get("season")
+    episode = item.get("episode")
+    
+    plex_movies, plex_shows = fetch_plex_library()
+    rating_key = None
+    
+    if media_type == "movie":
+        matched = match_movie({"movie": {"title": title}}, plex_movies, tmdb_id)
+        if matched: rating_key = matched.get("ratingKey")
+    else:
+        matched = match_show({"show": {"title": show_title}}, plex_shows, show_tmdb_id)
+        if matched:
+            parent_key = matched.get("ratingKey")
+            ep_url = f"{PLEX_URL}/library/metadata/{parent_key}/allLeaves"
+            try:
+                req = urllib.request.Request(ep_url, headers=plex_headers)
+                with urllib.request.urlopen(req) as res:
+                    tree = ET.fromstring(res.read())
+                    for v in tree.findall("Video"):
+                        if int(v.get("parentIndex", -1)) == season and int(v.get("index", -1)) == episode:
+                            rating_key = v.get("ratingKey")
+                            break
+            except: pass
+            
+    if rating_key:
+        try:
+            url = f"{PLEX_URL}/:/unscrobble?identifier=com.plexapp.plugins.library&key={rating_key}"
+            requests.get(url, headers=plex_headers, timeout=10)
+            print(f"🗑️ Local Unscrobble for {title} (key={rating_key})")
+        except: pass
 
 class UpdateHistoryRequest(BaseModel):
     watched_at: str
