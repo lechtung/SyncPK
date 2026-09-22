@@ -609,6 +609,12 @@ window.deleteItem = function (id) {
         modal.classList.add('hidden');
         try {
             let syncRemote = document.getElementById('deleteSyncRemote') ? document.getElementById('deleteSyncRemote').checked : false;
+            
+            showProcessingOverlay(
+                currentLangData.overlay_processing || 'Processing request',
+                currentLangData.deleting_msg || 'Deleting, please wait...'
+            );
+            
             let res = await apiFetch(`/api/history/${id}?sync_remote=${syncRemote}`, { method: 'DELETE' });
             if (res.ok) {
                 let card = document.getElementById(`card-${id}`);
@@ -623,8 +629,17 @@ window.deleteItem = function (id) {
                         }
                     }
                 }
+                updateOverlayResult('success', currentLangData.config_saved || 'Deleted successfully', '');
+                hideOverlay(2000);
+            } else {
+                updateOverlayResult('error', currentLangData.manual_save_error || 'Error deleting.', '');
+                hideOverlay(3000);
             }
-        } catch (e) { console.error(e); }
+        } catch (e) { 
+            console.error(e);
+            updateOverlayResult('error', currentLangData.network_error || 'Network error.', '');
+            hideOverlay(3000);
+        }
     });
 }
 
