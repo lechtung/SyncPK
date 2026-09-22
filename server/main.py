@@ -521,21 +521,21 @@ def process_kodi_payload(payload, cursor, is_bulk=False):
         import threading
         s_season = int(season) if season is not None else None
         s_episode = int(episode) if episode is not None else None
-        threading.Thread(target=scrobble_single_item_to_plex, args=(title, show_title, s_season, s_episode, media_type)).start()
+        threading.Thread(target=scrobble_kodi_webhook_to_plex, args=(title, show_title, s_season, s_episode, media_type, tmdb_id, tvdb_id, show_tmdb_id, show_tvdb_id)).start()
             
     return True
 
-def scrobble_single_item_to_plex(title, show_title, season, episode, media_type):
+def scrobble_kodi_webhook_to_plex(title, show_title, season, episode, media_type, tmdb_id=None, tvdb_id=None, show_tmdb_id=None, show_tvdb_id=None):
     try:
         plex_movies, plex_shows = get_plex_items_map()
         if media_type == "movie":
-            matched = match_movie({"movie": {"title": title}}, plex_movies)
+            matched = match_movie({"movie": {"title": title}}, plex_movies, tmdb_id)
             if matched:
                 r_key = matched.get("ratingKey")
                 requests.get(f"{PLEX_URL}/:/scrobble?identifier=com.plexapp.plugins.library&key={r_key}", headers=plex_headers)
                 print(f"✅ [Direct] Marked movie in Plex: {title}")
         elif media_type == "episode":
-            s_key = match_show({"show": {"title": show_title}}, plex_shows)
+            s_key = match_show({"show": {"title": show_title}}, plex_shows, show_tmdb_id)
             if s_key:
                 r_eps = requests.get(f"{PLEX_URL}/library/metadata/{s_key}/allLeaves", headers=plex_headers)
                 if r_eps.status_code == 200:
@@ -546,7 +546,7 @@ def scrobble_single_item_to_plex(title, show_title, season, episode, media_type)
                             print(f"✅ [Direct] Marked episode in Plex: {show_title} T{season}E{episode} - {title}")
                             break
     except Exception as e:
-        print(f"Error en scrobble_single_item_to_plex: {e}")
+        print(f"Error en scrobble_kodi_webhook_to_plex: {e}")
 
 
 @app.post("/webhook/kodi/bulk", dependencies=[Depends(verify_api_key)])
@@ -827,11 +827,23 @@ def perform_plex_surgery(item: dict, watched_at_local: str):
             time.sleep(2)
             
     if not node_id:
-        print(f"No node for {item.get('title')}, triggering scrobble...")
-        scrobble_single_item_to_plex(item.get("title"), item.get("show_title"), item.get("season"), item.get("episode"), item.get("media_type"))
+        print(f"No node for {item.get('title')}, triggering CLOUD scrobble...")
+        cloud_headers = dict(headers_fetch)
+        cloud_headers["x-plex-client-identifier"] = "7o448fp80hf1p7gbvqvvaklv"
+        scrobble_url = f"https://metadata.provider.plex.tv/actions/scrobble?key={metadata_id}&identifier=tv.plex.provider.metadata"
+        try:
+            s_res = requests.get(scrobble_url, headers=cloud_headers, timeout=10)
+            if s_res.status_code == 200:
+                print(f"  ✅ Cloud Scrobble executed for {item.get('title')}")
+            else:
+                print(f"  ❌ Cloud Scrobble failed: {s_res.status_code}")
+                return False
+        except Exception as e:
+            print(f"  ❌ Cloud Scrobble error: {e}")
+            return False
+            
         # Plex Cloud needs time to process the scrobble and create the activity node.
-        # We use progressive waits to give it enough time.
-        wait_times = [8, 12, 15]
+        wait_times = [3, 5, 8]
         for intento, wait in enumerate(wait_times):
             print(f"  Waiting {wait}s for Plex Cloud to process scrobble (attempt {intento+1}/{len(wait_times)})...")
             time.sleep(wait)
@@ -1036,6 +1048,8 @@ def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: 
     if order == "desc":
         sorted_items.reverse()
         
+    success_count = 0
+    errors = []
     for item, assign_dt in zip(sorted_items, assigned_dates):
         watched_str = assign_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
         
@@ -1044,9 +1058,12 @@ def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: 
             success = perform_plex_surgery(item, watched_str)
             if not success:
                 should_update_db = False
+                error_msg = f"Fallo en Plex Cloud para: {item.get('title')}"
+                errors.append(error_msg)
                 print(f"Skipping DB update for {item.get('title')} because Plex surgery failed.")
                 
         if should_update_db:
+            success_count += 1
             conn_update = sqlite3.connect("sync.db")
             c_update = conn_update.cursor()
             if req.sync_remote:
@@ -1056,7 +1073,12 @@ def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: 
             conn_update.commit()
             conn_update.close()
         
-    return {"success": True}
+    if success_count == total_items:
+        return {"success": True, "status": "success"}
+    elif success_count > 0:
+        return {"success": True, "status": "partial", "errors": errors}
+    else:
+        return {"success": False, "status": "error", "errors": errors}
 
 @app.post("/api/dismiss-sync")
 def dismiss_sync(authorization: str = Depends(verify_api_key)):
@@ -1444,16 +1466,23 @@ def get_plex_items_map():
             pass
     return plex_movies, plex_shows
 
-def match_movie(movie_data, plex_movies):
+def match_movie(movie_data, plex_movies, tmdb_id=None):
     title = movie_data.get("movie", {}).get("title", "").lower()
     for pm in plex_movies:
-        if pm.get("title", "").lower() == title: return pm
+        pm_title = pm.get("title", "").lower()
+        if pm_title == title or title in pm_title:
+            return pm
     return None
 
-def match_show(show_data, plex_shows):
+def match_show(show_data, plex_shows, show_tmdb_id=None):
     title = show_data.get("show", {}).get("title", "").lower()
+    import difflib
     for ps in plex_shows:
-        if ps.get("title", "").lower() == title: return ps.get("ratingKey")
+        ps_title = ps.get("title", "").lower()
+        if ps_title == title or title in ps_title or ps_title in title:
+            return ps.get("ratingKey")
+        if difflib.SequenceMatcher(None, ps_title, title).ratio() > 0.85:
+            return ps.get("ratingKey")
     return None
 
 

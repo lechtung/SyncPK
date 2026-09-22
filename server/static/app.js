@@ -192,6 +192,17 @@ function setupEventListeners() {
     document.getElementById('edit-cancel-btn').addEventListener('click', () => {
         document.getElementById('edit-modal').classList.add('hidden');
     });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            ['edit-modal', 'manual-add-modal', 'config-modal', 'log-modal'].forEach(id => {
+                const modal = document.getElementById(id);
+                if (modal && !modal.classList.contains('hidden')) {
+                    modal.classList.add('hidden');
+                }
+            });
+        }
+    });
 }
 
 function openLogViewer() {
@@ -767,14 +778,25 @@ document.getElementById('edit-save-btn').addEventListener('click', async () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        if (res.ok) {
+        
+        let data = null;
+        try { data = await res.json(); } catch(e){}
+
+        if (res.ok && data && data.status === 'success') {
             reloadHistory(); // Reload to sort properly
             updateOverlayResult('success', currentLangData.config_saved || 'Saved successfully', '');
             hideOverlay(2000);
+        } else if (res.ok && data && data.status === 'partial') {
+            reloadHistory();
+            let errText = (data.errors || []).join(', ');
+            updateOverlayResult('error', currentLangData.manual_save_error || 'Error (Parcial)', errText);
+            hideOverlay(4000);
+            setTimeout(() => document.getElementById('edit-modal').classList.remove('hidden'), 4000);
         } else {
-            updateOverlayResult('error', currentLangData.manual_save_error || 'Error saving.', '');
-            hideOverlay(3000);
-            setTimeout(() => document.getElementById('edit-modal').classList.remove('hidden'), 3000);
+            let errText = (data && data.errors) ? data.errors.join(', ') : '';
+            updateOverlayResult('error', currentLangData.manual_save_error || 'Error saving.', errText);
+            hideOverlay(4000);
+            setTimeout(() => document.getElementById('edit-modal').classList.remove('hidden'), 4000);
         }
     } catch (e) {
         console.error(e);
