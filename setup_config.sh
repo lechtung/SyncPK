@@ -26,7 +26,7 @@ fi
 
 # Plex PIN Auth
 echo "[Info] Requesting Plex authentication PIN..."
-PLEX_CLIENT_ID="syncpk-installer-$RANDOM-$RANDOM"
+PLEX_CLIENT_ID="SPK-$(uuidgen)"
 PIN_RESPONSE=$(curl -s -X POST "https://plex.tv/api/v2/pins?strong=true" -H "Accept: application/json" -H "X-Plex-Product: SyncPK" -H "X-Plex-Client-Identifier: $PLEX_CLIENT_ID")
 PIN_ID=$(echo "$PIN_RESPONSE" | jq -r '.id')
 PIN_CODE=$(echo "$PIN_RESPONSE" | jq -r '.code')
@@ -98,6 +98,7 @@ TMDB_API_KEY=$TMDB_API_KEY
 SYNC_LANGUAGE=$SYNC_LANGUAGE
 # Save the API_TOKEN as well for MOTD generation later
 API_TOKEN_RAW=$API_TOKEN
+PLEX_CLIENT_ID=$PLEX_CLIENT_ID
 EOF
 
 echo "[Info] Configuration saved successfully in .env."

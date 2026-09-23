@@ -49,6 +49,7 @@ SALT = os.getenv("SALT", "")
 WEB_HASH = os.getenv("WEB_HASH", "")
 API_HASH = os.getenv("API_HASH", "")
 HAS_PLEX_PASS = os.getenv("HAS_PLEX_PASS", "false").lower() == "true"
+PLEX_CLIENT_ID = os.getenv("PLEX_CLIENT_ID", "syncpk-default")
 
 plex_headers = {"Accept": "application/json", "X-Plex-Token": PLEX_TOKEN}
 
@@ -243,6 +244,31 @@ def download_tmdb_images_sync(tmdb_id, media_type):
         
     return poster_local, fanart_local
 
+def download_episode_fanart_sync(thumb_url, metadata_id):
+    if not thumb_url or not metadata_id: return None
+    
+    fanart_local_path = f"static/cache/fanarts/ep_{metadata_id}.jpg"
+    fanart_local = f"/cache/fanarts/ep_{metadata_id}.jpg" if os.path.exists(fanart_local_path) else None
+    
+    if fanart_local:
+        return fanart_local
+        
+    # Replace /original/ with /w780/ or similar if it's a tmdb url
+    if "/original/" in thumb_url:
+        thumb_url = thumb_url.replace("/original/", "/w780/")
+        
+    import requests
+    try:
+        img_resp = requests.get(thumb_url, timeout=15)
+        if img_resp.status_code == 200:
+            with open(fanart_local_path, "wb") as f:
+                f.write(img_resp.content)
+            return f"/cache/fanarts/ep_{metadata_id}.jpg"
+    except Exception as e:
+        print(f"Error downloading episode fanart for {metadata_id}: {e}")
+        
+    return None
+
 
 async def bulk_download_tmdb_images():
     print("Starting bulk TMDB image download for missing posters...")
@@ -392,10 +418,20 @@ def process_plex_payload(payload, cursor, is_bulk=False):
         db_id = existing_id if existing_id else cursor.lastrowid
         target_tmdb = tmdb_id if media_type == "movie" else show_tmdb_id
         if not target_tmdb and media_type == "episode": target_tmdb = tmdb_id # Fallback
+        
+        # Download show poster/fanart or movie poster/fanart
         if target_tmdb:
             p_path, f_path = download_tmdb_images_sync(target_tmdb, "tv" if media_type == "episode" else "movie")
             if p_path or f_path:
                 cursor.execute("UPDATE watch_history SET poster_path=COALESCE(?, poster_path), fanart_path=COALESCE(?, fanart_path) WHERE id=?", (p_path, f_path, db_id))
+        
+        # Download specific episode fanart if we have a thumb
+        if media_type == "episode" and metadata.get("thumb"):
+            ep_metadata_id = plex_guid.split("/")[-1] if plex_guid else str(db_id)
+            ep_fanart = download_episode_fanart_sync(metadata.get("thumb"), ep_metadata_id)
+            if ep_fanart:
+                cursor.execute("UPDATE watch_history SET fanart_path=? WHERE id=?", (ep_fanart, db_id))
+                
     except Exception as e:
         print(f"Error asignando carátulas Plex: {e}")
             
@@ -842,7 +878,7 @@ def unscrobble_plex(item):
         headers = {
             "Accept": "application/json",
             "x-plex-token": PLEX_TOKEN,
-            "x-plex-client-identifier": "7o448fp80hf1p7gbvqvvaklv"
+            "x-plex-client-identifier": PLEX_CLIENT_ID
         }
         
         payload_get = {
@@ -928,7 +964,7 @@ def perform_plex_surgery(item: dict, watched_at_local: str):
     
     headers_fetch = {
         "Accept": "application/json", "Content-Type": "application/json",
-        "x-plex-client-identifier": "7o448fp80hf1p7gbvqvvaklv", "x-plex-token": PLEX_TOKEN
+        "x-plex-client-identifier": PLEX_CLIENT_ID, "x-plex-token": PLEX_TOKEN
     }
     url_graphql = "https://community.plex.tv/api"
     query_get = """
@@ -945,54 +981,51 @@ def perform_plex_surgery(item: dict, watched_at_local: str):
     }
     
     node_id = None
-    for intento in range(3):
+    start_time = time.time()
+    max_wait = 600
+    scrobble_triggered = False
+
+    while (time.time() - start_time) < max_wait:
         try:
             r = requests.post(url_graphql, headers=headers_fetch, json=payload_get, timeout=20)
             if r.status_code == 200:
                 nodes = r.json().get("data", {}).get("activityFeed", {}).get("nodes", [])
-                if nodes: node_id = nodes[0]["id"]
-                break
-            elif r.status_code == 429:
-                time.sleep(5)
-            else:
-                break
-        except Exception:
-            time.sleep(2)
-            
-    if not node_id:
-        print(f"No node for {item.get('title')}, triggering CLOUD scrobble...")
-        cloud_headers = dict(headers_fetch)
-        cloud_headers["x-plex-client-identifier"] = "7o448fp80hf1p7gbvqvvaklv"
-        scrobble_url = f"https://metadata.provider.plex.tv/actions/scrobble?key={metadata_id}&identifier=tv.plex.provider.metadata"
-        try:
-            s_res = requests.get(scrobble_url, headers=cloud_headers, timeout=10)
-            if s_res.status_code == 200:
-                print(f"  ✅ Cloud Scrobble executed for {item.get('title')}")
-            else:
-                print(f"  ❌ Cloud Scrobble failed: {s_res.status_code}")
-                return False
-        except Exception as e:
-            print(f"  ❌ Cloud Scrobble error: {e}")
-            return False
-            
-        # Plex Cloud needs time to process the scrobble and create the activity node.
-        wait_times = [3, 5, 8]
-        for intento, wait in enumerate(wait_times):
-            print(f"  Waiting {wait}s for Plex Cloud to process scrobble (attempt {intento+1}/{len(wait_times)})...")
-            time.sleep(wait)
-            try:
-                r = requests.post(url_graphql, headers=headers_fetch, json=payload_get, timeout=20)
-                if r.status_code == 200:
-                    nodes = r.json().get("data", {}).get("activityFeed", {}).get("nodes", [])
-                    if nodes:
-                        node_id = nodes[0]["id"]
-                        print(f"  ✅ Activity node found after scrobble on attempt {intento+1}")
-                        break
+                if nodes:
+                    node_id = nodes[0]["id"]
+                    break
+                else:
+                    if not scrobble_triggered:
+                        print(f"No node for {item.get('title')}, triggering CLOUD scrobble...")
+                        cloud_headers = dict(headers_fetch)
+                        cloud_headers["x-plex-client-identifier"] = PLEX_CLIENT_ID
+                        scrobble_url = f"https://metadata.provider.plex.tv/actions/scrobble?key={metadata_id}&identifier=tv.plex.provider.metadata"
+                        try:
+                            s_res = requests.get(scrobble_url, headers=cloud_headers, timeout=10)
+                            if s_res.status_code == 200:
+                                print(f"  ✅ Cloud Scrobble executed for {item.get('title')}")
+                                scrobble_triggered = True
+                                time.sleep(3)
+                                continue
+                            else:
+                                print(f"  ❌ Cloud Scrobble failed: {s_res.status_code}")
+                                return False
+                        except Exception as e:
+                            print(f"  ❌ Cloud Scrobble error: {e}")
+                            return False
                     else:
-                        print(f"  Still no node on attempt {intento+1}...")
-            except Exception as ex:
-                print(f"  Error fetching node on attempt {intento+1}: {ex}")
-                
+                        print(f"  Still no node, waiting for Plex Cloud to process scrobble...")
+                        time.sleep(5)
+            elif r.status_code == 429:
+                retry_after = int(r.headers.get("Retry-After", 60))
+                print(f"⚠️ RATE LIMIT. Waiting {retry_after}s...")
+                time.sleep(retry_after)
+            else:
+                print(f"❌ Error fetching Activity Node: {r.status_code} - {r.text}")
+                time.sleep(10)
+        except Exception as e:
+            print(f"Error fetching Activity Node: {e}")
+            time.sleep(5)
+            
     if node_id:
         headers_mutate = dict(headers_fetch)
         headers_mutate["origin"] = "https://app.plex.tv"
@@ -1011,8 +1044,53 @@ def perform_plex_surgery(item: dict, watched_at_local: str):
         except Exception as e:
             print(f"❌ Surgery failed for {item.get('title')}: {e}")
     else:
-        print(f"❌ Surgery failed: Could not get Activity Node for {item.get('title')}")
+        print(f"❌ Surgery failed: Could not get Activity Node for {item.get('title')} after {max_wait}s")
     return False
+
+def get_cloud_episodes_for_scope(plex_show_guid, ref_season, ref_episode, scope):
+    if not plex_show_guid: return []
+    show_id = plex_show_guid.split("/")[-1]
+    
+    headers = {
+        "Accept": "application/json",
+        "X-Plex-Token": PLEX_TOKEN
+    }
+    
+    seasons_url = f"https://metadata.provider.plex.tv/library/metadata/{show_id}/children"
+    try:
+        r = requests.get(seasons_url, headers=headers, timeout=10)
+        if r.status_code != 200: return []
+    except Exception as e:
+        print(f"Error fetching seasons from Cloud: {e}")
+        return []
+        
+    seasons_data = r.json().get("MediaContainer", {}).get("Metadata", [])
+    
+    episodes = []
+    for s in seasons_data:
+        s_index = s.get("index")
+        if not s_index: continue
+        
+        if scope == "season" and s_index != ref_season:
+            continue
+        if scope == "onwards" and s_index < ref_season:
+            continue
+            
+        season_rating_key = s.get("ratingKey")
+        ep_url = f"https://metadata.provider.plex.tv/library/metadata/{season_rating_key}/children"
+        try:
+            r_ep = requests.get(ep_url, headers=headers, timeout=10)
+            if r_ep.status_code == 200:
+                eps_data = r_ep.json().get("MediaContainer", {}).get("Metadata", [])
+                for ep in eps_data:
+                    ep_index = ep.get("index")
+                    if scope == "onwards" and s_index == ref_season and ep_index < ref_episode:
+                        continue
+                    episodes.append(ep)
+        except Exception as e:
+            print(f"Error fetching episodes for season {s_index}: {e}")
+            
+    return episodes
 
 @app.put("/api/history/{item_id}")
 def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: str = Depends(verify_api_key)):
@@ -1020,66 +1098,51 @@ def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: 
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    # Get original item
     cursor.execute("SELECT * FROM watch_history WHERE id = ?", (item_id,))
-    item = cursor.fetchone()
+    item_row = cursor.fetchone()
     
-    if not item:
+    if not item_row:
         conn.close()
         raise HTTPException(status_code=404, detail="Item not found")
         
+    item = dict(item_row)
     scope = req.scope or "episode"
     
-    # 1. Fetch all items that will be modified
-    if item["media_type"] == "episode" and scope != "episode":
-        plex_movies, plex_shows = get_plex_items_map()
-        s_key = match_show({"show": {"title": item["show_title"]}}, plex_shows)
-        if s_key:
-            r_eps = requests.get(f"{PLEX_URL}/library/metadata/{s_key}/allLeaves", headers=plex_headers)
-            if r_eps.status_code == 200:
-                plex_eps = r_eps.json().get("MediaContainer", {}).get("Metadata", [])
-                
-                cursor.execute("SELECT plex_guid FROM watch_history WHERE show_title = ?", (item["show_title"],))
-                existing_guids = {r["plex_guid"] for r in cursor.fetchall() if r["plex_guid"]}
-                
-                now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-                for pep in plex_eps:
-                    p_season = pep.get("parentIndex")
-                    p_episode = pep.get("index")
-                    
-                    # Filter by scope before inserting
-                    if scope == "season" and p_season != item["season"]:
-                        continue
-                    if scope == "onwards" and (p_season < item["season"] or (p_season == item["season"] and p_episode < item["episode"])):
-                        continue
-                        
-                    p_guid = pep.get("guid")
-                    p_show_guid = pep.get("grandparentGuid")
-                    p_title = pep.get("title", f"Episodio {p_episode}")
-                    
-                    if p_guid and p_guid not in existing_guids:
-                        cursor.execute("""
-                            INSERT INTO watch_history (origin, title, show_title, media_type, season, episode, plex_guid, plex_show_guid, watched_at, created_at, duration)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """, ('manual', p_title, item["show_title"], 'episode', p_season, p_episode, p_guid, p_show_guid, item["watched_at"], now_utc, pep.get("duration", 0)))
-                conn.commit()
-
     items_to_modify = []
-    if item["media_type"] == "episode":
-        if scope == "episode":
-            cursor.execute("SELECT * FROM watch_history WHERE id = ?", (item_id,))
-        elif scope == "show":
-            cursor.execute("SELECT * FROM watch_history WHERE show_title = ?", (item["show_title"],))
-        elif scope == "season":
-            cursor.execute("SELECT * FROM watch_history WHERE show_title = ? AND season = ?", (item["show_title"], item["season"]))
-        elif scope == "onwards":
-            cursor.execute("SELECT * FROM watch_history WHERE show_title = ? AND (season > ? OR (season = ? AND episode >= ?))", (item["show_title"], item["season"], item["season"], item["episode"]))
+    
+    if item["media_type"] == "episode" and scope != "episode":
+        cloud_eps = get_cloud_episodes_for_scope(item.get("plex_show_guid"), item["season"], item["episode"], scope)
+        
+        if cloud_eps:
+            for ep in cloud_eps:
+                items_to_modify.append({
+                    "id": None, 
+                    "title": ep.get("title", f"Episodio {ep.get('index')}"),
+                    "show_title": item["show_title"],
+                    "media_type": "episode",
+                    "season": ep.get("parentIndex"),
+                    "episode": ep.get("index"),
+                    "plex_guid": ep.get("guid"),
+                    "plex_show_guid": item.get("plex_show_guid"),
+                    "show_tmdb_id": item.get("show_tmdb_id"),
+                    "duration": ep.get("duration", 0),
+                    "thumb": ep.get("thumb"),
+                    "Guid": ep.get("Guid", [])
+                })
+        else:
+            if scope == "show":
+                cursor.execute("SELECT * FROM watch_history WHERE show_title = ?", (item["show_title"],))
+            elif scope == "season":
+                cursor.execute("SELECT * FROM watch_history WHERE show_title = ? AND season = ?", (item["show_title"], item["season"]))
+            elif scope == "onwards":
+                cursor.execute("SELECT * FROM watch_history WHERE show_title = ? AND (season > ? OR (season = ? AND episode >= ?))", (item["show_title"], item["season"], item["season"], item["episode"]))
+            items_to_modify = [dict(r) for r in cursor.fetchall()]
     else:
         cursor.execute("SELECT * FROM watch_history WHERE id = ?", (item_id,))
+        items_to_modify = [dict(r) for r in cursor.fetchall()]
         
-    items_to_modify = [dict(r) for r in cursor.fetchall()]
     total_items = len(items_to_modify)
-    conn.close() # CERRAR AQUI PARA NO BLOQUEAR DURANTE LAS PETICIONES A PLEX
+    conn.close()
     
     if total_items == 0:
         return {"success": True}
@@ -1198,11 +1261,32 @@ def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: 
         if should_update_db:
             success_count += 1
             conn_update = sqlite3.connect("sync.db")
+            conn_update.row_factory = sqlite3.Row
             c_update = conn_update.cursor()
-            if req.sync_remote:
-                c_update.execute("UPDATE watch_history SET watched_at = ?, created_at = ? WHERE id = ?", (watched_str, now_utc, item["id"]))
+            
+            p_guid = item.get("plex_guid")
+            c_update.execute("SELECT id FROM watch_history WHERE plex_guid = ?", (p_guid,))
+            row = c_update.fetchone()
+            
+            if row:
+                if req.sync_remote:
+                    c_update.execute("UPDATE watch_history SET watched_at = ?, created_at = ? WHERE id = ?", (watched_str, now_utc, row["id"]))
+                else:
+                    c_update.execute("UPDATE watch_history SET watched_at = ? WHERE id = ?", (watched_str, row["id"]))
             else:
-                c_update.execute("UPDATE watch_history SET watched_at = ? WHERE id = ?", (watched_str, item["id"]))
+                imdb_id, tmdb_id, tvdb_id = extract_ids(item.get("Guid", []))
+                c_update.execute("""
+                    INSERT INTO watch_history (origin, title, show_title, media_type, season, episode, plex_guid, plex_show_guid, imdb_id, tmdb_id, tvdb_id, show_tmdb_id, watched_at, created_at, duration)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, ('manual', item.get("title"), item.get("show_title"), 'episode', item.get("season"), item.get("episode"), p_guid, item.get("plex_show_guid"), imdb_id, tmdb_id, tvdb_id, item.get("show_tmdb_id"), watched_str, now_utc, item.get("duration", 0)))
+                new_id = c_update.lastrowid
+                
+                if item.get("thumb"):
+                    ep_metadata_id = p_guid.split("/")[-1]
+                    ep_fanart = download_episode_fanart_sync(item.get("thumb"), ep_metadata_id)
+                    if ep_fanart:
+                        c_update.execute("UPDATE watch_history SET fanart_path = ? WHERE id = ?", (ep_fanart, new_id))
+            
             conn_update.commit()
             conn_update.close()
         
@@ -1313,7 +1397,7 @@ def get_oldest_date(rating_key, metadata_id, xml_watched_at):
     headers_fetch = {
         "Accept": "application/json",
         "Content-Type": "application/json",
-        "x-plex-client-identifier": "b8x92tz3pq1g4f7mcy6k0w5n",
+        "x-plex-client-identifier": PLEX_CLIENT_ID,
         "x-plex-token": PLEX_TOKEN
     }
     query_graphql = """
@@ -1392,6 +1476,7 @@ def build_payload_from_plex(item, media_type, show_map=None):
             "title": item.get("title"),
             "guid": item.get("guid"),
             "Guid": guids,
+            "thumb": item.get("thumb"),
             "watched_at": watched_at,
             "duration": item.get("duration", 0)
         }
@@ -1638,7 +1723,7 @@ def push_cloud_orphans_to_db():
     headers_fetch = {
         "Accept": "application/json",
         "Content-Type": "application/json",
-        "x-plex-client-identifier": "7o448fp80hf1p7gbvqvvaklv",
+        "x-plex-client-identifier": PLEX_CLIENT_ID,
         "x-plex-token": PLEX_TOKEN
     }
     
@@ -1969,7 +2054,7 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
             cloud_headers = {
                 "Accept": "application/json",
                 "x-plex-token": PLEX_TOKEN,
-                "x-plex-client-identifier": "7o448fp80hf1p7gbvqvvaklv"
+                "x-plex-client-identifier": PLEX_CLIENT_ID
             }
             if search_lang:
                 cloud_headers["x-plex-language"] = search_lang
