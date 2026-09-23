@@ -5,7 +5,11 @@ import hashlib
 from dotenv import load_dotenv
 
 # Cargar variables de entorno para coger el TMDB_API_KEY
-load_dotenv(".env")
+if os.path.exists(".env"):
+    load_dotenv(".env")
+elif os.path.exists("../.env"):
+    load_dotenv("../.env")
+    
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 
 if not TMDB_API_KEY:
