@@ -1,7 +1,6 @@
 #!/bin/bash
 
 systemctl stop syncpk-server
-cd /root/sync_server
 
 echo "[1/7] Download files..."
 curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/main.py
@@ -15,6 +14,6 @@ curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/
 cd locales
 curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/en.json
 curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/es.json
-cd /root/sync_server
+cd ../..
 
 systemctl start syncpk-server

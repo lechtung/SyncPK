@@ -111,6 +111,7 @@ document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
     await loadTranslations();
+    await loadUIConfig();
 
     // Check if token exists
     if (getAuthToken()) {
@@ -123,6 +124,20 @@ async function init() {
     initDropdowns();
     populateYearFilter();
     populateMonthFilter();
+}
+
+async function loadUIConfig() {
+    try {
+        let res = await fetch('/api/ui_config');
+        if (res.ok) {
+            let data = await res.json();
+            if (data.fanart_mask_opacity) {
+                document.documentElement.style.setProperty('--fanart-mask-opacity', data.fanart_mask_opacity);
+            }
+        }
+    } catch(e) {
+        console.warn("Could not load UI config", e);
+    }
 }
 
 async function loadTranslations() {
@@ -565,6 +580,7 @@ async function renderHistory(items) {
             card.innerHTML = `
                 <div class="c-poster" style="${posterStyle}"></div>
                 <div class="c-fanart-content" style="${bgStyle}">
+                    <div class="c-fanart-mask"></div>
                     <div class="c-fanart-overlay"></div>
                     <div class="card-content">
                         <div class="card-title">${title}</div>
@@ -976,6 +992,7 @@ function setupConfigModal() {
                     document.getElementById('config-plex-url').value = data.plex_url || '';
                     document.getElementById('config-plex-token').value = data.plex_token || '';
                     document.getElementById('config-tmdb-api').value = data.tmdb_api_key || '';
+                    document.getElementById('config-plex-client-id').value = data.plex_client_id || '';
 
                     let langValue = data.sync_language || 'es';
                     let langDd = document.getElementById('configLang-dd');
@@ -1007,6 +1024,36 @@ function setupConfigModal() {
         if (plexPinPollingInterval) clearInterval(plexPinPollingInterval);
         document.getElementById('config-pin-status').classList.add('hidden');
     });
+
+    // Restore Config
+    const restoreBtn = document.getElementById('config-restore-btn');
+    if (restoreBtn) {
+        restoreBtn.addEventListener('click', async () => {
+            if (!confirm('¿Estás seguro de querer restaurar la configuración original? Se perderán los cambios no guardados.')) return;
+            
+            showProcessingOverlay('Restaurando', 'Cargando copia de seguridad...');
+            try {
+                let res = await apiFetch('/api/config/restore', { method: 'POST' });
+                if (res.ok) {
+                    let data = await res.json();
+                    if (data.status === 'success') {
+                        updateOverlayResult('success', 'Restaurado con éxito.');
+                        setTimeout(() => window.location.reload(), 1500);
+                    } else {
+                        updateOverlayResult('error', data.message || 'Error al restaurar');
+                        hideOverlay(3000);
+                    }
+                } else {
+                    updateOverlayResult('error', 'Error de red');
+                    hideOverlay(3000);
+                }
+            } catch(e) {
+                console.error(e);
+                updateOverlayResult('error', 'Error crítico');
+                hideOverlay(3000);
+            }
+        });
+    }
 
     // Plex Auth Flow
     document.getElementById('config-get-token-btn').addEventListener('click', async () => {
@@ -1064,6 +1111,7 @@ function setupConfigModal() {
             plex_url: document.getElementById('config-plex-url').value,
             plex_token: document.getElementById('config-plex-token').value,
             tmdb_api_key: document.getElementById('config-tmdb-api').value,
+            plex_client_id: document.getElementById('config-plex-client-id').value,
             sync_language: newLang
         };
 

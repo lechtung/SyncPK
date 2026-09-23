@@ -102,3 +102,16 @@ PLEX_CLIENT_ID=$PLEX_CLIENT_ID
 EOF
 
 echo "[Info] Configuration saved successfully in .env."
+cp .env .env.bak
+echo "[Info] Backup saved to .env.bak."
+
+if [ ! -f .conf ]; then
+    if [ -f .conf.example ]; then
+        cp .conf.example .conf
+        echo "[Info] Created .conf from .conf.example"
+    else
+        echo "# Controls the opacity of the dark mask over fanart images (0.0 to 1.0)" > .conf
+        echo "FANART_MASK_OPACITY=0.5" >> .conf
+        echo "[Info] Created new .conf"
+    fi
+fi

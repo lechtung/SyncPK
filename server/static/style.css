@@ -361,6 +361,13 @@ button:disabled {
     position: relative;
 }
 
+.c-fanart-mask {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: rgba(0, 0, 0, var(--fanart-mask-opacity, 0.5));
+    z-index: 0;
+}
+
 .c-fanart-overlay {
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;

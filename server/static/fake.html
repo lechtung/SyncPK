@@ -140,6 +140,24 @@
         .hidden {
             display: none !important;
         }
+
+        /* Máscara oscura para el fanart */
+        .c-fanart-mask {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5); /* Ajustar opacidad según preferencia */
+            z-index: 0; /* Asegurar que quede por debajo del gradiente y el texto */
+        }
+        
+        /* Asegurar que la tarjeta content y menu estén por encima de la máscara */
+        .c-fanart-content .card-content,
+        .c-fanart-content .kebab-menu-btn,
+        .c-fanart-content .c-fanart-overlay {
+            z-index: 1;
+        }
     </style>
 </head>
 
@@ -246,12 +264,33 @@
                             style="background-image: url('https://static.tvmaze.com/uploads/images/original_untouched/173/433868.jpg')">
                             <div class="c-fanart-overlay"></div>
                             <div class="card-content">
-                                <div class="card-title">Big Bang</div>
+                                <div class="card-title">Big Bang (Sin máscara)</div>
                                 <div class="card-subtitle">T2 - E10 - El enigma Vartabedian</div>
                                 <div class="card-time">22:03</div>
                             </div>
                             <button class="kebab-menu-btn" onclick="toggleDropdown('menu-1')">⋮</button>
                             <div class="kebab-dropdown glass-panel hidden" id="menu-1">
+                                <div class="dropdown-item">Editar Fecha</div>
+                                <div class="dropdown-item danger">Eliminar</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="c-card" onclick="showFakeToast()">
+                        <div class="c-poster"
+                            style="background-image: url('https://static.tvmaze.com/uploads/images/medium_portrait/173/433868.jpg')">
+                        </div>
+                        <div class="c-fanart-content"
+                            style="background-image: url('https://static.tvmaze.com/uploads/images/original_untouched/173/433868.jpg')">
+                            <div class="c-fanart-mask"></div>
+                            <div class="c-fanart-overlay"></div>
+                            <div class="card-content">
+                                <div class="card-title">Big Bang (Con máscara)</div>
+                                <div class="card-subtitle">T2 - E10 - El enigma Vartabedian</div>
+                                <div class="card-time">22:03</div>
+                            </div>
+                            <button class="kebab-menu-btn" onclick="toggleDropdown('menu-1-mask')">⋮</button>
+                            <div class="kebab-dropdown glass-panel hidden" id="menu-1-mask">
                                 <div class="dropdown-item">Editar Fecha</div>
                                 <div class="dropdown-item danger">Eliminar</div>
                             </div>
@@ -271,12 +310,33 @@
                             style="background-image: url('https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/bMJdVmo6QqoUHpUsjWyei6MN02x.jpg')">
                             <div class="c-fanart-overlay"></div>
                             <div class="card-content">
-                                <div class="card-title">Pitch Black</div>
+                                <div class="card-title">Pitch Black (Sin máscara)</div>
                                 <div class="card-subtitle"></div>
                                 <div class="card-time">21:34</div>
                             </div>
                             <button class="kebab-menu-btn" onclick="toggleDropdown('menu-2')">⋮</button>
                             <div class="kebab-dropdown glass-panel hidden" id="menu-2">
+                                <div class="dropdown-item">Editar Fecha</div>
+                                <div class="dropdown-item danger">Eliminar</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="c-card" onclick="showFakeToast()">
+                        <div class="c-poster"
+                            style="background-image: url('https://media.themoviedb.org/t/p/w300_and_h450_face/3AnlxZ5CZnhKKzjgFyY6EHxmOyl.jpg')">
+                        </div>
+                        <div class="c-fanart-content"
+                            style="background-image: url('https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/bMJdVmo6QqoUHpUsjWyei6MN02x.jpg')">
+                            <div class="c-fanart-mask"></div>
+                            <div class="c-fanart-overlay"></div>
+                            <div class="card-content">
+                                <div class="card-title">Pitch Black (Con máscara)</div>
+                                <div class="card-subtitle"></div>
+                                <div class="card-time">21:34</div>
+                            </div>
+                            <button class="kebab-menu-btn" onclick="toggleDropdown('menu-2-mask')">⋮</button>
+                            <div class="kebab-dropdown glass-panel hidden" id="menu-2-mask">
                                 <div class="dropdown-item">Editar Fecha</div>
                                 <div class="dropdown-item danger">Eliminar</div>
                             </div>
@@ -296,12 +356,33 @@
                             style="background-image: url('https://static.tvmaze.com/uploads/images/original_untouched/557/1392576.jpg')">
                             <div class="c-fanart-overlay"></div>
                             <div class="card-content">
-                                <div class="card-title">1923</div>
+                                <div class="card-title">1923 (Sin máscara)</div>
                                 <div class="card-subtitle">T1 - E1 - 1923</div>
                                 <div class="card-time">21:05</div>
                             </div>
                             <button class="kebab-menu-btn" onclick="toggleDropdown('menu-3')">⋮</button>
                             <div class="kebab-dropdown glass-panel hidden" id="menu-3">
+                                <div class="dropdown-item">Editar Fecha</div>
+                                <div class="dropdown-item danger">Eliminar</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="c-card" onclick="showFakeToast()">
+                        <div class="c-poster"
+                            style="background-image: url('https://static.tvmaze.com/uploads/images/medium_portrait/557/1392576.jpg')">
+                        </div>
+                        <div class="c-fanart-content"
+                            style="background-image: url('https://static.tvmaze.com/uploads/images/original_untouched/557/1392576.jpg')">
+                            <div class="c-fanart-mask"></div>
+                            <div class="c-fanart-overlay"></div>
+                            <div class="card-content">
+                                <div class="card-title">1923 (Con máscara)</div>
+                                <div class="card-subtitle">T1 - E1 - 1923</div>
+                                <div class="card-time">21:05</div>
+                            </div>
+                            <button class="kebab-menu-btn" onclick="toggleDropdown('menu-3-mask')">⋮</button>
+                            <div class="kebab-dropdown glass-panel hidden" id="menu-3-mask">
                                 <div class="dropdown-item">Editar Fecha</div>
                                 <div class="dropdown-item danger">Eliminar</div>
                             </div>

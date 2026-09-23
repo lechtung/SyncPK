@@ -5,9 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SyncPK Dashboard</title>
-    <link rel="stylesheet" href="/style.css?v=20">
+    <link rel="stylesheet" href="/style.css?v=21">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <script src="/app.js?v=20" defer></script>
+    <script src="/app.js?v=21" defer></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -350,7 +350,12 @@
         <div class="login-box glass-panel" style="max-width: 500px; width: 90%; text-align: left;">
             <h2 data-i18n="config_title" style="margin-top:0; margin-bottom: 20px;">Configuración</h2>
 
-            <label style="color:#aaa; font-size:0.9rem;">Plex URL:</label>
+            <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <label style="color:#aaa; font-size:0.9rem;">Plex URL:</label>
+                <button id="config-restore-btn"
+                    style="background: transparent; border: 1px solid var(--accent); color: var(--accent); font-size: 0.8rem; padding: 4px 8px; border-radius: 4px; cursor: pointer;">Restaurar
+                    config original</button>
+            </div>
             <input type="text" id="config-plex-url" placeholder="http://192.168.1.100:32400">
 
             <label style="color:#aaa; font-size:0.9rem; margin-top: 10px;">Plex Token:</label>
@@ -366,6 +371,9 @@
 
             <label style="color:#aaa; font-size:0.9rem;">TMDB API Key:</label>
             <input type="text" id="config-tmdb-api" placeholder="TMDB v3 API Key">
+
+            <label style="color:#aaa; font-size:0.9rem;">Plex Client ID:</label>
+            <input type="text" id="config-plex-client-id" placeholder="SPK-UUID">
 
             <label style="color:#aaa; font-size:0.9rem;">Idioma preferido:</label>
             <div class="c-dropdown" id="configLang-dd" style="margin-bottom: 8px;">

@@ -28,11 +28,36 @@ import queue
 # maybe a small mark in the dashboard to see what items are not in the plex library anymore (need to see how we can detect when the user delete something in plex)
 # manual option to re-scan the plex library to import in our local db
 # implement something to check if the use has pless pass, maybe with the api to get user information?
-
+# TODO: FUTURAS CONFIGURACIONES DE UI (Para añadir en .conf o UI Dashboard)
+# - TAMAÑOS: Ancho y alto de las tarjetas (Poster y Fanart) para ajustarlo al gusto.
+# - PREFERENCIA DE ARTE: Usar el Fanart/Poster propio del episodio, o forzar siempre el de la temporada/serie.
+# - TIPOGRAFÍA: 
+    # * Selección de fuente (Integración con Google Fonts o fuentes del sistema).
+    # * Tamaños y colores individuales para: Título, Subtítulo, Hora y Encabezado de fecha.
+# - COLORES Y FORMAS:
+    # * Color de fondo general de la aplicación.
+    # * Color de acento principal (reemplazar el actual por defecto).
+    # * Color de los componentes (combobox/dropdowns).
+    # * Color del botón de acción flotante (menú inferior derecho).
+    # * Nivel de desenfoque y opacidad del fondo (efecto glassmorphism).
+    # * Bordes redondeados vs Bordes rectos (border-radius).
+# - DISEÑO: 
+    # * Espaciado entre las tarjetas (grid gap).
+    # * Ocultar/Mostrar metadatos específicos (ej. ocultar duración, o subtítulo).
+    # * Formato de fecha (ej. DD/MM/YYYY vs MM/DD/YYYY).
 
 # Manual .env fallback
 if os.path.exists(".env"):
     with open(".env", "r") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, val = line.split("=", 1)
+                os.environ[key.strip()] = val.strip().strip('"').strip("'")
+
+# Load .conf UI settings
+if os.path.exists(".conf"):
+    with open(".conf", "r") as f:
         for line in f:
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
@@ -50,6 +75,7 @@ WEB_HASH = os.getenv("WEB_HASH", "")
 API_HASH = os.getenv("API_HASH", "")
 HAS_PLEX_PASS = os.getenv("HAS_PLEX_PASS", "false").lower() == "true"
 PLEX_CLIENT_ID = os.getenv("PLEX_CLIENT_ID", "syncpk-default")
+FANART_MASK_OPACITY = os.getenv("FANART_MASK_OPACITY", "0.5")
 
 plex_headers = {"Accept": "application/json", "X-Plex-Token": PLEX_TOKEN}
 
@@ -1127,7 +1153,8 @@ def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: 
                     "show_tmdb_id": item.get("show_tmdb_id"),
                     "duration": ep.get("duration", 0),
                     "thumb": ep.get("thumb"),
-                    "Guid": ep.get("Guid", [])
+                    "Guid": ep.get("Guid", []),
+                    "poster_path": item.get("poster_path")
                 })
         else:
             if scope == "show":
@@ -1276,9 +1303,9 @@ def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: 
             else:
                 imdb_id, tmdb_id, tvdb_id = extract_ids(item.get("Guid", []))
                 c_update.execute("""
-                    INSERT INTO watch_history (origin, title, show_title, media_type, season, episode, plex_guid, plex_show_guid, imdb_id, tmdb_id, tvdb_id, show_tmdb_id, watched_at, created_at, duration)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, ('manual', item.get("title"), item.get("show_title"), 'episode', item.get("season"), item.get("episode"), p_guid, item.get("plex_show_guid"), imdb_id, tmdb_id, tvdb_id, item.get("show_tmdb_id"), watched_str, now_utc, item.get("duration", 0)))
+                    INSERT INTO watch_history (origin, title, show_title, media_type, season, episode, plex_guid, plex_show_guid, imdb_id, tmdb_id, tvdb_id, show_tmdb_id, watched_at, created_at, duration, poster_path)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, ('manual', item.get("title"), item.get("show_title"), 'episode', item.get("season"), item.get("episode"), p_guid, item.get("plex_show_guid"), imdb_id, tmdb_id, tvdb_id, item.get("show_tmdb_id"), watched_str, now_utc, item.get("duration", 0), item.get("poster_path")))
                 new_id = c_update.lastrowid
                 
                 if item.get("thumb"):
@@ -2234,6 +2261,13 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
         print(f"[manual_add] Unexpected error: {e}")
         return {"status": "error", "message": str(e)}
 
+
+@app.get("/api/ui_config")
+def get_ui_config():
+    return {
+        "fanart_mask_opacity": FANART_MASK_OPACITY
+    }
+
 # --- CONFIGURATION ---
 @app.get("/api/config", dependencies=[Depends(verify_api_key)])
 def get_config():
@@ -2241,7 +2275,8 @@ def get_config():
         "plex_url": PLEX_URL,
         "plex_token": PLEX_TOKEN,
         "tmdb_api_key": TMDB_API_KEY,
-        "sync_language": os.getenv("SYNC_LANGUAGE", "es")
+        "sync_language": os.getenv("SYNC_LANGUAGE", "es"),
+        "plex_client_id": PLEX_CLIENT_ID
     }
 
 class ConfigPayload(BaseModel):
@@ -2249,6 +2284,7 @@ class ConfigPayload(BaseModel):
     plex_token: str
     tmdb_api_key: str
     sync_language: str
+    plex_client_id: str
     master_password: Optional[str] = None
     force_rescan: Optional[bool] = False
 
@@ -2271,6 +2307,7 @@ def save_config(payload: ConfigPayload):
     env_vars["PLEX_TOKEN"] = payload.plex_token
     env_vars["TMDB_API_KEY"] = payload.tmdb_api_key
     env_vars["SYNC_LANGUAGE"] = payload.sync_language
+    env_vars["PLEX_CLIENT_ID"] = payload.plex_client_id
     
     if payload.master_password:
         salt = env_vars.get("SALT", os.getenv("SALT", ""))
@@ -2284,12 +2321,41 @@ def save_config(payload: ConfigPayload):
             os.environ[k] = str(v)
             
     # Update variables in memory
-    global PLEX_URL, PLEX_TOKEN, TMDB_API_KEY, WEB_HASH
+    global PLEX_URL, PLEX_TOKEN, TMDB_API_KEY, WEB_HASH, PLEX_CLIENT_ID
     PLEX_URL = payload.plex_url
     PLEX_TOKEN = payload.plex_token
     TMDB_API_KEY = payload.tmdb_api_key
+    PLEX_CLIENT_ID = payload.plex_client_id
     if payload.master_password:
-        WEB_HASH = env_vars["WEB_HASH"]
+        WEB_HASH = env_vars.get("WEB_HASH")
+
+@app.post("/api/config/restore", dependencies=[Depends(verify_api_key)])
+def restore_config():
+    import shutil
+    if not os.path.exists(".env.bak"):
+        return {"status": "error", "message": "No backup found (.env.bak)"}
+    
+    shutil.copy(".env.bak", ".env")
+    
+    # Reload config into memory
+    env_vars = {}
+    with open(".env", "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                val = v.strip().strip('"').strip("'")
+                env_vars[k.strip()] = val
+                os.environ[k.strip()] = val
+                
+    global PLEX_URL, PLEX_TOKEN, TMDB_API_KEY, WEB_HASH, PLEX_CLIENT_ID
+    PLEX_URL = env_vars.get("PLEX_URL", "")
+    PLEX_TOKEN = env_vars.get("PLEX_TOKEN", "")
+    TMDB_API_KEY = env_vars.get("TMDB_API_KEY", "")
+    PLEX_CLIENT_ID = env_vars.get("PLEX_CLIENT_ID", "syncpk-default")
+    WEB_HASH = env_vars.get("WEB_HASH", "")
+    
+    return {"status": "success"}
         
     if payload.force_rescan:
         def rescan_task():
