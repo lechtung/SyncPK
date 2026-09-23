@@ -141,11 +141,10 @@ pct exec $CTID -- mkdir -p /opt/syncpk
 pct push $CTID .env /opt/syncpk/.env
 
 echo "[Info] Launching automated system installer inside LXC..."
-# pct exec $CTID -- bash -c "cd /opt/syncpk && curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/setup_system.sh -o setup_system.sh && chmod +x setup_system.sh && ./setup_system.sh"
 pct exec $CTID -- bash -c "apt-get update >/dev/null 2>&1 && apt-get install -y curl ca-certificates >/dev/null 2>&1 && cd /opt/syncpk && curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/setup_system.sh -o setup_system.sh && chmod +x setup_system.sh && ./setup_system.sh"
 
 source .env
-whiptail --title "Installation Completed" --msgbox "SyncPK successfully installed.\n\nWeb Dashboard: http://$CT_IP:8000\n\nGenerated API Token: $API_TOKEN_RAW\n\nPlex Webhook: http://$CT_IP:8000/webhook/plex?token=$API_TOKEN_RAW\nKodi Webhook: http://$CT_IP:8000/webhook/kodi?token=$API_TOKEN_RAW\n\nConfigure the Plex Webhook in your Plex server settings, and enter the IP and API Token in your Kodi Addon." 18 75
+bash show_summary.sh "$CT_IP" "$API_TOKEN_RAW" "LXC container at /opt/syncpk"
 
 echo "Installation completed! Server IP: $CT_IP"
 

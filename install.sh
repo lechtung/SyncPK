@@ -29,3 +29,8 @@ fi
 echo "======================================================"
 echo "          Installation Completed Successfully!        "
 echo "======================================================"
+
+# Load env to show final summary
+source /opt/syncpk/.env 2>/dev/null || source .env 2>/dev/null
+LOCAL_IP=$(hostname -I | awk '{print $1}')
+bash show_summary.sh "$LOCAL_IP" "$API_TOKEN_RAW" "/opt/syncpk"

@@ -94,6 +94,6 @@ echo -e "\e[0m"
 EOF2
 chmod +x /etc/profile.d/syncpk-motd.sh
 
-whiptail --title "Installation Completed" --msgbox "SyncPK successfully installed in $INSTALL_DIR.\n\nWeb Dashboard: http://$LOCAL_IP:8000\n\nGenerated API Token: $API_TOKEN_RAW\n\nPlex Webhook: http://$LOCAL_IP:8000/webhook/plex?token=$API_TOKEN_RAW\nKodi Webhook: http://$LOCAL_IP:8000/webhook/kodi?token=$API_TOKEN_RAW\n\nConfigure the Plex Webhook in your Plex server settings, and enter the IP and API Token in your Kodi Addon." 18 75
-
-echo "Installation completed! Server IP: $LOCAL_IP"
+echo "[Info] Installation completed! Server IP: $LOCAL_IP"
+echo "[Info] Web Dashboard: http://$LOCAL_IP:8000"
+echo "[Info] API Token: $API_TOKEN_RAW"
