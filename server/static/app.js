@@ -33,23 +33,23 @@ function showProcessingOverlay(title, subtitle) {
     if (!overlay) return;
     document.getElementById('overlay-title').textContent = title || currentLangData.overlay_processing || 'Processing request';
     document.getElementById('overlay-subtitle').textContent = subtitle || currentLangData.overlay_wait || 'Please wait...';
-    
+
     const icon = document.getElementById('overlay-icon');
     // Restaurar spinner inicial
     const iconContainer = document.getElementById('overlay-icon-container');
     if (iconContainer) {
         iconContainer.innerHTML = '<div class="spinner-premium"></div>';
     }
-    
+
     overlay.classList.remove('hidden');
 }
 
 function updateOverlayResult(type, title, subtitle) {
     const overlay = document.getElementById('loading-overlay');
     if (!overlay) return;
-    
+
     document.getElementById('overlay-title').textContent = title;
-    
+
     const subtitleEl = document.getElementById('overlay-subtitle');
     if (subtitle !== undefined) {
         subtitleEl.textContent = subtitle;
@@ -58,7 +58,7 @@ function updateOverlayResult(type, title, subtitle) {
         subtitleEl.textContent = '';
         subtitleEl.style.display = 'none';
     }
-    
+
     const iconContainer = document.getElementById('overlay-icon-container');
     if (iconContainer) {
         if (type === 'success') {
@@ -135,7 +135,7 @@ async function loadUIConfig() {
                 document.documentElement.style.setProperty('--fanart-mask-opacity', data.fanart_mask_opacity);
             }
         }
-    } catch(e) {
+    } catch (e) {
         console.warn("Could not load UI config", e);
     }
 }
@@ -625,12 +625,12 @@ window.deleteItem = function (id) {
         modal.classList.add('hidden');
         try {
             let syncRemote = document.getElementById('deleteSyncRemote') ? document.getElementById('deleteSyncRemote').checked : false;
-            
+
             showProcessingOverlay(
                 currentLangData.overlay_processing || 'Processing request',
                 currentLangData.deleting_msg || 'Deleting, please wait...'
             );
-            
+
             let res = await apiFetch(`/api/history/${id}?sync_remote=${syncRemote}`, { method: 'DELETE' });
             if (res.ok) {
                 let card = document.getElementById(`card-${id}`);
@@ -651,7 +651,7 @@ window.deleteItem = function (id) {
                 updateOverlayResult('error', currentLangData.manual_save_error || 'Error deleting.', '');
                 hideOverlay(3000);
             }
-        } catch (e) { 
+        } catch (e) {
             console.error(e);
             updateOverlayResult('error', currentLangData.network_error || 'Network error.', '');
             hideOverlay(3000);
@@ -808,10 +808,10 @@ document.getElementById('edit-save-btn').addEventListener('click', async () => {
         }
     }
 
-    // Usar nuevo overlay de carga
+    // Use new load overlay
     document.getElementById('edit-modal').classList.add('hidden');
     showProcessingOverlay(
-        currentLangData.overlay_processing || 'Processing request', 
+        currentLangData.overlay_processing || 'Processing request',
         currentLangData.updating_msg || 'Updating, this may take a few minutes...'
     );
 
@@ -821,9 +821,9 @@ document.getElementById('edit-save-btn').addEventListener('click', async () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        
+
         let data = null;
-        try { data = await res.json(); } catch(e){}
+        try { data = await res.json(); } catch (e) { }
 
         if (res.ok && data && data.status === 'success') {
             reloadHistory(); // Reload to sort properly
@@ -1030,7 +1030,7 @@ function setupConfigModal() {
     if (restoreBtn) {
         restoreBtn.addEventListener('click', async () => {
             if (!confirm('¿Estás seguro de querer restaurar la configuración original? Se perderán los cambios no guardados.')) return;
-            
+
             showProcessingOverlay('Restaurando', 'Cargando copia de seguridad...');
             try {
                 let res = await apiFetch('/api/config/restore', { method: 'POST' });
@@ -1047,7 +1047,7 @@ function setupConfigModal() {
                     updateOverlayResult('error', 'Error de red');
                     hideOverlay(3000);
                 }
-            } catch(e) {
+            } catch (e) {
                 console.error(e);
                 updateOverlayResult('error', 'Error crítico');
                 hideOverlay(3000);

@@ -40,8 +40,8 @@ def main():
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
     
-    # Seleccionamos episodios que tengan show_tmdb_id (necesario para la API)
-    c.execute("SELECT id, show_tmdb_id, season, episode, title FROM watch_history WHERE media_type = 'episode' AND show_tmdb_id IS NOT NULL AND show_tmdb_id != ''")
+    # Seleccionamos episodios que no tengan ya un fanart descargado por este script
+    c.execute("SELECT id, show_tmdb_id, season, episode, title, fanart_path FROM watch_history WHERE media_type = 'episode' AND show_tmdb_id IS NOT NULL AND show_tmdb_id != '' AND (fanart_path IS NULL OR fanart_path NOT LIKE '/cache/tmdb_ep_%')")
     rows = c.fetchall()
     
     print(f"Encontrados {len(rows)} episodios para comprobar...")
@@ -74,6 +74,11 @@ def main():
                         c_upd.execute("UPDATE watch_history SET fanart_path = ? WHERE id = ?", (local_path, ep_id))
                         updated_count += 1
                         print(f"[{updated_count}] Actualizado fanart para: {title} (S{season:02d}E{episode:02d})")
+                        
+                        # Guardar cada 50 registros por si acaso falla
+                        if updated_count % 50 == 0:
+                            conn.commit()
+                            print(f"💾 Guardados {updated_count} cambios en disco...")
                 else:
                     print(f"Sin imagen (still_path) en TMDB para: {title}")
             else:

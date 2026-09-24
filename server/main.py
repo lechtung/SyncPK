@@ -295,6 +295,33 @@ def download_episode_fanart_sync(thumb_url, metadata_id):
         
     return None
 
+def download_episode_fanart_tmdb_sync(show_tmdb_id, season, episode):
+    if not TMDB_API_KEY or not show_tmdb_id or season is None or episode is None:
+        return None
+        
+    filename = f"tmdb_ep_{show_tmdb_id}_s{season}e{episode}.jpg"
+    local_path = f"static/cache/fanarts/{filename}"
+    
+    if os.path.exists(local_path):
+        return f"/cache/fanarts/{filename}"
+        
+    url = f"https://api.themoviedb.org/3/tv/{show_tmdb_id}/season/{season}/episode/{episode}?api_key={TMDB_API_KEY}"
+    import requests
+    try:
+        r = requests.get(url, timeout=10)
+        if r.status_code == 200:
+            still = r.json().get("still_path")
+            if still:
+                img_url = f"https://image.tmdb.org/t/p/w300{still}"
+                img_resp = requests.get(img_url, timeout=15)
+                if img_resp.status_code == 200:
+                    os.makedirs("static/cache/fanarts", exist_ok=True)
+                    with open(local_path, "wb") as f:
+                        f.write(img_resp.content)
+                    return f"/cache/fanarts/{filename}"
+    except Exception as e:
+        print(f"Error fetching TMDB episode fanart: {e}", flush=True)
+    return None
 
 async def bulk_download_tmdb_images():
     print("Starting bulk TMDB image download for missing posters...")
@@ -451,10 +478,15 @@ def process_plex_payload(payload, cursor, is_bulk=False):
             if p_path or f_path:
                 cursor.execute("UPDATE watch_history SET poster_path=COALESCE(?, poster_path), fanart_path=COALESCE(?, fanart_path) WHERE id=?", (p_path, f_path, db_id))
         
-        # Download specific episode fanart if we have a thumb
-        if media_type == "episode" and metadata.get("thumb"):
-            ep_metadata_id = plex_guid.split("/")[-1] if plex_guid else str(db_id)
-            ep_fanart = download_episode_fanart_sync(metadata.get("thumb"), ep_metadata_id)
+        # Download specific episode fanart (try Plex thumb first, fallback to TMDB)
+        if media_type == "episode":
+            ep_fanart = None
+            if metadata.get("thumb"):
+                ep_metadata_id = plex_guid.split("/")[-1] if plex_guid else str(db_id)
+                ep_fanart = download_episode_fanart_sync(metadata.get("thumb"), ep_metadata_id)
+            if not ep_fanart and target_tmdb:
+                ep_fanart = download_episode_fanart_tmdb_sync(target_tmdb, season, episode)
+                
             if ep_fanart:
                 cursor.execute("UPDATE watch_history SET fanart_path=? WHERE id=?", (ep_fanart, db_id))
                 
@@ -1079,7 +1111,9 @@ def get_cloud_episodes_for_scope(plex_show_guid, ref_season, ref_episode, scope)
     
     headers = {
         "Accept": "application/json",
-        "X-Plex-Token": PLEX_TOKEN
+        "X-Plex-Token": PLEX_TOKEN,
+        "X-Plex-Container-Start":"0",
+        "X-Plex-Container-Size":"99"
     }
     
     seasons_url = f"https://metadata.provider.plex.tv/library/metadata/{show_id}/children"

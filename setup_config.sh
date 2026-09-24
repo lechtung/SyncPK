@@ -111,7 +111,7 @@ if [ ! -f .conf ]; then
         echo "[Info] Created .conf from .conf.example"
     else
         echo "# Controls the opacity of the dark mask over fanart images (0.0 to 1.0)" > .conf
-        echo "FANART_MASK_OPACITY=0.5" >> .conf
+        echo "FANART_MASK_OPACITY=0.3" >> .conf
         echo "[Info] Created new .conf"
     fi
 fi
