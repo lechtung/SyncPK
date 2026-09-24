@@ -23,6 +23,17 @@ body {
     min-height: 100vh;
 }
 
+/* Form Label Standardization */
+.form-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+
 .hidden {
     display: none !important;
 }
@@ -67,6 +78,8 @@ input[type="password"], input[type="text"], input[type="datetime-local"], input[
     border-radius: 8px;
     color: #fff;
     font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 500;
     outline: none;
     color-scheme: dark; /* Obliga al navegador a renderizar flechas y calendarios en modo oscuro */
 }
@@ -223,7 +236,7 @@ button:disabled {
 }
 .c-dropdown-value {
     font-size: 0.9rem;
-    font-weight: 600;
+    font-weight: 500;
     color: #fff;
     white-space: nowrap;
     overflow: hidden;

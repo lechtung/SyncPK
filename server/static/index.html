@@ -5,9 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SyncPK Dashboard</title>
-    <link rel="stylesheet" href="/style.css?v=34">
+    <link rel="stylesheet" href="/style.css?v=35">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <script src="/app.js?v=34" defer></script>
+    <script src="/app.js?v=35" defer></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -136,9 +136,11 @@
     <!-- EDIT MODAL -->
     <div id="edit-modal" class="overlay hidden">
         <div class="login-box glass-panel">
-            <h3 data-i18n="edit_title">Change Watch Date</h3>
+            <h3 data-i18n="edit_title" style="margin-top:0; margin-bottom:20px; text-align:center;">Change Watch Date
+            </h3>
             <input type="datetime-local" id="edit-date-input">
             <!-- Custom scope dropdown -->
+            <h4 style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;" data-i18n="edit_scope_title">Alcance</h4>
             <div class="c-dropdown hidden" id="editScope-dd" style="margin-bottom: 24px;">
                 <div class="c-dropdown-trigger" id="editScope-trigger">
                     <div class="c-dropdown-bottom">
@@ -185,45 +187,43 @@
 
                 <div id="distFields-container" style="display:flex; flex-direction:column; gap:16px;">
                     <div id="field-end-date" class="hidden">
-                        <label style="color:#aaa; font-size:0.85rem;" data-i18n="label_end_date">End Date</label>
+                        <h4 style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;" data-i18n="label_end_date">End
+                            Date</h4>
                         <input type="datetime-local" id="edit-end-date-input" style="margin-top:4px;">
                     </div>
 
                     <div id="field-eps-min" class="hidden">
-                        <label id="label-eps-min" style="color:#aaa; font-size:0.85rem;"
-                            data-i18n="label_eps_per_day">Episodes per day</label>
+                        <h4 id="label-eps-min" style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;"
+                            data-i18n="label_eps_per_day">Episodes per day</h4>
                         <input type="number" id="input-eps-min" min="1" max="100" value="1" style="margin-top:4px;">
                     </div>
 
                     <div id="field-eps-max" class="hidden">
-                        <label style="color:#aaa; font-size:0.85rem;" data-i18n="label_eps_max">Max episodes per
-                            day</label>
+                        <h4 style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;" data-i18n="label_eps_max">Max
+                            episodes per day</h4>
                         <input type="number" id="input-eps-max" min="1" max="100" value="3" style="margin-top:4px;">
                     </div>
 
                     <div id="field-between-type" class="hidden"
                         style="display:flex; flex-direction:column; gap:8px; align-items: center;">
-                        <label style="color:#aaa; font-size:0.85rem;"
-                            data-i18n="label_distribution">Distribution</label>
+                        <h4 style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;" data-i18n="label_distribution">
+                            Distribution</h4>
                         <div style="display:flex; gap:16px; justify-content: center;">
-                            <label style="display:flex; align-items:center; gap:8px; color:#fff; cursor:pointer;"><input
-                                    type="radio" name="distBetweenType" value="fixed" checked> <span
-                                    data-i18n="dist_type_fixed">Fixed</span></label>
-                            <label style="display:flex; align-items:center; gap:8px; color:#fff; cursor:pointer;"><input
-                                    type="radio" name="distBetweenType" value="random"> <span
+                            <label class="form-label"><input type="radio" name="distBetweenType" value="fixed" checked>
+                                <span data-i18n="dist_type_fixed">Fixed</span></label>
+                            <label class="form-label"><input type="radio" name="distBetweenType" value="random"> <span
                                     data-i18n="dist_type_random">Random</span></label>
                         </div>
                     </div>
 
                     <div id="field-order" class="hidden"
                         style="display:flex; flex-direction:column; gap:8px; align-items: center;">
-                        <label style="color:#aaa; font-size:0.85rem;" data-i18n="label_order">Order</label>
+                        <h4 style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;" data-i18n="label_order">Order
+                        </h4>
                         <div style="display:flex; gap:16px; justify-content: center;">
-                            <label style="display:flex; align-items:center; gap:8px; color:#fff; cursor:pointer;"><input
-                                    type="radio" name="distOrder" value="asc" checked> <span
+                            <label class="form-label"><input type="radio" name="distOrder" value="asc" checked> <span
                                     data-i18n="order_asc">Ascending</span></label>
-                            <label style="display:flex; align-items:center; gap:8px; color:#fff; cursor:pointer;"><input
-                                    type="radio" name="distOrder" value="desc"> <span
+                            <label class="form-label"><input type="radio" name="distOrder" value="desc"> <span
                                     data-i18n="order_desc">Descending</span></label>
                         </div>
                         <span id="order-help-text"
@@ -233,8 +233,7 @@
                 </div>
             </div>
 
-            <label
-                style="display: flex; align-items: center; gap: 8px; margin-bottom: 24px; color: #fff; font-size: 0.9rem; cursor: pointer;">
+            <label class="form-label" style="margin-bottom: 24px;">
                 <input type="checkbox" id="editSyncRemote" checked>
                 <span data-i18n="modal_sync_remote">Update automatically on Plex & Kodi</span>
             </label>
@@ -251,8 +250,7 @@
             style="min-width:340px; width:fit-content; max-width:90vw; text-align:center;">
             <p id="confirm-message" style="margin-bottom:24px; color:#fff; font-size:1rem;" data-i18n="confirm_delete">
                 Delete this item from history?</p>
-            <label
-                style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 24px; color: #fff; font-size: 0.9rem; cursor: pointer;">
+            <label class="form-label" style="justify-content: center; margin-bottom: 24px;">
                 <input type="checkbox" id="deleteSyncRemote" checked>
                 <span data-i18n="modal_sync_remote">Update automatically on Plex & Kodi</span>
             </label>
@@ -280,11 +278,12 @@
     <!-- Add Manual Modal -->
     <div id="manual-modal" class="overlay hidden">
         <div class="login-box glass-panel" style="max-width: 500px; width: 90%;">
-            <h2 data-i18n="add_manual_title" style="margin-top:0;">Añadir Visionado Manual</h2>
+            <h2 data-i18n="add_manual_title" style="margin-top:0; margin-bottom: 20px; text-align: center;">Añadir
+                Visionado Manual</h2>
 
-            <div style="margin-top:20px;">
-                <label data-i18n="manual_search"
-                    style="display:block; margin-bottom:8px; color:#aaa; font-size:0.9rem;">Buscar en TMDB:</label>
+            <div>
+                <h4 data-i18n="manual_search"
+                    style="margin-top:0; margin-bottom: 8px; color: #aaa; font-size: 0.85rem;">Buscar en TMDB:</h4>
                 <div style="position:relative;">
                     <input type="text" id="manual-search-input" style="width:100%;"
                         data-i18n-placeholder="manual_search_ph" placeholder="Nombre de película o serie..."
@@ -311,27 +310,29 @@
             <div id="manual-episode-fields" class="hidden"
                 style="margin-top:15px; display:flex; gap:10px; text-align:left;">
                 <div style="flex:1;">
-                    <label data-i18n="manual_season"
-                        style="display:block; margin-bottom:8px; color:#aaa; font-size:0.9rem;">Temporada:</label>
+                    <h4 data-i18n="manual_season"
+                        style="margin-top:0; margin-bottom: 8px; color: #aaa; font-size: 0.85rem;">Temporada:</h4>
                     <input type="number" id="manual-season" min="1" value="1" style="width:100%;">
                 </div>
                 <div style="flex:1;">
-                    <label data-i18n="manual_episode"
-                        style="display:block; margin-bottom:8px; color:#aaa; font-size:0.9rem;">Episodio:</label>
+                    <h4 data-i18n="manual_episode"
+                        style="margin-top:0; margin-bottom: 8px; color: #aaa; font-size: 0.85rem;">Episodio:</h4>
                     <input type="number" id="manual-episode" min="1" value="1" style="width:100%;">
                 </div>
             </div>
 
             <div style="margin-top:15px; text-align:left;">
-                <label data-i18n="manual_date"
-                    style="display:block; margin-bottom:8px; color:#aaa; font-size:0.9rem;">Fecha de visionado:</label>
+                <h4 data-i18n="manual_date" style="margin-top:0; margin-bottom: 8px; color: #aaa; font-size: 0.85rem;">
+                    Fecha de visionado:</h4>
                 <input type="datetime-local" id="manual-date" required style="width:100%;">
             </div>
 
-            <div style="margin-top:20px; display:flex; align-items:center; gap:10px; text-align:left;">
-                <input type="checkbox" id="manual-sync-plex" checked style="width:20px; height:20px; cursor:pointer;">
-                <label for="manual-sync-plex" data-i18n="manual_sync_plex"
-                    style="cursor:pointer; margin:0; color:#fff; font-size:0.9rem;">Sincronizar a Plex Cloud</label>
+            <div style="margin-top:20px;">
+                <label class="form-label" for="manual-sync-plex">
+                    <input type="checkbox" id="manual-sync-plex" checked
+                        style="width:20px; height:20px; cursor:pointer;">
+                    <span data-i18n="manual_sync_plex">Sincronizar a Plex Cloud</span>
+                </label>
             </div>
 
             <div class="modal-buttons" style="margin-top:25px;">
@@ -344,7 +345,8 @@
     <!-- Modal de Configuración -->
     <div id="config-modal" class="overlay hidden">
         <div class="login-box glass-panel" style="max-width: 500px; width: 90%; text-align: left;">
-            <h2 data-i18n="config_title" style="margin-top:0; margin-bottom: 20px;">Configuración</h2>
+            <h2 data-i18n="config_title" style="margin-top:0; margin-bottom: 20px; text-align: center;">Configuración
+            </h2>
 
             <button id="config-restore-btn"
                 style="width: 100%; margin-bottom: 15px; background: transparent; border: 1px solid var(--accent); color: var(--accent); font-size: 0.85rem; padding: 8px; border-radius: 6px; cursor: pointer; transition: all 0.2s ease;"
@@ -352,10 +354,11 @@
                 onmouseout="this.style.background='transparent'">Restaurar
                 config original</button>
 
-            <label style="color:#aaa; font-size:0.9rem; margin-bottom: 4px; display: block;">Plex URL:</label>
+            <h4 style="margin-top:0; margin-bottom: 8px; color: #aaa; font-size: 0.85rem; display: block;">Plex URL:
+            </h4>
             <input type="text" id="config-plex-url" placeholder="http://192.168.1.100:32400">
 
-            <label style="color:#aaa; font-size:0.9rem; margin-top: 10px;">Plex Token:</label>
+            <h4 style="margin-top:10px; margin-bottom: 8px; color: #aaa; font-size: 0.85rem;">Plex Token:</h4>
             <div style="display:flex; gap: 8px;">
                 <input type="text" id="config-plex-token" style="margin-bottom: 0;" placeholder="Enter your token">
                 <button id="config-get-token-btn" style="width: auto; padding: 0 16px; background: #333;"
@@ -366,13 +369,13 @@
                 en Plex...</div>
             <div style="margin-bottom: 16px;"></div> <!-- Spacer -->
 
-            <label style="color:#aaa; font-size:0.9rem;">TMDB API Key:</label>
+            <h4 style="margin-top:0; margin-bottom: 8px; color: #aaa; font-size: 0.85rem;">TMDB API Key:</h4>
             <input type="text" id="config-tmdb-api" placeholder="TMDB v3 API Key">
 
-            <label style="color:#aaa; font-size:0.9rem;">Plex Client ID:</label>
+            <h4 style="margin-top:10px; margin-bottom: 8px; color: #aaa; font-size: 0.85rem;">Plex Client ID:</h4>
             <input type="text" id="config-plex-client-id" placeholder="SPK-UUID">
 
-            <label style="color:#aaa; font-size:0.9rem;">Idioma preferido:</label>
+            <h4 style="margin-top:10px; margin-bottom: 8px; color: #aaa; font-size: 0.85rem;">Idioma preferido:</h4>
             <div class="c-dropdown" id="configLang-dd" style="margin-bottom: 8px;">
                 <div class="c-dropdown-trigger" id="configLang-trigger">
                     <div class="c-dropdown-bottom">
@@ -392,21 +395,23 @@
                 </div>
             </div>
 
-            <div style="margin-top:20px; display:flex; align-items:center; gap:10px;">
-                <input type="checkbox" id="config-debug" style="width:20px; height:20px; cursor:pointer;">
-                <label for="config-debug" style="cursor:pointer; margin:0; color:#fff; font-size:0.9rem;">Habilitar Logs
-                    de Debugging (Backend)</label>
+            <div style="margin-top:20px;">
+                <label class="form-label" for="config-debug">
+                    <input type="checkbox" id="config-debug" style="width:20px; height:20px; cursor:pointer;">
+                    <span>Habilitar Logs de Debugging (Backend)</span>
+                </label>
             </div>
 
             <div style="margin-top:20px; padding-top: 15px; border-top: 1px solid var(--glass-border);">
-                <label style="color:#aaa; font-size:0.9rem;">Master Password:</label>
+                <h4 style="margin-top:0; margin-bottom: 8px; color: #aaa; font-size: 0.85rem;">Master Password:</h4>
                 <div style="position: relative;">
                     <input type="text" id="config-password" placeholder="Nueva contraseña (opcional)"
                         style="margin-bottom: 8px;">
                 </div>
 
                 <div id="config-repeat-password-container" class="hidden" style="animation: dropdownFadeIn 0.2s ease;">
-                    <label style="color:#aaa; font-size:0.9rem;">Repetir Password:</label>
+                    <h4 style="margin-top:10px; margin-bottom: 8px; color: #aaa; font-size: 0.85rem;">Repetir Password:
+                    </h4>
                     <input type="text" id="config-repeat-password" placeholder="Confirma la nueva contraseña">
                 </div>
                 <div id="config-password-error" class="error-text hidden"
