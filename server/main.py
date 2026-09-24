@@ -443,24 +443,15 @@ def process_plex_payload(payload, cursor, is_bulk=False):
             cursor.execute("SELECT id FROM watch_history WHERE media_type='movie' AND title=?", (title,))
             
     row = cursor.fetchone()
-    if row:
+    if row and not is_live_event:
         existing_id = row[0]
-        if is_live_event:
-            cursor.execute("""
-                UPDATE watch_history SET
-                    plex_guid=?, plex_show_guid=?,
-                    watched_at=?, origin='plex', created_at=?, duration=?
-                WHERE id=?
-            """, (plex_guid, plex_show_guid, watched_at, now_utc, duration, existing_id))
-            action = "Live Update (Re-visionado)"
-        else:
-            cursor.execute("""
-                UPDATE watch_history SET
-                    plex_guid=?, plex_show_guid=?, duration=?
-                WHERE id=?
-            """, (plex_guid, plex_show_guid, duration, existing_id))
-            action = "Bulk Update (Solo IDs)"
-            
+        cursor.execute("""
+            UPDATE watch_history SET
+                plex_guid=?, plex_show_guid=?, duration=?
+            WHERE id=?
+        """, (plex_guid, plex_show_guid, duration, existing_id))
+        action = "Bulk Update (Solo IDs)"
+        
         if media_type == "episode":
             prefix = "Bulk Import" if is_bulk else "Plex PUSH"
             print(f"🔄 {prefix} ({action}): Serie '{show_title}' T{season}E{episode} - {title}")
@@ -468,6 +459,11 @@ def process_plex_payload(payload, cursor, is_bulk=False):
             prefix = "Bulk Import" if is_bulk else "Plex PUSH"
             print(f"🔄 {prefix} ({action}): Película '{title}'")
     else:
+        if row and is_live_event:
+            action = "Live Update (Re-visionado - NEW ROW)"
+        else:
+            action = "Nuevo Registro"
+            
         cursor.execute("""
             INSERT INTO watch_history (
                 media_type, title, show_title, season, episode, 
@@ -484,10 +480,10 @@ def process_plex_payload(payload, cursor, is_bulk=False):
         
         if media_type == "episode":
             prefix = "Bulk Import" if is_bulk else "Plex PUSH"
-            print(f"✅ {prefix} (Nuevo): Serie '{show_title}' T{season}E{episode} - {title}")
+            print(f"✅ {prefix} ({action}): Serie '{show_title}' T{season}E{episode} - {title}")
         else:
             prefix = "Bulk Import" if is_bulk else "Plex PUSH"
-            print(f"✅ {prefix} (Nuevo): Película '{title}'")
+            print(f"✅ {prefix} ({action}): Película '{title}'")
             
     try:
         db_id = existing_id if existing_id else cursor.lastrowid
@@ -603,29 +599,25 @@ def process_kodi_payload(payload, cursor, is_bulk=False):
             cursor.execute("SELECT id FROM watch_history WHERE media_type='movie' AND title=?", (title,))
             
     row = cursor.fetchone()
-    if row:
+    if row and not is_live_event:
         existing_id = row[0]
-        if is_live_event:
-            cursor.execute("""
-                UPDATE watch_history SET
-                    kodi_id=?, kodi_show_id=?,
-                    watched_at=?, origin='kodi', created_at=?, duration=?
-                WHERE id=?
-            """, (kodi_id, kodi_show_id, watched_at, now_utc, duration, existing_id))
-            action = "Live Update (Re-visionado)"
-        else:
-            cursor.execute("""
-                UPDATE watch_history SET
-                    kodi_id=?, kodi_show_id=?, duration=?
-                WHERE id=?
-            """, (kodi_id, kodi_show_id, duration, existing_id))
-            action = "Bulk Update (Solo IDs)"
-            
+        cursor.execute("""
+            UPDATE watch_history SET
+                kodi_id=?, kodi_show_id=?, duration=?
+            WHERE id=?
+        """, (kodi_id, kodi_show_id, duration, existing_id))
+        action = "Bulk Update (Solo IDs)"
+        
         if media_type == "episode":
             print(f"🔄 Kodi PUSH ({action}): Serie '{show_title}' T{season}E{episode} - {title}")
         else:
             print(f"🔄 Kodi PUSH ({action}): Película '{title}'")
     else:
+        if row and is_live_event:
+            action = "Live Update (Re-visionado - NEW ROW)"
+        else:
+            action = "Nuevo Registro"
+            
         cursor.execute("""
             INSERT INTO watch_history (
                 media_type, title, show_title, season, episode, 
@@ -641,7 +633,7 @@ def process_kodi_payload(payload, cursor, is_bulk=False):
         ))
         
         if media_type == "episode":
-            print(f"✅ Kodi PUSH (Nuevo): Serie '{show_title}' T{season}E{episode} - {title}")
+            print(f"✅ Kodi PUSH ({action}): Serie '{show_title}' T{season}E{episode} - {title}")
         else:
             print(f"✅ Kodi PUSH (Nuevo): Película '{title}'")
             
@@ -731,10 +723,11 @@ def get_all_items(client: Optional[str] = Query("kodi"), date_from: Optional[str
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    query = f"SELECT * FROM watch_history WHERE origin != '{client}'"
+    query = "SELECT * FROM watch_history WHERE 1=1"
     
     if date_from:
         query += f" AND created_at >= '{date_from}'"
+        query += f" AND origin != '{client}'"
         
     cursor.execute(query)
     rows = cursor.fetchall()
@@ -2084,6 +2077,7 @@ class ManualAddRequest(BaseModel):
     sync_remote: bool
     season: Optional[int] = None
     episode: Optional[int] = None
+    force_rewatch: bool = False
 
 @app.get("/api/tmdb/search")
 def search_tmdb(q: str, lang: str = "es", authorization: str = Depends(verify_api_key)):
@@ -2111,20 +2105,20 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
         cur_check = conn_check.cursor()
         if req.media_type == "movie":
             cur_check.execute(
-                "SELECT id FROM watch_history WHERE media_type='movie' AND tmdb_id=?",
+                "SELECT id, watched_at FROM watch_history WHERE media_type='movie' AND tmdb_id=?",
                 (req.tmdb_id,)
             )
         else:
             cur_check.execute(
-                "SELECT id FROM watch_history WHERE media_type='episode' AND show_tmdb_id=? AND season=? AND episode=?",
+                "SELECT id, watched_at FROM watch_history WHERE media_type='episode' AND show_tmdb_id=? AND season=? AND episode=?",
                 (req.tmdb_id, req.season, req.episode)
             )
         existing = cur_check.fetchone()
         conn_check.close()
 
-        if existing:
-            print(f"[manual_add] Duplicate detected for '{req.title}' - already in local DB (id={existing['id']})")
-            return {"status": "duplicate", "message": "Already in watch history"}
+        if existing and not req.force_rewatch:
+            print(f"[manual_add] Duplicate detected for '{req.title}' - asking for re-watch confirmation.")
+            return {"status": "confirm_rewatch", "last_watched": existing["watched_at"]}
 
         # --- PHASE 1: Plex Lookup (ALWAYS - to get plex_guid for future operations) ---
         plex_guid = None
@@ -2148,6 +2142,7 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
             search_titles = [req.title]
             target_year = None
             found_duration = 0
+            found_thumb = None
             
             if req.tmdb_id and TMDB_API_KEY:
                 tmdb_type = "movie" if req.media_type == "movie" else "tv"
@@ -2221,6 +2216,7 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
                                     target_rating_key = eps[0].get("ratingKey")
                                     plex_guid = eps[0].get("guid")
                                     if eps[0].get("duration"): found_duration = int(eps[0].get("duration")) // 60000
+                                    if eps[0].get("thumb"): found_thumb = eps[0].get("thumb")
                                     print(f"[manual_add] Exact episode match: S{req.season}E{req.episode} (key={target_rating_key})")
                                 else:
                                     print(f"[manual_add] Could not resolve season {req.season} ep {req.episode} in Cloud!")
@@ -2241,25 +2237,34 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
         # --- PHASE 1b: Plex Scrobble + Date Surgery (only if sync_remote is requested) ---
         if req.sync_remote and target_rating_key:
             try:
-                # 2. Direct Cloud Scrobble
-                scrobble_url = f"https://metadata.provider.plex.tv/actions/scrobble?key={target_rating_key}&identifier=tv.plex.provider.metadata"
-                s_res = requests.get(scrobble_url, headers=cloud_headers, timeout=10)
-                print(f"[manual_add] Cloud Scrobble executed for '{req.title}': HTTP {s_res.status_code}")
-                
-                time.sleep(3) # Wait for scrobble to settle in Plex
-                
                 # --- NUEVO UNIFICADO ---
-                print(f"[manual_add] Waiting for Plex Cloud to process scrobble...")
                 activity_id = None
-                metadata_id = plex_guid.split("/")[-1]
+                ep_meta_id = plex_guid.split("/")[-1]
                 
-                start_time = time.time()
-                while (time.time() - start_time) < 600:
-                    nodes = get_plex_activity_nodes(metadata_id)
-                    if nodes:
-                        activity_id = nodes[0].get("id")
-                        break
-                    time.sleep(5)
+                # FIRST: Check if it already has an activity! (Unless forcing re-watch)
+                existing_nodes = None
+                if not req.force_rewatch:
+                    existing_nodes = get_plex_activity_nodes(ep_meta_id)
+                    
+                if existing_nodes:
+                    activity_id = existing_nodes[0].get("id")
+                    print(f"[manual_add] Found existing activity for '{req.title}', skipping scrobble.")
+                else:
+                    # 2. Direct Cloud Scrobble
+                    scrobble_url = f"https://metadata.provider.plex.tv/actions/scrobble?key={target_rating_key}&identifier=tv.plex.provider.metadata"
+                    s_res = requests.get(scrobble_url, headers=cloud_headers, timeout=10)
+                    print(f"[manual_add] Cloud Scrobble executed for '{req.title}': HTTP {s_res.status_code}")
+                    
+                    time.sleep(3) # Wait for scrobble to settle in Plex
+                    
+                    print(f"[manual_add] Waiting for Plex Cloud to process scrobble...")
+                    start_time = time.time()
+                    while (time.time() - start_time) < 600:
+                        nodes = get_plex_activity_nodes(ep_meta_id)
+                        if nodes:
+                            activity_id = nodes[0].get("id")
+                            break
+                        time.sleep(5)
                 # -------------------------------------------------------------
 
                 if activity_id:
@@ -2279,6 +2284,14 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
             p_path, f_path = download_tmdb_images_sync(req.tmdb_id, "tv" if req.media_type == "episode" else "movie")
             poster_path = p_path
             fanart_path = f_path
+            
+            # If it's an episode and we found its thumb in Plex Cloud, use that instead of the TV show poster
+            if req.media_type == "episode" and found_thumb and plex_guid:
+                ep_meta_id = plex_guid.split("/")[-1]
+                ep_fanart = download_episode_fanart_sync(found_thumb, ep_meta_id)
+                if ep_fanart:
+                    poster_path = ep_fanart
+                    
         except Exception as e:
             print(f"[manual_add] Error downloading images for '{req.title}': {e}")
 

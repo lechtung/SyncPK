@@ -1335,41 +1335,54 @@ document.addEventListener('DOMContentLoaded', () => {
                 payload.episode = parseInt(document.getElementById('manual-episode').value) || 1;
             }
 
-            try {
-                const res = await apiFetch('/api/manual_add', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
+            const sendManualPayload = async (payload) => {
+                try {
+                    const res = await apiFetch('/api/manual_add', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
 
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.status === 'duplicate') {
-                        updateOverlayResult('error', currentLangData.manual_duplicate || 'This title is already in your watch history.', '');
-                        hideOverlay(3000);
-                        setTimeout(() => manualModal.classList.remove('hidden'), 3000);
-                    } else if (data.status === 'success') {
-                        reloadHistory();
-                        updateOverlayResult('success', currentLangData.manual_saved || 'Entry saved successfully.', '');
-                        hideOverlay(2000);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.status === 'confirm_rewatch') {
+                            hideOverlay(0);
+                            const confirmed = window.confirm(`Ya has visto esto anteriormente (última vez: ${new Date(data.last_watched).toLocaleDateString()}). ¿Deseas registrar un NUEVO visionado (re-watch)?`);
+                            if (confirmed) {
+                                payload.force_rewatch = true;
+                                showProcessingOverlay(currentLangData.overlay_processing || 'Processing request', currentLangData.overlay_wait || 'Please wait...');
+                                await sendManualPayload(payload);
+                            } else {
+                                manualModal.classList.remove('hidden');
+                            }
+                        } else if (data.status === 'duplicate') {
+                            updateOverlayResult('error', currentLangData.manual_duplicate || 'This title is already in your watch history.', '');
+                            hideOverlay(3000);
+                            setTimeout(() => manualModal.classList.remove('hidden'), 3000);
+                        } else if (data.status === 'success') {
+                            reloadHistory();
+                            updateOverlayResult('success', currentLangData.manual_saved || 'Entry saved successfully.', '');
+                            hideOverlay(2000);
+                        } else {
+                            updateOverlayResult('error', currentLangData.manual_save_error || 'Error saving the manual record.', '');
+                            hideOverlay(3000);
+                            setTimeout(() => manualModal.classList.remove('hidden'), 3000);
+                        }
                     } else {
                         updateOverlayResult('error', currentLangData.manual_save_error || 'Error saving the manual record.', '');
                         hideOverlay(3000);
                         setTimeout(() => manualModal.classList.remove('hidden'), 3000);
                     }
-                } else {
-                    updateOverlayResult('error', currentLangData.manual_save_error || 'Error saving the manual record.', '');
+                } catch (err) {
+                    console.error(err);
+                    updateOverlayResult('error', currentLangData.network_error || 'Network error. Please try again.', '');
                     hideOverlay(3000);
                     setTimeout(() => manualModal.classList.remove('hidden'), 3000);
                 }
-            } catch (err) {
-                console.error(err);
-                updateOverlayResult('error', currentLangData.network_error || 'Network error. Please try again.', '');
-                hideOverlay(3000);
-                setTimeout(() => manualModal.classList.remove('hidden'), 3000);
-            } finally {
-                checkManualForm();
-            }
+            };
+            
+            await sendManualPayload(payload);
+            checkManualForm();
         });
     }
 });
