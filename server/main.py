@@ -1191,6 +1191,8 @@ def get_cloud_episodes_for_scope(plex_show_guid, ref_season, ref_episode, scope)
         
         if scope == "season" and s_index != ref_season:
             continue
+        if scope == "exact_episode" and s_index != ref_season:
+            continue
         if scope == "onwards" and s_index < ref_season:
             continue
             
@@ -1202,6 +1204,8 @@ def get_cloud_episodes_for_scope(plex_show_guid, ref_season, ref_episode, scope)
                 eps_data = r_ep.json().get("MediaContainer", {}).get("Metadata", [])
                 for ep in eps_data:
                     ep_index = ep.get("index")
+                    if scope == "exact_episode" and ep_index != ref_episode:
+                        continue
                     if scope == "onwards" and s_index == ref_season and ep_index < ref_episode:
                         continue
                     episodes.append(ep)
@@ -2208,10 +2212,19 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
                                 break
                             else:
                                 show_key = item.get("ratingKey")
-                                plex_guid = item.get("guid")
-                                if item.get("duration"): found_duration = int(item.get("duration")) // 60000
-                                print(f"[manual_add] Exact match! Found show in Plex Cloud: {item.get('title')} ({item_year}) (key={show_key})")
-                                target_rating_key = show_key
+                                show_guid = item.get("guid")
+                                print(f"[manual_add] Found show in Plex Cloud: {item.get('title')} ({item_year}) (key={show_key})")
+                                
+                                # Resolve exact episode
+                                eps = get_cloud_episodes_for_scope(show_guid, req.season, req.episode, "exact_episode")
+                                if eps:
+                                    target_rating_key = eps[0].get("ratingKey")
+                                    plex_guid = eps[0].get("guid")
+                                    if eps[0].get("duration"): found_duration = int(eps[0].get("duration")) // 60000
+                                    print(f"[manual_add] Exact episode match: S{req.season}E{req.episode} (key={target_rating_key})")
+                                else:
+                                    print(f"[manual_add] Could not resolve season {req.season} ep {req.episode} in Cloud!")
+                                    target_rating_key = None # fail the scrobble gracefully
                                 break
                                 
                         if target_rating_key:
