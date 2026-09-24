@@ -963,12 +963,64 @@ def delete_history_item(item_id: int, sync_remote: bool = False, authorization: 
     conn.close()
     return {"success": True}
 
+# --- UNIFIED PLEX ACTIVITY FEED FUNCTION ---
+def get_plex_activity_nodes(metadata_id, types=None, poll_until_found=False, max_timeout=600):
+    if types is None:
+        types = ["WATCH_HISTORY", "WATCH_SESSION"]
+        
+    import requests, time
+    url_graphql = "https://community.plex.tv/api"
+    headers_fetch = {
+        "Accept": "application/json", "Content-Type": "application/json",
+        "x-plex-client-identifier": PLEX_CLIENT_ID, "x-plex-token": PLEX_TOKEN
+    }
+    
+    query = """
+    query GetActivityFeed($first: PaginationInt!, $metadataID: ID, $types: [ActivityType!]!, $includeDescendants: Boolean = false) {
+      activityFeed(first: $first, metadataID: $metadataID, types: $types, includeDescendants: $includeDescendants) {
+        nodes { id date }
+      }
+    }
+    """
+    payload = {
+        "query": query,
+        "variables": {"first": 24, "metadataID": metadata_id, "types": types, "includeDescendants": True},
+        "operationName": "GetActivityFeed"
+    }
+
+    start_time = time.time()
+    while True:
+        try:
+            r = requests.post(url_graphql, headers=headers_fetch, json=payload, timeout=20)
+            if r.status_code == 200:
+                nodes = r.json().get("data", {}).get("activityFeed", {}).get("nodes", [])
+                if nodes: 
+                    return nodes
+                # Si llegamos aquí, respondió bien pero la lista está vacía
+                if not poll_until_found:
+                    return []
+            elif r.status_code == 429:
+                retry_after = int(r.headers.get("Retry-After", 5))
+                time.sleep(retry_after)
+                continue
+        except Exception:
+            pass
+
+        if (time.time() - start_time) >= max_timeout:
+            return []
+        
+        time.sleep(5)
+# -------------------------------------------
+
 def unscrobble_plex(item):
     import requests
     # 1. Cloud
     plex_guid = item.get("plex_guid")
     if plex_guid:
         metadata_id = plex_guid.split("/")[-1]
+        
+        # --- OLD GETACTIVITYFEED (Comentado) ---
+        """
         url_graphql = "https://community.plex.tv/api"
         headers = {
             "Accept": "application/json",
@@ -991,6 +1043,14 @@ def unscrobble_plex(item):
                 if nodes:
                     node_id = nodes[0]["id"]
         except Exception: pass
+        """
+        
+        # --- NUEVO UNIFICADO ---
+        node_id = None
+        nodes = get_plex_activity_nodes(metadata_id, poll_until_found=False, max_timeout=30)
+        if nodes:
+            node_id = nodes[0].get("id")
+        # -------------------------------------------------------------
             
         if node_id:
             payload_del = {
@@ -1058,18 +1118,20 @@ def perform_plex_surgery(item: dict, watched_at_local: str):
     metadata_id = plex_guid.split("/")[-1]
     watched_at_graphql = watched_at_local.replace("Z", ".000Z")
     
+    # --- OLD GETACTIVITYFEED (Comentado) ---
+    """
     headers_fetch = {
         "Accept": "application/json", "Content-Type": "application/json",
         "x-plex-client-identifier": PLEX_CLIENT_ID, "x-plex-token": PLEX_TOKEN
     }
     url_graphql = "https://community.plex.tv/api"
-    query_get = """
+    query_get = '''
     query GetActivityFeed($first: PaginationInt!, $metadataID: ID, $types: [ActivityType!]!, $includeDescendants: Boolean = false) {
       activityFeed(first: $first, metadataID: $metadataID, types: $types, includeDescendants: $includeDescendants) {
         nodes { id }
       }
     }
-    """
+    '''
     payload_get = {
         "query": query_get,
         "variables": {"first": 24, "types": ["WATCH_HISTORY", "WATCH_SESSION"], "includeDescendants": True, "metadataID": metadata_id},
@@ -1121,6 +1183,35 @@ def perform_plex_surgery(item: dict, watched_at_local: str):
         except Exception as e:
             print(f"Error fetching Activity Node: {e}")
             time.sleep(5)
+    """
+    
+    # --- NUEVO UNIFICADO ---
+    node_id = None
+    url_graphql = "https://community.plex.tv/api"
+    headers_fetch = {
+        "Accept": "application/json", "Content-Type": "application/json",
+        "x-plex-client-identifier": PLEX_CLIENT_ID, "x-plex-token": PLEX_TOKEN
+    }
+    
+    nodes = get_plex_activity_nodes(metadata_id, poll_until_found=False, max_timeout=30)
+    if nodes:
+        node_id = nodes[0].get("id")
+    else:
+        print(f"No node for {item.get('title')}, triggering CLOUD scrobble...")
+        cloud_headers = dict(headers_fetch)
+        scrobble_url = f"https://metadata.provider.plex.tv/actions/scrobble?key={metadata_id}&identifier=tv.plex.provider.metadata"
+        try:
+            s_res = requests.get(scrobble_url, headers=cloud_headers, timeout=10)
+            if s_res.status_code == 200:
+                print(f"  ✅ Cloud Scrobble executed for {item.get('title')}")
+        except Exception as e:
+            print(f"  ❌ Cloud Scrobble error: {e}")
+            return False
+            
+        nodes = get_plex_activity_nodes(metadata_id, poll_until_found=True, max_timeout=600)
+        if nodes:
+            node_id = nodes[0].get("id")
+    # -------------------------------------------------------------
             
     if node_id:
         headers_mutate = dict(headers_fetch)
@@ -1491,7 +1582,8 @@ def get_oldest_date(rating_key, metadata_id, xml_watched_at):
         print(f"❌ Unknown error processing local history for {rating_key}: {e}", flush=True)
         
     # GraphQL API (Cloud)
-    # [TEST id ] 7o448fp80hf1p7gbvqvvaklv 
+    # --- OLD GETACTIVITYFEED (Comentado) ---
+    """
     url = "https://community.plex.tv/api"
     headers_fetch = {
         "Accept": "application/json",
@@ -1499,7 +1591,7 @@ def get_oldest_date(rating_key, metadata_id, xml_watched_at):
         "x-plex-client-identifier": PLEX_CLIENT_ID,
         "x-plex-token": PLEX_TOKEN
     }
-    query_graphql = """
+    query_graphql = '''
     query GetActivityFeed($first: PaginationInt!, $metadataID: ID, $types: [ActivityType!]!, $includeDescendants: Boolean = false) {
       activityFeed(first: $first, metadataID: $metadataID, types: $types, includeDescendants: $includeDescendants) {
         nodes {
@@ -1507,7 +1599,7 @@ def get_oldest_date(rating_key, metadata_id, xml_watched_at):
         }
       }
     }
-    """
+    '''
     payload = {
         "query": query_graphql,
         "variables": {
@@ -1538,6 +1630,19 @@ def get_oldest_date(rating_key, metadata_id, xml_watched_at):
             else:
                 print(f"⚠️ Timeout/Error GraphQL for {metadata_id}, retrying ({intento+1}/3)...")
                 time.sleep(2)
+    """
+    
+    # --- NUEVO UNIFICADO ---
+    nodes = get_plex_activity_nodes(
+        metadata_id, 
+        types=["METADATA_MESSAGE", "RATING", "WATCH_HISTORY", "WATCHLIST", "POST", "WATCH_SESSION", "WATCH_RATING", "REVIEW", "WATCH_REVIEW"], 
+        poll_until_found=False,
+        max_timeout=30
+    )
+    for n in nodes:
+        if "date" in n:
+            fechas.append(n["date"])
+    # -------------------------------------------------------------
         
     if not fechas:
         return xml_watched_at
@@ -2242,7 +2347,9 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
                 time.sleep(3) # Wait for scrobble to settle in Plex
                 
                 # 3. GraphQL Date Surgery
-                query_activity = """
+                # --- OLD GETACTIVITYFEED (Comentado) ---
+                """
+                query_activity = '''
                 query GetActivityFeed($first: PaginationInt!, $after: String, $types: [ActivityType!]!) {
                   activityFeed(first: $first, after: $after, types: $types) {
                     nodes {
@@ -2251,7 +2358,7 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
                     }
                   }
                 }
-                """
+                '''
                 gql_headers = {
                     "Accept": "application/json",
                     "Content-Type": "application/json",
@@ -2273,6 +2380,15 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
                         if meta and meta.get("guid") == plex_guid:
                             activity_id = node.get("id")
                             break
+                """
+                
+                # --- NUEVO UNIFICADO ---
+                activity_id = None
+                metadata_id = plex_guid.split("/")[-1]
+                nodes = get_plex_activity_nodes(metadata_id, poll_until_found=True, max_timeout=600)
+                if nodes:
+                    activity_id = nodes[0].get("id")
+                # -------------------------------------------------------------
 
                 if activity_id:
                     mutation_graphql = """
