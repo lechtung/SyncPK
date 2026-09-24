@@ -1057,6 +1057,34 @@ def unscrobble_plex(item):
         nodes = get_plex_activity_nodes(metadata_id)
         if nodes:
             node_id = nodes[0].get("id")
+            target_date_str = item.get("watched_at")
+            if target_date_str:
+                import datetime
+                try:
+                    # target_date format is usually YYYY-MM-DDTHH:MM:SSZ
+                    td_str = target_date_str.replace("Z", "").split(".")[0]
+                    target_date = datetime.datetime.strptime(td_str, "%Y-%m-%dT%H:%M:%S")
+                    
+                    best_node = None
+                    min_diff = float('inf')
+                    for node in nodes:
+                        nd_str = node.get("date")
+                        if nd_str:
+                            try:
+                                nd_clean = nd_str.replace("Z", "").split(".")[0]
+                                nd = datetime.datetime.strptime(nd_clean, "%Y-%m-%dT%H:%M:%S")
+                                diff = abs((nd - target_date).total_seconds())
+                                if diff < min_diff:
+                                    min_diff = diff
+                                    best_node = node
+                            except Exception:
+                                pass
+                    if best_node:
+                        node_id = best_node.get("id")
+                        print(f"  [unscrobble] Found closest node {node_id} (diff: {min_diff}s) for {target_date_str}")
+                except Exception as e:
+                    print(f"  [unscrobble] Date parsing error: {e}. Falling back to nodes[0].")
+                    
             mutate_plex_activity(node_id, "delete", title=item.get('title'))
         # -------------------------------------------------------------
 
@@ -2276,6 +2304,18 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
 
             except Exception as e:
                 print(f"[manual_add] Error in Plex scrobble/surgery for '{req.title}': {e}")
+                
+            # LOCAL SCROBBLE (As requested by user to ensure local watch state)
+            try:
+                import threading
+                ep_title = f"Episode {req.episode}" if req.media_type == "episode" else req.title
+                s_season = int(req.season) if req.season is not None else None
+                s_episode = int(req.episode) if req.episode is not None else None
+                movie_tmdb = req.tmdb_id if req.media_type == "movie" else None
+                show_tmdb = req.tmdb_id if req.media_type == "episode" else None
+                threading.Thread(target=scrobble_kodi_webhook_to_plex, args=(ep_title, req.title, s_season, s_episode, req.media_type, movie_tmdb, None, show_tmdb, None)).start()
+            except Exception as e:
+                print(f"[manual_add] Error triggering local scrobble: {e}")
 
         # --- PHASE 2: Download TMDB images ---
         poster_path = None
@@ -2285,12 +2325,12 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
             poster_path = p_path
             fanart_path = f_path
             
-            # If it's an episode and we found its thumb in Plex Cloud, use that instead of the TV show poster
+            # If it's an episode and we found its thumb in Plex Cloud, use that instead of the TV show fanart
             if req.media_type == "episode" and found_thumb and plex_guid:
                 ep_meta_id = plex_guid.split("/")[-1]
                 ep_fanart = download_episode_fanart_sync(found_thumb, ep_meta_id)
                 if ep_fanart:
-                    poster_path = ep_fanart
+                    fanart_path = ep_fanart
                     
         except Exception as e:
             print(f"[manual_add] Error downloading images for '{req.title}': {e}")
