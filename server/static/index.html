@@ -5,9 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SyncPK Dashboard</title>
-    <link rel="stylesheet" href="/style.css?v=35">
+    <link rel="stylesheet" href="/style.css?v=36">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <script src="/app.js?v=35" defer></script>
+    <script src="/app.js?v=36" defer></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -138,7 +138,7 @@
         <div class="login-box glass-panel">
             <h3 data-i18n="edit_title" style="margin-top:0; margin-bottom:20px; text-align:center;">Change Watch Date
             </h3>
-            <input type="datetime-local" id="edit-date-input">
+            <input type="datetime-local" id="edit-date-input" style="margin-bottom: 24px;">
             <!-- Custom scope dropdown -->
             <h4 style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;" data-i18n="edit_scope_title">Alcance</h4>
             <div class="c-dropdown hidden" id="editScope-dd" style="margin-bottom: 24px;">
@@ -166,7 +166,7 @@
                 <h4 style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;" data-i18n="edit_dist_mode_title">
                     Distribution Mode</h4>
 
-                <div class="c-dropdown" id="editDistMode-dd" style="margin-bottom: 16px;">
+                <div class="c-dropdown" id="editDistMode-dd" style="margin-bottom: 24px;">
                     <div class="c-dropdown-trigger" id="editDistMode-trigger">
                         <div class="c-dropdown-bottom">
                             <span class="c-dropdown-value" id="editDistMode-val" data-i18n="dist_mode_same">Same
@@ -237,6 +237,7 @@
                 <input type="checkbox" id="editSyncRemote" checked>
                 <span data-i18n="modal_sync_remote">Update automatically on Plex & Kodi</span>
             </label>
+            <div class="modal-separator"></div>
             <div class="modal-buttons">
                 <button id="edit-cancel-btn" data-i18n="btn_cancel">Cancel</button>
                 <button id="edit-save-btn" data-i18n="btn_save">Save</button>
@@ -254,6 +255,7 @@
                 <input type="checkbox" id="deleteSyncRemote" checked>
                 <span data-i18n="modal_sync_remote">Update automatically on Plex & Kodi</span>
             </label>
+            <div class="modal-separator"></div>
             <div class="modal-buttons">
                 <button id="confirm-no-btn" data-i18n="confirm_no">Cancel</button>
                 <button id="confirm-yes-btn" style="background:var(--danger);" data-i18n="confirm_yes">Delete</button>
@@ -269,7 +271,8 @@
             <div id="log-content"
                 style="flex-grow: 1; overflow-y: auto; background: #000; color: #0f0; padding: 15px; font-family: monospace; font-size: 13px; text-align: left; white-space: pre-wrap; border-radius: 4px; border: 1px solid #333;">
             </div>
-            <div class="modal-buttons" style="margin-top: 15px;">
+            <div class="modal-separator"></div>
+            <div class="modal-buttons">
                 <button id="close-log-btn" data-i18n="btn_close">Cerrar</button>
             </div>
         </div>
@@ -335,7 +338,8 @@
                 </label>
             </div>
 
-            <div class="modal-buttons" style="margin-top:25px;">
+            <div class="modal-separator"></div>
+            <div class="modal-buttons">
                 <button id="manual-cancel-btn" data-i18n="action_cancel">Cancelar</button>
                 <button id="manual-save-btn" data-i18n="action_save" class="btn-disabled">Save</button>
             </div>
@@ -418,7 +422,8 @@
                     style="margin-bottom: 16px; text-align: center;">Las contraseñas no coinciden</div>
             </div>
 
-            <div class="modal-buttons" style="margin-top:25px;">
+            <div class="modal-separator"></div>
+            <div class="modal-buttons">
                 <button id="config-cancel-btn" data-i18n="action_cancel">Cancelar</button>
                 <button id="config-save-btn" data-i18n="action_save">Guardar</button>
             </div>

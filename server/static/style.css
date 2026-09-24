@@ -23,6 +23,14 @@ body {
     min-height: 100vh;
 }
 
+/* Modal Separator */
+.modal-separator {
+    width: 66%;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 24px auto;
+}
+
 /* Form Label Standardization */
 .form-label {
     display: flex;
