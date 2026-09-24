@@ -62,13 +62,24 @@ input[type="password"], input[type="text"], input[type="datetime-local"], input[
     width: 100%;
     padding: 12px;
     margin-bottom: 16px;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(22, 27, 34, 0.85);
     border: 1px solid var(--glass-border);
-    border-radius: 6px;
+    border-radius: 8px;
     color: #fff;
     font-family: 'Inter', sans-serif;
     outline: none;
     color-scheme: dark; /* Obliga al navegador a renderizar flechas y calendarios en modo oscuro */
+}
+
+select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b949e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    background-size: 14px;
+    padding-right: 36px;
 }
 input:focus, select:focus { border-color: var(--accent); }
 
@@ -553,11 +564,11 @@ button:disabled {
 
 /* TMDB Search Results */
 #manual-search-results {
-    background: #1e1e1e !important; /* Fondo totalmente opaco */
+    background: rgba(13, 17, 23, 0.95) !important;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     box-shadow: 0 10px 30px rgba(0,0,0,0.8);
-    border: 1px solid #333;
-    backdrop-filter: none; /* Deshabilita el difuminado del glass-panel */
-    -webkit-backdrop-filter: none;
+    border: 1px solid var(--glass-border);
 }
 
 .tmdb-search-item {

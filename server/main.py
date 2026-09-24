@@ -46,6 +46,10 @@ import queue
     # * Ocultar/Mostrar metadatos específicos (ej. ocultar duración, o subtítulo).
     # * Formato de fecha (ej. DD/MM/YYYY vs MM/DD/YYYY).
 
+# Pondria en la pantalla de configuracion arriba, como un selector de pestaña, o botones para seleccionar secciones, algo, y tendria tres
+# Servicio, UI, Scrapping (o como cojones se escriba) y cada uno con su correspondiente configuración   
+
+
 # Manual .env fallback
 if os.path.exists(".env"):
     with open(".env", "r") as f:
