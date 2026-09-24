@@ -252,17 +252,21 @@ button:disabled {
     scrollbar-width: thin;
     scrollbar-color: rgba(255,255,255,0.15) transparent;
 }
-.c-dropdown-menu::-webkit-scrollbar {
+#manual-search-results {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.15) transparent;
+}
+.c-dropdown-menu::-webkit-scrollbar, #manual-search-results::-webkit-scrollbar {
     width: 4px;
 }
-.c-dropdown-menu::-webkit-scrollbar-track {
+.c-dropdown-menu::-webkit-scrollbar-track, #manual-search-results::-webkit-scrollbar-track {
     background: transparent;
 }
-.c-dropdown-menu::-webkit-scrollbar-thumb {
+.c-dropdown-menu::-webkit-scrollbar-thumb, #manual-search-results::-webkit-scrollbar-thumb {
     background: rgba(255,255,255,0.15);
     border-radius: 4px;
 }
-.c-dropdown-menu::-webkit-scrollbar-thumb:hover {
+.c-dropdown-menu::-webkit-scrollbar-thumb:hover, #manual-search-results::-webkit-scrollbar-thumb:hover {
     background: rgba(255,255,255,0.3);
 }
 .c-dropdown.open .c-dropdown-menu {

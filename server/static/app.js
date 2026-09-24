@@ -993,6 +993,7 @@ function setupConfigModal() {
                     document.getElementById('config-plex-token').value = data.plex_token || '';
                     document.getElementById('config-tmdb-api').value = data.tmdb_api_key || '';
                     document.getElementById('config-plex-client-id').value = data.plex_client_id || '';
+                    document.getElementById('config-debug').checked = !!data.debug_mode;
 
                     let langValue = data.sync_language || 'es';
                     let langDd = document.getElementById('configLang-dd');
@@ -1112,6 +1113,7 @@ function setupConfigModal() {
             plex_token: document.getElementById('config-plex-token').value,
             tmdb_api_key: document.getElementById('config-tmdb-api').value,
             plex_client_id: document.getElementById('config-plex-client-id').value,
+            debug_mode: document.getElementById('config-debug').checked,
             sync_language: newLang
         };
 
@@ -1211,6 +1213,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let searchTimeout;
 
     if (searchInput) {
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                searchResults.classList.add('hidden');
+            }
+        });
+
         searchInput.addEventListener('input', (e) => {
             clearTimeout(searchTimeout);
             const query = e.target.value.trim();

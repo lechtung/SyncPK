@@ -394,6 +394,8 @@ def get_show_ids_from_plex(grandparent_key):
     return None, None, None
 
 def process_plex_payload(payload, cursor, is_bulk=False):
+    if os.getenv("DEBUG") == "true":
+        print(f"[DEBUG] process_plex_payload: Processing webhook event '{payload.get('event')}'")
     if payload.get("event") != "media.scrobble": return False
         
     metadata = payload.get("Metadata", {})
@@ -545,6 +547,8 @@ async def kodi_webhook(request: Request):
     return {"status": "success"}
 
 def process_kodi_payload(payload, cursor, is_bulk=False):
+    if os.getenv("DEBUG") == "true":
+        print(f"[DEBUG] process_kodi_payload: Processing webhook event '{payload.get('event')}'")
     if payload.get("event") != "media.scrobble": return False
         
     metadata = payload.get("Metadata", {})
@@ -658,6 +662,8 @@ def process_kodi_payload(payload, cursor, is_bulk=False):
     return True
 
 def scrobble_kodi_webhook_to_plex(title, show_title, season, episode, media_type, tmdb_id=None, tvdb_id=None, show_tmdb_id=None, show_tvdb_id=None):
+    if os.getenv("DEBUG") == "true":
+        print(f"[DEBUG] scrobble_kodi_webhook_to_plex: Triggering local scrobble for {media_type} '{title}'")
     try:
         plex_movies, plex_shows = get_plex_items_map()
         if media_type == "movie":
@@ -934,6 +940,8 @@ def download_logs():
 
 @app.delete("/api/history/{item_id}")
 def delete_history_item(item_id: int, sync_remote: bool = False, authorization: str = Depends(verify_api_key)):
+    if os.getenv("DEBUG") == "true":
+        print(f"[DEBUG] delete_history_item: Deleting item_id {item_id}, sync_remote={sync_remote}")
     conn = sqlite3.connect("sync.db")
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -1216,6 +1224,8 @@ def get_cloud_episodes_for_scope(plex_show_guid, ref_season, ref_episode, scope)
             continue
         if scope == "onwards" and s_index < ref_season:
             continue
+        if scope == "backwards" and s_index > ref_season:
+            continue
             
         season_rating_key = s.get("ratingKey")
         ep_url = f"https://metadata.provider.plex.tv/library/metadata/{season_rating_key}/children"
@@ -1228,6 +1238,8 @@ def get_cloud_episodes_for_scope(plex_show_guid, ref_season, ref_episode, scope)
                     if scope == "exact_episode" and ep_index != ref_episode:
                         continue
                     if scope == "onwards" and s_index == ref_season and ep_index < ref_episode:
+                        continue
+                    if scope == "backwards" and s_index == ref_season and ep_index > ref_episode:
                         continue
                     episodes.append(ep)
         except Exception as e:
@@ -1289,6 +1301,8 @@ def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: 
                 cursor.execute("SELECT * FROM watch_history WHERE show_title = ? AND season = ?", (item["show_title"], item["season"]))
             elif scope == "onwards":
                 cursor.execute("SELECT * FROM watch_history WHERE show_title = ? AND (season > ? OR (season = ? AND episode >= ?))", (item["show_title"], item["season"], item["season"], item["episode"]))
+            elif scope == "backwards":
+                cursor.execute("SELECT * FROM watch_history WHERE show_title = ? AND (season < ? OR (season = ? AND episode <= ?))", (item["show_title"], item["season"], item["season"], item["episode"]))
             items_to_modify = [dict(r) for r in cursor.fetchall()]
     else:
         cursor.execute("SELECT * FROM watch_history WHERE id = ?", (item_id,))
@@ -2138,6 +2152,8 @@ def search_tmdb(q: str, lang: str = "es", authorization: str = Depends(verify_ap
 
 @app.post("/api/manual_add")
 def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_key)):
+    if os.getenv("DEBUG") == "true":
+        print(f"[DEBUG] manual_add: Triggered for {req.media_type} '{req.title}', sync_remote={req.sync_remote}")
     try:
         # --- PHASE 0: Check for duplicate in local DB ---
         conn_check = sqlite3.connect("sync.db")
@@ -2392,7 +2408,8 @@ def get_config():
         "plex_token": PLEX_TOKEN,
         "tmdb_api_key": TMDB_API_KEY,
         "sync_language": os.getenv("SYNC_LANGUAGE", "es"),
-        "plex_client_id": PLEX_CLIENT_ID
+        "plex_client_id": PLEX_CLIENT_ID,
+        "debug_mode": os.getenv("DEBUG", "false") == "true"
     }
 
 class ConfigPayload(BaseModel):
@@ -2401,6 +2418,7 @@ class ConfigPayload(BaseModel):
     tmdb_api_key: str
     sync_language: str
     plex_client_id: str
+    debug_mode: Optional[bool] = False
     master_password: Optional[str] = None
     force_rescan: Optional[bool] = False
 
@@ -2424,6 +2442,7 @@ def save_config(payload: ConfigPayload):
     env_vars["TMDB_API_KEY"] = payload.tmdb_api_key
     env_vars["SYNC_LANGUAGE"] = payload.sync_language
     env_vars["PLEX_CLIENT_ID"] = payload.plex_client_id
+    env_vars["DEBUG"] = "true" if payload.debug_mode else "false"
     
     if payload.master_password:
         salt = env_vars.get("SALT", os.getenv("SALT", ""))

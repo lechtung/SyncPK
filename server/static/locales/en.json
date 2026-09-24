@@ -23,6 +23,7 @@
     "action_delete": "Delete from history",
     "action_edit": "Change date",
     "edit_scope_episode": "Only this episode",
+    "edit_scope_backwards": "This episode and previous ones",
     "edit_scope_onwards": "From this episode onwards",
     "edit_scope_season": "Entire season",
     "edit_scope_show": "Entire show",

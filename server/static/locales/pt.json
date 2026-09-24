@@ -23,6 +23,7 @@
     "action_delete":  "Excluir do histórico",
     "action_edit":  "Alterar data",
     "edit_scope_episode":  "Apenas este episódio",
+    "edit_scope_backwards": "Este episódio e os anteriores",
     "edit_scope_onwards":  "A partir deste episódio",
     "edit_scope_season":  "Temporada inteira",
     "edit_scope_show":  "Série inteira",

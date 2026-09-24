@@ -23,6 +23,7 @@
     "action_delete":  "从历史记录中删除",
     "action_edit":  "更改日期",
     "edit_scope_episode":  "仅此集",
+    "edit_scope_backwards": "此集及以前的集数",
     "edit_scope_onwards":  "从此集开始",
     "edit_scope_season":  "整季",
     "edit_scope_show":  "整部剧",

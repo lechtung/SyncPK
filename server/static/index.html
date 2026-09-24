@@ -5,9 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SyncPK Dashboard</title>
-    <link rel="stylesheet" href="/style.css?v=31">
+    <link rel="stylesheet" href="/style.css?v=32">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <script src="/app.js?v=31" defer></script>
+    <script src="/app.js?v=32" defer></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -150,6 +150,8 @@
                 <div class="c-dropdown-menu glass-panel" id="editScope-menu">
                     <div class="c-dropdown-item selected" data-value="episode" data-i18n="edit_scope_episode">Only this
                         episode</div>
+                    <div class="c-dropdown-item" data-value="backwards" data-i18n="edit_scope_backwards">This episode
+                        and previous ones</div>
                     <div class="c-dropdown-item" data-value="onwards" data-i18n="edit_scope_onwards">From this episode
                         onwards</div>
                     <div class="c-dropdown-item" data-value="season" data-i18n="edit_scope_season">Entire season</div>
@@ -393,6 +395,12 @@
                     <div class="c-dropdown-item" data-value="ja" data-i18n="lang_ja">Japonés</div>
                     <div class="c-dropdown-item" data-value="zh" data-i18n="lang_zh">Chino</div>
                 </div>
+            </div>
+
+            <div style="margin-top:20px; display:flex; align-items:center; gap:10px;">
+                <input type="checkbox" id="config-debug" style="width:20px; height:20px; cursor:pointer;">
+                <label for="config-debug" style="cursor:pointer; margin:0; color:#fff; font-size:0.9rem;">Habilitar Logs
+                    de Debugging (Backend)</label>
             </div>
 
             <div style="margin-top:20px; padding-top: 15px; border-top: 1px solid var(--glass-border);">

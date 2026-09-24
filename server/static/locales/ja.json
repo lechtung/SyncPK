@@ -23,6 +23,7 @@
     "action_delete":  "履歴から削除",
     "action_edit":  "日付を変更",
     "edit_scope_episode":  "このエピソードのみ",
+    "edit_scope_backwards": "このエピソードと以前のもの",
     "edit_scope_onwards":  "このエピソード以降",
     "edit_scope_season":  "シーズン全体",
     "edit_scope_show":  "番組全体",

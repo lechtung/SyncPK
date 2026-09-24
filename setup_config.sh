@@ -78,6 +78,12 @@ if [ $? -ne 0 ] || [ -z "$SYNC_LANGUAGE" ]; then
     SYNC_LANGUAGE="en" 
 fi
 
+if whiptail --yesno "Do you want to enable extensive DEBUG logging for the backend?" 10 60 --defaultno --title "Backend Configuration" 3>&1 1>&2 2>&3; then
+    DEBUG_MODE="true"
+else
+    DEBUG_MODE="false"
+fi
+
 # Generate secure hashes and tokens
 SALT=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 16 | head -n 1)
 WEB_HASH=$(echo -n "${SYNC_PASSWORD}${SALT}" | sha256sum | awk '{print $1}')
@@ -96,6 +102,7 @@ WEB_HASH=$WEB_HASH
 API_HASH=$API_HASH
 TMDB_API_KEY=$TMDB_API_KEY
 SYNC_LANGUAGE=$SYNC_LANGUAGE
+DEBUG=$DEBUG_MODE
 # Save the API_TOKEN as well for MOTD generation later
 API_TOKEN_RAW=$API_TOKEN
 PLEX_CLIENT_ID=$PLEX_CLIENT_ID

@@ -23,6 +23,7 @@
     "action_delete":  "Aus Verlauf löschen",
     "action_edit":  "Datum ändern",
     "edit_scope_episode":  "Nur diese Episode",
+    "edit_scope_backwards": "Diese Episode und vorherige",
     "edit_scope_onwards":  "Ab dieser Episode",
     "edit_scope_season":  "Ganze Staffel",
     "edit_scope_show":  "Ganze Serie",
