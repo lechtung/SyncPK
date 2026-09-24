@@ -154,6 +154,28 @@ def init_db():
             deleted_at TEXT
         )
     """)
+    cursor.execute("""
+        CREATE TRIGGER IF NOT EXISTS trg_cleanup_deleted_movie
+        AFTER INSERT ON watch_history
+        WHEN new.media_type = 'movie'
+        BEGIN
+            DELETE FROM deleted_history 
+            WHERE media_type = 'movie' 
+              AND (tmdb_id = new.tmdb_id OR (tmdb_id IS NULL AND title = new.title));
+        END;
+    """)
+    cursor.execute("""
+        CREATE TRIGGER IF NOT EXISTS trg_cleanup_deleted_episode
+        AFTER INSERT ON watch_history
+        WHEN new.media_type = 'episode'
+        BEGIN
+            DELETE FROM deleted_history 
+            WHERE media_type = 'episode' 
+              AND (show_tmdb_id = new.show_tmdb_id OR (show_tmdb_id IS NULL AND show_title = new.show_title))
+              AND season = new.season 
+              AND episode = new.episode;
+        END;
+    """)
     try:
         cursor.execute("ALTER TABLE watch_history ADD COLUMN duration INTEGER DEFAULT 0")
     except sqlite3.OperationalError:
@@ -688,6 +710,21 @@ async def kodi_webhook_bulk(request: Request):
     conn.close()
     return {"status": "success", "processed": count}
 
+class ConfirmSyncRequest(BaseModel):
+    ids: list[int]
+
+@app.post("/sync/confirm-kodi")
+def confirm_kodi_sync(req: ConfirmSyncRequest):
+    if not req.ids:
+        return {"status": "success", "deleted": 0}
+    conn = sqlite3.connect("sync.db")
+    cursor = conn.cursor()
+    placeholders = ",".join("?" for _ in req.ids)
+    cursor.execute(f"DELETE FROM deleted_history WHERE id IN ({placeholders})", req.ids)
+    conn.commit()
+    conn.close()
+    return {"status": "success", "deleted": len(req.ids)}
+
 @app.get("/sync/all-items", dependencies=[Depends(verify_api_key)])
 def get_all_items(client: Optional[str] = Query("kodi"), date_from: Optional[str] = Query(None)):
     conn = sqlite3.connect("sync.db")
@@ -915,7 +952,7 @@ def delete_history_item(item_id: int, sync_remote: bool = False, authorization: 
         if sync_remote:
             now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             cursor.execute("""
-                INSERT INTO deleted_history (id, media_type, title, show_title, season, episode, tmdb_id, show_tmdb_id, deleted_at)
+                INSERT OR REPLACE INTO deleted_history (id, media_type, title, show_title, season, episode, tmdb_id, show_tmdb_id, deleted_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (item["id"], item["media_type"], item["title"], item.get("show_title"), item.get("season"), item.get("episode"), item.get("tmdb_id"), item.get("show_tmdb_id"), now_utc))
             import threading
@@ -935,16 +972,17 @@ def unscrobble_plex(item):
         url_graphql = "https://community.plex.tv/api"
         headers = {
             "Accept": "application/json",
+            "Content-Type": "application/json",
             "x-plex-token": PLEX_TOKEN,
             "x-plex-client-identifier": PLEX_CLIENT_ID
         }
-        
+              
         payload_get = {
-            "query": "query GetActivityFeed($metadataId: ID!) { activityFeed(metadataId: $metadataId) { nodes { id } } }",
-            "variables": {"metadataId": metadata_id},
+            "query": "query GetActivityFeed($first: PaginationInt!, $metadataID: ID, $types: [ActivityType!]!, $includeDescendants: Boolean = false) { activityFeed(first: $first, metadataID: $metadataID, types: $types, includeDescendants: $includeDescendants) { nodes { id } } }",          
+            "variables": {"first": 24, "types": ["WATCH_HISTORY", "WATCH_SESSION"], "includeDescendants": True, "metadataID": metadata_id},
             "operationName": "GetActivityFeed"
         }
-        
+
         node_id = None
         try:
             r = requests.post(url_graphql, headers=headers, json=payload_get, timeout=10)
