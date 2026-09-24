@@ -1253,9 +1253,16 @@ def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: 
     
     items_to_modify = []
     
+    if os.getenv("DEBUG") == "true":
+        print(f"[DEBUG] update_history_item: Modifying {item['title']}, Scope: {scope}, Dist: {getattr(req, 'dist_mode', 'same')}")
+        print(f"[DEBUG] plex_show_guid of the source item: {item.get('plex_show_guid')}")
+    
     if item["media_type"] == "episode" and scope != "episode":
         cloud_eps = get_cloud_episodes_for_scope(item.get("plex_show_guid"), item["season"], item["episode"], scope)
         
+        if os.getenv("DEBUG") == "true":
+            print(f"[DEBUG] get_cloud_episodes_for_scope returned {len(cloud_eps) if cloud_eps else 0} episodes")
+            
         if cloud_eps:
             for ep in cloud_eps:
                 items_to_modify.append({
@@ -1274,6 +1281,8 @@ def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: 
                     "poster_path": item.get("poster_path")
                 })
         else:
+            if os.getenv("DEBUG") == "true":
+                print(f"[DEBUG] cloud_eps was empty, falling back to local DB search for {scope}")
             if scope == "show":
                 cursor.execute("SELECT * FROM watch_history WHERE show_title = ?", (item["show_title"],))
             elif scope == "season":
@@ -1286,6 +1295,9 @@ def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: 
         items_to_modify = [dict(r) for r in cursor.fetchall()]
         
     total_items = len(items_to_modify)
+    
+    if os.getenv("DEBUG") == "true":
+        print(f"[DEBUG] Total items to modify: {total_items}")
     conn.close()
     
     if total_items == 0:
@@ -2171,6 +2183,7 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
             target_year = None
             found_duration = 0
             found_thumb = None
+            found_show_guid = None
             
             if req.tmdb_id and TMDB_API_KEY:
                 tmdb_type = "movie" if req.media_type == "movie" else "tv"
@@ -2236,6 +2249,7 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
                             else:
                                 show_key = item.get("ratingKey")
                                 show_guid = item.get("guid")
+                                found_show_guid = show_guid
                                 print(f"[manual_add] Found show in Plex Cloud: {item.get('title')} ({item_year}) (key={show_key})")
                                 
                                 # Resolve exact episode
@@ -2350,9 +2364,9 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
         else:
             ep_title = f"Episode {req.episode}"
             cursor.execute("""
-                INSERT INTO watch_history (origin, title, show_title, media_type, show_tmdb_id, season, episode, watched_at, poster_path, fanart_path, plex_guid, duration)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (final_origin, ep_title, req.title, req.media_type, req.tmdb_id, req.season, req.episode, final_watched_at, poster_path, fanart_path, plex_guid, found_duration))
+                INSERT INTO watch_history (origin, title, show_title, media_type, show_tmdb_id, season, episode, watched_at, poster_path, fanart_path, plex_guid, plex_show_guid, duration)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (final_origin, ep_title, req.title, req.media_type, req.tmdb_id, req.season, req.episode, final_watched_at, poster_path, fanart_path, plex_guid, found_show_guid, found_duration))
 
         conn.commit()
         conn.close()
