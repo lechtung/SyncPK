@@ -63,13 +63,6 @@ MSG_AUTH_SUCCESS=$(t "install_msg_auth_success")
 PLEX_URL=$(whiptail --inputbox "$T_PLEX_URL" 10 60 "http://" --title "$T_TITLE_PLEX" --ok-button "$T_BTN_OK" --cancel-button "$T_BTN_CANCEL" 3>&1 1>&2 2>&3)
 if [ $? -ne 0 ]; then exit 1; fi
 
-HAS_PLEX_PASS=$(whiptail --yesno "$T_PLEX_PASS" 10 60 --title "$T_TITLE_PLEX" --yes-button "$T_BTN_YES" --no-button "$T_BTN_NO" 3>&1 1>&2 2>&3; echo $?)
-if [ "$HAS_PLEX_PASS" -eq 0 ]; then
-    HAS_PLEX_PASS="true"
-else
-    HAS_PLEX_PASS="false"
-fi
-
 # Plex PIN Auth
 echo "[Info] Requesting Plex authentication PIN..."
 PLEX_CLIENT_ID="SPK-$(uuidgen)"
@@ -92,6 +85,25 @@ while [ -z "$PLEX_TOKEN" ] || [ "$PLEX_TOKEN" == "null" ]; do
     PLEX_TOKEN=$(echo "$CHECK_RESPONSE" | jq -r '.authToken')
 done
 echo "[Info] $MSG_AUTH_SUCCESS"
+
+USER_INFO=$(curl -s -X GET "https://plex.tv/api/v2/user" \
+    -H "Accept: application/json" \
+    -H "X-Plex-Client-Identifier: $PLEX_CLIENT_ID" \
+    -H "X-Plex-Token: $PLEX_TOKEN")
+
+HAS_PLEX_PASS=$(echo "$USER_INFO" | jq -r '.subscription.active')
+
+T_PASS_DETECTED_TITLE=$(t "install_pass_detected_title")
+T_PASS_DETECTED_MSG=$(t "install_pass_detected_msg")
+T_PASS_MISSING_TITLE=$(t "install_pass_missing_title")
+T_PASS_MISSING_MSG=$(t "install_pass_missing_msg")
+
+if [ "$HAS_PLEX_PASS" == "true" ]; then
+    whiptail --msgbox "$T_PASS_DETECTED_MSG" 10 60 --title "$T_PASS_DETECTED_TITLE" --ok-button "$T_BTN_OK"
+else
+    HAS_PLEX_PASS="false"
+    whiptail --msgbox "$T_PASS_MISSING_MSG" 12 60 --title "$T_PASS_MISSING_TITLE" --ok-button "$T_BTN_OK"
+fi
 
 while true; do
     SYNC_PASSWORD=$(whiptail --passwordbox "$T_PWD" 10 60 --title "$T_TITLE_SECURITY" --ok-button "$T_BTN_OK" --cancel-button "$T_BTN_CANCEL" 3>&1 1>&2 2>&3)

@@ -210,14 +210,15 @@ async def download_tmdb_images(db_id, tmdb_id, media_type):
     if not TMDB_API_KEY or not tmdb_id:
         return
         
+    lang = os.getenv("SYNC_LANGUAGE", "en")
     async with tmdb_semaphore:
-        url = f"https://api.themoviedb.org/3/{media_type}/{tmdb_id}?api_key={TMDB_API_KEY}&language=es"
+        url = f"https://api.themoviedb.org/3/{media_type}/{tmdb_id}?api_key={TMDB_API_KEY}&language={lang}"
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.get(url, timeout=10)
             if resp.status_code != 200:
                 # Retry without language if it fails
-                resp = await client.get(url.replace("&language=es", ""), timeout=10)
+                resp = await client.get(url.replace(f"&language={lang}", ""), timeout=10)
                 if resp.status_code != 200: return
                 
             data = resp.json()
@@ -2455,6 +2456,24 @@ def save_config(payload: ConfigPayload):
     env_vars["PLEX_CLIENT_ID"] = payload.plex_client_id
     env_vars["DEBUG"] = "true" if payload.debug_mode else "false"
     
+    has_plex_pass = None
+    if payload.plex_token and payload.plex_client_id:
+        try:
+            req = urllib.request.Request("https://plex.tv/api/v2/user")
+            req.add_header("Accept", "application/json")
+            req.add_header("X-Plex-Client-Identifier", payload.plex_client_id)
+            req.add_header("X-Plex-Token", payload.plex_token)
+            with urllib.request.urlopen(req) as response:
+                user_data = json.loads(response.read().decode())
+                subscription = user_data.get("subscription") or {}
+                has_pass = subscription.get("active") is True
+                env_vars["HAS_PLEX_PASS"] = "true" if has_pass else "false"
+                has_plex_pass = has_pass
+                global HAS_PLEX_PASS
+                HAS_PLEX_PASS = has_pass
+        except Exception as e:
+            print(f"Error checking plex pass: {e}")
+    
     if payload.master_password:
         salt = env_vars.get("SALT", os.getenv("SALT", ""))
         new_hash = hashlib.sha256((payload.master_password + salt).encode()).hexdigest()
@@ -2474,6 +2493,8 @@ def save_config(payload: ConfigPayload):
     PLEX_CLIENT_ID = payload.plex_client_id
     if payload.master_password:
         WEB_HASH = env_vars.get("WEB_HASH")
+        
+    return {"status": "success", "has_plex_pass": has_plex_pass}
 
 @app.post("/api/config/restore", dependencies=[Depends(verify_api_key)])
 def restore_config():

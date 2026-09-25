@@ -159,5 +159,14 @@
     "install_lxc_sel_disk": "Selecciona el disco donde instalar SyncPK:",
     "install_lxc_pwd": "Crea una contraseña ROOT para el contenedor LXC de Proxmox (para SSH/Consola):",
     "install_lxc_pwd_conf": "Confirma la contraseña ROOT:",
-    "install_lxc_sel_tpl": "Elige una plantilla para el contenedor LXC.\nNOTA: SyncPK está completamente probado y soportado en DEBIAN."
+    "install_lxc_sel_tpl": "Elige una plantilla para el contenedor LXC.\nNOTA: SyncPK está completamente probado y soportado en DEBIAN.",
+    "install_pass_detected_title": "Plex Pass Detectado",
+    "install_pass_detected_msg": "Se ha detectado una suscripción activa a Plex Pass. Podrás usar webhooks para la sincronización en tiempo real.",
+    "install_pass_missing_title": "Plex Pass No Detectado",
+    "install_pass_missing_msg": "No se ha encontrado una suscripción activa a Plex Pass. No se podrán usar los webhooks de Plex; en su lugar se ejecutará un proceso en segundo plano que comprobará periódicamente si hay nuevos visionados.",
+    "summary_pass_instructions": "Configura el Webhook de Plex en los ajustes de tu servidor Plex,\ne introduce la IP y el Token de API en tu Addon de Kodi.",
+    "summary_nopass_instructions": "Introduce la IP y el Token de API en tu Addon de Kodi.\nSyncPK revisará Plex automáticamente de forma periódica.",
+    "config_pass_upgrade_hint": "Si has contratado Plex Pass recientemente, por favor identifícate de nuevo para activar los webhooks.",
+    "config_pass_found": "¡Plex Pass detectado! Los webhooks están ahora activados.",
+    "config_pass_not_found": "No se ha detectado Plex Pass."
 }

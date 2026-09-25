@@ -1157,12 +1157,19 @@ function setupConfigModal() {
             if (res.ok) {
                 const data = await res.json();
                 if (data.status === 'success') {
+                    let successMsg = currentLangData.config_saved || 'Settings saved.';
+                    if (data.has_plex_pass === true) {
+                        successMsg += '\\n' + (currentLangData.config_pass_found || 'Plex Pass detected! Webhooks enabled.');
+                    } else if (data.has_plex_pass === false) {
+                        successMsg += '\\n' + (currentLangData.config_pass_not_found || 'No Plex Pass detected.');
+                    }
+                    
                     if (data.rescan_started) {
                         updateOverlayResult('success', currentLangData.config_saved_rescan || 'Settings saved. Rescan started in background.');
                     } else {
-                        updateOverlayResult('success', currentLangData.config_saved || 'Settings saved.');
+                        updateOverlayResult('success', successMsg);
                     }
-                    hideOverlay(2000);
+                    hideOverlay(3000);
                 } else {
                     updateOverlayResult('error', currentLangData.config_save_error || 'Error saving settings.');
                     hideOverlay(3000);

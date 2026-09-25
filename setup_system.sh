@@ -88,7 +88,13 @@ echo "================================================="
 echo " Web Dashboard: http://\$LOCAL_IP:8000"
 echo " Webhook Token: $API_TOKEN_RAW"
 echo " Kodi Webhook:  http://\$LOCAL_IP:8000/webhook/kodi?token=$API_TOKEN_RAW"
-echo " Plex Webhook:  http://\$LOCAL_IP:8000/webhook/plex?token=$API_TOKEN_RAW"
+EOF2
+
+if [ "$HAS_PLEX_PASS" == "true" ]; then
+    echo "echo \" Plex Webhook:  http://\$LOCAL_IP:8000/webhook/plex?token=$API_TOKEN_RAW\"" >> /etc/profile.d/syncpk-motd.sh
+fi
+
+cat << EOF2 >> /etc/profile.d/syncpk-motd.sh
 echo "================================================="
 echo -e "\e[0m"
 EOF2

@@ -159,5 +159,14 @@
     "install_lxc_sel_disk": "选择要安装 SyncPK 的磁盘：",
     "install_lxc_pwd": "为 Proxmox LXC 容器创建 ROOT 密码（用于 SSH/控制台）：",
     "install_lxc_pwd_conf": "确认您的 ROOT 密码：",
-    "install_lxc_sel_tpl": "为 LXC 容器选择模板。\n注意：SyncPK 在 DEBIAN 上经过全面测试并受支持。"
+    "install_lxc_sel_tpl": "为 LXC 容器选择模板。\n注意：SyncPK 在 DEBIAN 上经过全面测试并受支持。",
+    "install_pass_detected_title": "检测到 Plex Pass",
+    "install_pass_detected_msg": "检测到有效的 Plex Pass 订阅。您可以使用 Webhooks 进行实时同步。",
+    "install_pass_missing_title": "未检测到 Plex Pass",
+    "install_pass_missing_msg": "未找到有效的 Plex Pass 订阅。无法使用 Plex 的 Webhooks，因此后台进程将定期检查 Plex 以获取新观看的项目。",
+    "summary_pass_instructions": "在您的 Plex 服务器设置中配置 Plex Webhook，\n并在您的 Kodi 插件中输入 IP 和 API 令牌。",
+    "summary_nopass_instructions": "在您的 Kodi 插件中输入 IP 和 API 令牌。\nSyncPK 将定期自动检查 Plex。",
+    "config_pass_upgrade_hint": "如果您最近订阅了 Plex Pass，请重新登录以激活 Webhooks。",
+    "config_pass_found": "检测到 Plex Pass！已启用 Webhooks。",
+    "config_pass_not_found": "未检测到 Plex Pass。"
 }

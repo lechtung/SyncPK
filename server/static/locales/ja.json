@@ -159,5 +159,14 @@
     "install_lxc_sel_disk": "SyncPKをインストールするディスクを選択してください:",
     "install_lxc_pwd": "Proxmox LXCコンテナ用のROOTパスワードを作成してください（SSH/コンソール用）:",
     "install_lxc_pwd_conf": "ROOTパスワードを確認してください:",
-    "install_lxc_sel_tpl": "LXCコンテナのテンプレートを選択してください。\n注: SyncPKはDEBIANで完全にテストされ、サポートされています。"
+    "install_lxc_sel_tpl": "LXCコンテナのテンプレートを選択してください。\n注: SyncPKはDEBIANで完全にテストされ、サポートされています。",
+    "install_pass_detected_title": "Plex Pass が検出されました",
+    "install_pass_detected_msg": "有効な Plex Pass サブスクリプションが検出されました。リアルタイム同期に Webhook を使用できます。",
+    "install_pass_missing_title": "Plex Pass が検出されません",
+    "install_pass_missing_msg": "有効な Plex Pass サブスクリプションが見つかりませんでした。Plex 用の Webhook は使用できないため、バックグラウンドプロセスが Plex を定期的にチェックして新しく視聴されたアイテムを確認します。",
+    "summary_pass_instructions": "Plex サーバー設定で Plex Webhook を設定し、\nKodi アドオンに IP と API トークンを入力します。",
+    "summary_nopass_instructions": "Kodi アドオンに IP と API トークンを入力します。\nSyncPK は定期的に自動的に Plex をチェックします。",
+    "config_pass_upgrade_hint": "最近 Plex Pass をサブスクライブした場合は、Webhook を有効にするために再度ログインしてください。",
+    "config_pass_found": "Plex Pass が検出されました！Webhook が有効になりました。",
+    "config_pass_not_found": "Plex Pass は検出されませんでした。"
 }
