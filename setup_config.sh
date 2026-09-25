@@ -45,11 +45,25 @@ T_SYNC_LANG=$(t "install_sync_lang")
 T_DASH_LANG=$(t "install_dash_lang")
 T_DEBUG=$(t "install_debug")
 
+T_TITLE_PLEX=$(t "install_title_plex")
+T_TITLE_SECURITY=$(t "install_title_security")
+T_TITLE_TMDB=$(t "install_title_tmdb")
+T_TITLE_BACKEND=$(t "install_title_backend")
+T_TITLE_ERROR=$(t "install_title_error")
+T_BTN_OK=$(t "btn_ok")
+T_BTN_CANCEL=$(t "btn_cancel")
+T_BTN_YES=$(t "btn_yes")
+T_BTN_NO=$(t "btn_no")
+
+MSG_AUTH_LINK=$(t "install_msg_auth_link")
+MSG_AUTH_WAIT=$(t "install_msg_auth_wait")
+MSG_AUTH_SUCCESS=$(t "install_msg_auth_success")
+
 # 1. Interactive form
-PLEX_URL=$(whiptail --inputbox "$T_PLEX_URL" 10 60 "http://" --title "Plex Configuration" 3>&1 1>&2 2>&3)
+PLEX_URL=$(whiptail --inputbox "$T_PLEX_URL" 10 60 "http://" --title "$T_TITLE_PLEX" --ok-button "$T_BTN_OK" --cancel-button "$T_BTN_CANCEL" 3>&1 1>&2 2>&3)
 if [ $? -ne 0 ]; then exit 1; fi
 
-HAS_PLEX_PASS=$(whiptail --yesno "$T_PLEX_PASS" 10 60 --title "Plex Configuration" 3>&1 1>&2 2>&3; echo $?)
+HAS_PLEX_PASS=$(whiptail --yesno "$T_PLEX_PASS" 10 60 --title "$T_TITLE_PLEX" --yes-button "$T_BTN_YES" --no-button "$T_BTN_NO" 3>&1 1>&2 2>&3; echo $?)
 if [ "$HAS_PLEX_PASS" -eq 0 ]; then
     HAS_PLEX_PASS="true"
 else
@@ -64,70 +78,70 @@ PIN_ID=$(echo "$PIN_RESPONSE" | jq -r '.id')
 PIN_CODE=$(echo "$PIN_RESPONSE" | jq -r '.code')
 AUTH_URL="https://app.plex.tv/auth#?clientID=$PLEX_CLIENT_ID&code=$PIN_CODE&context[device][product]=SyncPK"
 
-whiptail --msgbox "$T_PLEX_AUTH" 10 60
+whiptail --msgbox "$T_PLEX_AUTH" 12 60 --ok-button "$T_BTN_OK"
 clear
 echo -e "\n============================================="
-echo -e "🔗 PLEX AUTHORIZATION LINK:"
+echo -e "🔗 $MSG_AUTH_LINK"
 echo -e "$AUTH_URL"
 echo -e "=============================================\n"
-echo "[Info] Waiting for you to authorize in your browser (it will auto-resume)..."
+echo "[Info] $MSG_AUTH_WAIT"
 PLEX_TOKEN=""
 while [ -z "$PLEX_TOKEN" ] || [ "$PLEX_TOKEN" == "null" ]; do
     sleep 3
     CHECK_RESPONSE=$(curl -s -X GET "https://plex.tv/api/v2/pins/$PIN_ID" -H "Accept: application/json" -H "X-Plex-Client-Identifier: $PLEX_CLIENT_ID")
     PLEX_TOKEN=$(echo "$CHECK_RESPONSE" | jq -r '.authToken')
 done
-echo "[Info] Plex authentication successful!"
+echo "[Info] $MSG_AUTH_SUCCESS"
 
 while true; do
-    SYNC_PASSWORD=$(whiptail --passwordbox "$T_PWD" 10 60 --title "Security" 3>&1 1>&2 2>&3)
+    SYNC_PASSWORD=$(whiptail --passwordbox "$T_PWD" 10 60 --title "$T_TITLE_SECURITY" --ok-button "$T_BTN_OK" --cancel-button "$T_BTN_CANCEL" 3>&1 1>&2 2>&3)
     if [ $? -ne 0 ]; then exit 1; fi
 
-    SYNC_PASSWORD_CONFIRM=$(whiptail --passwordbox "$T_PWD_CONFIRM" 10 60 --title "Security" 3>&1 1>&2 2>&3)
+    SYNC_PASSWORD_CONFIRM=$(whiptail --passwordbox "$T_PWD_CONFIRM" 10 60 --title "$T_TITLE_SECURITY" --ok-button "$T_BTN_OK" --cancel-button "$T_BTN_CANCEL" 3>&1 1>&2 2>&3)
     if [ $? -ne 0 ]; then exit 1; fi
 
     if [ "$SYNC_PASSWORD" == "$SYNC_PASSWORD_CONFIRM" ]; then
         break
     else
-        whiptail --msgbox "$T_PWD_ERR" 8 45 --title "Error"
+        whiptail --msgbox "$T_PWD_ERR" 8 45 --title "$T_TITLE_ERROR" --ok-button "$T_BTN_OK"
     fi
 done
 
-TMDB_API_KEY=$(whiptail --inputbox "$T_TMDB" 10 60 --title "TMDB (The Movie Database)" 3>&1 1>&2 2>&3)
+TMDB_API_KEY=$(whiptail --inputbox "$T_TMDB" 10 60 --title "$T_TITLE_TMDB" --ok-button "$T_BTN_OK" --cancel-button "$T_BTN_CANCEL" 3>&1 1>&2 2>&3)
 if [ $? -ne 0 ]; then exit 1; fi
 
 DASHBOARD_LANGUAGE=$(whiptail --menu "$T_DASH_LANG" 16 60 9 \
 "auto" "Browser Default" \
-"en" "English" \
-"es" "Español" \
-"de" "Deutsch" \
-"fr" "Français" \
-"it" "Italiano" \
-"pt" "Português" \
-"zh" "Chinese (Simplified)" \
-"ja" "Japanese" \
---default-item "auto" 3>&1 1>&2 2>&3)
+"en" "$(t lang_en)" \
+"es" "$(t lang_es)" \
+"de" "$(t lang_de)" \
+"fr" "$(t lang_fr)" \
+"it" "$(t lang_it)" \
+"pt" "$(t lang_pt)" \
+"zh" "$(t lang_zh)" \
+"ja" "$(t lang_ja)" \
+--default-item "auto" --ok-button "$T_BTN_OK" --cancel-button "$T_BTN_CANCEL" 3>&1 1>&2 2>&3)
 
 if [ $? -ne 0 ] || [ -z "$DASHBOARD_LANGUAGE" ]; then 
     DASHBOARD_LANGUAGE="auto" 
 fi
 
 SYNC_LANGUAGE=$(whiptail --menu "$T_SYNC_LANG" 16 60 8 \
-"en" "English" \
-"es" "Español" \
-"de" "Deutsch" \
-"fr" "Français" \
-"it" "Italiano" \
-"pt" "Português" \
-"zh" "Chinese (Simplified)" \
-"ja" "Japanese" \
---default-item "$INSTALL_LANG" 3>&1 1>&2 2>&3)
+"en" "$(t lang_en)" \
+"es" "$(t lang_es)" \
+"de" "$(t lang_de)" \
+"fr" "$(t lang_fr)" \
+"it" "$(t lang_it)" \
+"pt" "$(t lang_pt)" \
+"zh" "$(t lang_zh)" \
+"ja" "$(t lang_ja)" \
+--default-item "$INSTALL_LANG" --ok-button "$T_BTN_OK" --cancel-button "$T_BTN_CANCEL" 3>&1 1>&2 2>&3)
 
 if [ $? -ne 0 ] || [ -z "$SYNC_LANGUAGE" ]; then 
     SYNC_LANGUAGE="en" 
 fi
 
-if whiptail --yesno "$T_DEBUG" 10 60 --defaultno --title "Backend Configuration" 3>&1 1>&2 2>&3; then
+if whiptail --yesno "$T_DEBUG" 10 60 --defaultno --title "$T_TITLE_BACKEND" --yes-button "$T_BTN_YES" --no-button "$T_BTN_NO" 3>&1 1>&2 2>&3; then
     DEBUG_MODE="true"
 else
     DEBUG_MODE="false"

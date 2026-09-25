@@ -35,6 +35,23 @@ else
 fi
 if [ $? -ne 0 ]; then exit 1; fi
 
+# Helper to read translation keys
+function t() {
+    jq -r ".$1" /tmp/install.json | sed 's/\\n/\n/g'
+}
+
+T_TITLE_LXC_STORAGE=$(t "install_title_lxc_storage")
+T_TITLE_LXC_SEC=$(t "install_title_lxc_sec")
+T_TITLE_LXC_OS=$(t "install_title_lxc_os")
+T_TITLE_ERROR=$(t "install_title_error")
+T_BTN_OK=$(t "btn_ok")
+T_BTN_CANCEL=$(t "btn_cancel")
+T_PWD_ERR=$(t "install_pwd_error")
+T_LXC_SEL_DISK=$(t "install_lxc_sel_disk")
+T_LXC_PWD=$(t "install_lxc_pwd")
+T_LXC_PWD_CONF=$(t "install_lxc_pwd_conf")
+T_LXC_SEL_TPL=$(t "install_lxc_sel_tpl")
+
 # 1. Storage autodiscovery
 echo "[Info] Searching for storages compatible with LXC containers..."
 STORAGES=$(pvesm status -content rootdir | awk 'NR>1 {print $1}')
@@ -48,7 +65,7 @@ for s in $STORAGES; do
     STORAGE_MENU+=("$s" "")
 done
 
-TARGET_STORAGE=$(whiptail --title "LXC Storage" --menu "Select the disk to install SyncPK on:" 15 50 4 "${STORAGE_MENU[@]}" 3>&1 1>&2 2>&3)
+TARGET_STORAGE=$(whiptail --title "$T_TITLE_LXC_STORAGE" --menu "$T_LXC_SEL_DISK" 15 50 4 "${STORAGE_MENU[@]}" --ok-button "$T_BTN_OK" --cancel-button "$T_BTN_CANCEL" 3>&1 1>&2 2>&3)
 if [ $? -ne 0 ]; then exit 1; fi
 
 # 2. Setup Configuration
@@ -59,16 +76,16 @@ chmod +x /tmp/setup_config.sh
 if [ $? -ne 0 ]; then exit 1; fi
 
 while true; do
-    ROOT_PASSWORD=$(whiptail --passwordbox "Create a ROOT password for the Proxmox LXC container (for SSH/Console):" 10 60 --title "LXC Security" 3>&1 1>&2 2>&3)
+    ROOT_PASSWORD=$(whiptail --passwordbox "$T_LXC_PWD" 10 60 --title "$T_TITLE_LXC_SEC" --ok-button "$T_BTN_OK" --cancel-button "$T_BTN_CANCEL" 3>&1 1>&2 2>&3)
     if [ $? -ne 0 ]; then exit 1; fi
 
-    ROOT_PASSWORD_CONFIRM=$(whiptail --passwordbox "Confirm your ROOT password:" 10 60 --title "LXC Security" 3>&1 1>&2 2>&3)
+    ROOT_PASSWORD_CONFIRM=$(whiptail --passwordbox "$T_LXC_PWD_CONF" 10 60 --title "$T_TITLE_LXC_SEC" --ok-button "$T_BTN_OK" --cancel-button "$T_BTN_CANCEL" 3>&1 1>&2 2>&3)
     if [ $? -ne 0 ]; then exit 1; fi
 
     if [ "$ROOT_PASSWORD" == "$ROOT_PASSWORD_CONFIRM" ]; then
         break
     else
-        whiptail --msgbox "Passwords do not match. Please try again." 8 45 --title "Error"
+        whiptail --msgbox "$T_PWD_ERR" 8 45 --title "$T_TITLE_ERROR" --ok-button "$T_BTN_OK"
     fi
 done
 
@@ -117,7 +134,7 @@ while read -r t; do
     fi
 done <<< "$(echo -e "${DEBIAN_TEMPLATES}\n${OTHER_TEMPLATES}" | grep -v '^$')"
 
-CHOICE=$(whiptail --title "OS Template Selection" --menu "Choose a template for the LXC container.\nNOTE: SyncPK is fully tested and supported on DEBIAN." 20 80 10 "${OPTIONS[@]}" 3>&1 1>&2 2>&3)
+CHOICE=$(whiptail --title "$T_TITLE_LXC_OS" --menu "$T_LXC_SEL_TPL" 20 80 10 "${OPTIONS[@]}" --ok-button "$T_BTN_OK" --cancel-button "$T_BTN_CANCEL" 3>&1 1>&2 2>&3)
 
 if [ -z "$CHOICE" ]; then
     error "Installation cancelled by user."
