@@ -163,6 +163,45 @@ input[type="checkbox"]:checked {
     border-color: var(--accent-hover);
 }
 
+/* CUSTOM RADIO STYLING */
+input[type="radio"] {
+    appearance: none;
+    background-color: rgba(255, 255, 255, 0.1);
+    margin: 0;
+    font: inherit;
+    color: currentColor;
+    width: 1.4em;
+    height: 1.4em;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    display: grid;
+    place-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+
+input[type="radio"]::before {
+    content: "";
+    width: 0.6em;
+    height: 0.6em;
+    border-radius: 50%;
+    transform: scale(0);
+    transition: 120ms transform ease-in-out;
+    box-shadow: inset 1em 1em white;
+    background-color: white;
+    transform-origin: center;
+}
+
+input[type="radio"]:checked::before {
+    transform: scale(1);
+}
+
+input[type="radio"]:checked {
+    background-color: var(--accent-hover);
+    border-color: var(--accent-hover);
+}
+
+
 
 button {
     width: 100%;

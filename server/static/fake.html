@@ -202,6 +202,44 @@
             background-color: var(--accent-hover);
             border-color: var(--accent-hover);
         }
+
+        /* CUSTOM RADIO STYLING */
+        input[type="radio"] {
+            appearance: none;
+            background-color: rgba(255, 255, 255, 0.1);
+            margin: 0;
+            font: inherit;
+            color: currentColor;
+            width: 1.4em;
+            height: 1.4em;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%; /* Circle */
+            display: grid;
+            place-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+        }
+
+        input[type="radio"]::before {
+            content: "";
+            width: 0.6em;
+            height: 0.6em;
+            border-radius: 50%;
+            transform: scale(0);
+            transition: 120ms transform ease-in-out;
+            box-shadow: inset 1em 1em white;
+            background-color: white;
+            transform-origin: center;
+        }
+
+        input[type="radio"]:checked::before {
+            transform: scale(1);
+        }
+
+        input[type="radio"]:checked {
+            background-color: var(--accent-hover);
+            border-color: var(--accent-hover);
+        }
     </style>
 </head>
 
@@ -382,21 +420,96 @@
     <!-- EDIT MODAL (Copied from real index.html) -->
     <div id="edit-modal" class="overlay hidden">
         <div class="login-box glass-panel">
-            <h3 data-i18n="edit_title" style="margin-top:0; margin-bottom:20px; text-align:center;">Change Watch Date</h3>
+            <h3 data-i18n="edit_title" style="margin-top:0; margin-bottom:20px; text-align:center;">Change Watch Date
+            </h3>
             <input type="datetime-local" id="edit-date-input" style="margin-bottom: 24px;">
-            
-            <label class="form-label" style="margin-bottom: 12px;">
-                <input type="checkbox" id="editSyncRemote1" checked>
-                <span data-i18n="modal_sync_remote">Checkbox normal (var--accent)</span>
-            </label>
+            <!-- Custom scope dropdown -->
+            <h4 style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;" data-i18n="edit_scope_title">Alcance</h4>
+            <div class="c-dropdown hidden" id="editScope-dd" style="margin-bottom: 24px;">
+                <div class="c-dropdown-trigger" id="editScope-trigger">
+                    <div class="c-dropdown-bottom">
+                        <span class="c-dropdown-value" id="editScope-val" data-i18n="edit_scope_episode">Only this
+                            episode</span>
+                        <span class="c-dropdown-arrow">▾</span>
+                    </div>
+                </div>
+                <div class="c-dropdown-menu glass-panel" id="editScope-menu">
+                    <div class="c-dropdown-item selected" data-value="episode" data-i18n="edit_scope_episode">Only this
+                        episode</div>
+                    <div class="c-dropdown-item" data-value="backwards" data-i18n="edit_scope_backwards">This episode
+                        and previous ones</div>
+                    <div class="c-dropdown-item" data-value="onwards" data-i18n="edit_scope_onwards">From this episode
+                        onwards</div>
+                    <div class="c-dropdown-item" data-value="season" data-i18n="edit_scope_season">Entire season</div>
+                    <div class="c-dropdown-item" data-value="show" data-i18n="edit_scope_show">Entire show</div>
+                </div>
+            </div>
+
+            <!-- Advanced Bulk Options Container -->
+            <!-- REMOVED HIDDEN CLASS FOR FAKE.HTML TESTING -->
+            <div id="bulkOptions-container" style="margin-bottom: 24px;">
+                <h4 style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;" data-i18n="edit_dist_mode_title">
+                    Distribution Mode</h4>
+
+                <div class="c-dropdown" id="editDistMode-dd" style="margin-bottom: 24px;">
+                    <div class="c-dropdown-trigger" id="editDistMode-trigger">
+                        <div class="c-dropdown-bottom">
+                            <span class="c-dropdown-value" id="editDistMode-val" data-i18n="dist_mode_same">Same
+                                date</span>
+                            <span class="c-dropdown-arrow">▾</span>
+                        </div>
+                    </div>
+                    <div class="c-dropdown-menu glass-panel" id="editDistMode-menu">
+                        <div class="c-dropdown-item selected" data-value="same" data-i18n="dist_mode_same">Same date
+                        </div>
+                        <div class="c-dropdown-item" data-value="fixed" data-i18n="dist_mode_fixed">Fixed per day</div>
+                        <div class="c-dropdown-item" data-value="random" data-i18n="dist_mode_random">Random per day
+                        </div>
+                        <div class="c-dropdown-item" data-value="between" data-i18n="dist_mode_between">Between two
+                            dates</div>
+                    </div>
+                </div>
+
+                <div id="distFields-container" style="display:flex; flex-direction:column; gap:16px;">
+                    <!-- REMOVED HIDDEN CLASS FOR FAKE.HTML TESTING -->
+                    <div id="field-between-type"
+                        style="display:flex; flex-direction:column; gap:8px; align-items: center;">
+                        <h4 style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;" data-i18n="label_distribution">
+                            Distribution</h4>
+                        <div style="display:flex; gap:16px; justify-content: center;">
+                            <label class="form-label"><input type="radio" name="distBetweenType" value="fixed" checked>
+                                <span data-i18n="dist_type_fixed">Fixed</span></label>
+                            <label class="form-label"><input type="radio" name="distBetweenType" value="random"> <span
+                                    data-i18n="dist_type_random">Random</span></label>
+                        </div>
+                    </div>
+
+                    <!-- REMOVED HIDDEN CLASS FOR FAKE.HTML TESTING -->
+                    <div id="field-order"
+                        style="display:flex; flex-direction:column; gap:8px; align-items: center;">
+                        <h4 style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;" data-i18n="label_order">Order
+                        </h4>
+                        <div style="display:flex; gap:16px; justify-content: center;">
+                            <label class="form-label"><input type="radio" name="distOrder" value="asc" checked> <span
+                                    data-i18n="order_asc">Ascending</span></label>
+                            <label class="form-label"><input type="radio" name="distOrder" value="desc"> <span
+                                    data-i18n="order_desc">Descending</span></label>
+                        </div>
+                        <span id="order-help-text"
+                            style="color:#888; font-size:0.75rem; margin-top:4px; text-align: center;"
+                            data-i18n="help_order_asc">First episode will be assigned to selected date.</span>
+                    </div>
+                </div>
+            </div>
+
             <label class="form-label" style="margin-bottom: 24px;">
-                <input type="checkbox" id="editSyncRemote2" class="checkbox-dark" checked>
-                <span data-i18n="modal_sync_remote">Checkbox oscuro (var--accent-hover)</span>
+                <input type="checkbox" id="editSyncRemote" class="checkbox-dark" checked>
+                <span data-i18n="modal_sync_remote">Update automatically on Plex & Kodi</span>
             </label>
             <div class="modal-separator"></div>
             <div class="modal-buttons">
-                <button onclick="hideEditModal()" data-i18n="btn_cancel">Cancelar</button>
-                <button onclick="hideEditModal(); showFakeToast()" data-i18n="btn_save">Guardar</button>
+                <button onclick="hideEditModal()" data-i18n="btn_cancel">Cancel</button>
+                <button onclick="hideEditModal(); showFakeToast()" data-i18n="btn_save">Save</button>
             </div>
         </div>
     </div>
