@@ -50,8 +50,8 @@ INSTALL_LANG=$(whiptail --menu "$PROMPT_TEXT" 16 60 8 \
 "fr" "Français" \
 "it" "Italiano" \
 "pt" "Português" \
-"zh" "中文" \
-"ja" "日本語" \
+"zh" "中文 (Simplified Chinese)" \
+"ja" "日本語 (Japanese)" \
 --default-item "$DETECTED_LANG" \
 3>&1 1>&2 2>&3)
 
