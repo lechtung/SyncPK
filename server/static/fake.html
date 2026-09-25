@@ -158,6 +158,50 @@
         .c-fanart-content .c-fanart-overlay {
             z-index: 1;
         }
+
+        /* CUSTOM CHECKBOX STYLING */
+        input[type="checkbox"] {
+            appearance: none;
+            background-color: rgba(255, 255, 255, 0.1);
+            margin: 0;
+            font: inherit;
+            color: currentColor;
+            width: 1.4em;
+            height: 1.4em;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 0.35em;
+            display: grid;
+            place-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+        }
+
+        input[type="checkbox"]::before {
+            content: "";
+            width: 0.75em;
+            height: 0.75em;
+            transform: scale(0);
+            transition: 120ms transform ease-in-out;
+            box-shadow: inset 1em 1em white;
+            background-color: white;
+            transform-origin: center;
+            clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+        }
+
+        input[type="checkbox"]:checked::before {
+            transform: scale(1.1);
+        }
+
+        input[type="checkbox"]:checked {
+            background-color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        /* Variante Oscura */
+        input[type="checkbox"].checkbox-dark:checked {
+            background-color: var(--accent-hover);
+            border-color: var(--accent-hover);
+        }
     </style>
 </head>
 
@@ -262,37 +306,17 @@
                         </div>
                         <div class="c-fanart-content"
                             style="background-image: url('https://static.tvmaze.com/uploads/images/original_untouched/173/433868.jpg')">
-                            <div class="c-fanart-overlay"></div>
-                            <div class="card-content">
-                                <div class="card-title">Big Bang (Sin máscara)</div>
-                                <div class="card-subtitle">T2 - E10 - El enigma Vartabedian</div>
-                                <div class="card-time">22:03</div>
-                            </div>
-                            <button class="kebab-menu-btn" onclick="toggleDropdown('menu-1')">⋮</button>
-                            <div class="kebab-dropdown glass-panel hidden" id="menu-1">
-                                <div class="dropdown-item">Editar Fecha</div>
-                                <div class="dropdown-item danger">Eliminar</div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="c-card" onclick="showFakeToast()">
-                        <div class="c-poster"
-                            style="background-image: url('https://static.tvmaze.com/uploads/images/medium_portrait/173/433868.jpg')">
-                        </div>
-                        <div class="c-fanart-content"
-                            style="background-image: url('https://static.tvmaze.com/uploads/images/original_untouched/173/433868.jpg')">
                             <div class="c-fanart-mask"></div>
                             <div class="c-fanart-overlay"></div>
                             <div class="card-content">
-                                <div class="card-title">Big Bang (Con máscara)</div>
+                                <div class="card-title">Big Bang</div>
                                 <div class="card-subtitle">T2 - E10 - El enigma Vartabedian</div>
                                 <div class="card-time">22:03</div>
                             </div>
-                            <button class="kebab-menu-btn" onclick="toggleDropdown('menu-1-mask')">⋮</button>
-                            <div class="kebab-dropdown glass-panel hidden" id="menu-1-mask">
-                                <div class="dropdown-item">Editar Fecha</div>
-                                <div class="dropdown-item danger">Eliminar</div>
+                            <button class="kebab-menu-btn" onclick="toggleDropdown('menu-1-mask'); event.stopPropagation()">⋮</button>
+                            <div class="kebab-dropdown glass-panel" id="menu-1-mask">
+                                <div class="dropdown-item" onclick="showEditModal(); event.stopPropagation()">Editar Fecha</div>
+                                <div class="dropdown-item danger" onclick="showFakeToast(); event.stopPropagation()">Eliminar</div>
                             </div>
                         </div>
                     </div>
@@ -308,37 +332,17 @@
                         </div>
                         <div class="c-fanart-content"
                             style="background-image: url('https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/bMJdVmo6QqoUHpUsjWyei6MN02x.jpg')">
-                            <div class="c-fanart-overlay"></div>
-                            <div class="card-content">
-                                <div class="card-title">Pitch Black (Sin máscara)</div>
-                                <div class="card-subtitle"></div>
-                                <div class="card-time">21:34</div>
-                            </div>
-                            <button class="kebab-menu-btn" onclick="toggleDropdown('menu-2')">⋮</button>
-                            <div class="kebab-dropdown glass-panel hidden" id="menu-2">
-                                <div class="dropdown-item">Editar Fecha</div>
-                                <div class="dropdown-item danger">Eliminar</div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="c-card" onclick="showFakeToast()">
-                        <div class="c-poster"
-                            style="background-image: url('https://media.themoviedb.org/t/p/w300_and_h450_face/3AnlxZ5CZnhKKzjgFyY6EHxmOyl.jpg')">
-                        </div>
-                        <div class="c-fanart-content"
-                            style="background-image: url('https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/bMJdVmo6QqoUHpUsjWyei6MN02x.jpg')">
                             <div class="c-fanart-mask"></div>
                             <div class="c-fanart-overlay"></div>
                             <div class="card-content">
-                                <div class="card-title">Pitch Black (Con máscara)</div>
+                                <div class="card-title">Pitch Black</div>
                                 <div class="card-subtitle"></div>
                                 <div class="card-time">21:34</div>
                             </div>
-                            <button class="kebab-menu-btn" onclick="toggleDropdown('menu-2-mask')">⋮</button>
-                            <div class="kebab-dropdown glass-panel hidden" id="menu-2-mask">
-                                <div class="dropdown-item">Editar Fecha</div>
-                                <div class="dropdown-item danger">Eliminar</div>
+                            <button class="kebab-menu-btn" onclick="toggleDropdown('menu-2-mask'); event.stopPropagation()">⋮</button>
+                            <div class="kebab-dropdown glass-panel" id="menu-2-mask">
+                                <div class="dropdown-item" onclick="showEditModal(); event.stopPropagation()">Editar Fecha</div>
+                                <div class="dropdown-item danger" onclick="showFakeToast(); event.stopPropagation()">Eliminar</div>
                             </div>
                         </div>
                     </div>
@@ -354,37 +358,17 @@
                         </div>
                         <div class="c-fanart-content"
                             style="background-image: url('https://static.tvmaze.com/uploads/images/original_untouched/557/1392576.jpg')">
-                            <div class="c-fanart-overlay"></div>
-                            <div class="card-content">
-                                <div class="card-title">1923 (Sin máscara)</div>
-                                <div class="card-subtitle">T1 - E1 - 1923</div>
-                                <div class="card-time">21:05</div>
-                            </div>
-                            <button class="kebab-menu-btn" onclick="toggleDropdown('menu-3')">⋮</button>
-                            <div class="kebab-dropdown glass-panel hidden" id="menu-3">
-                                <div class="dropdown-item">Editar Fecha</div>
-                                <div class="dropdown-item danger">Eliminar</div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="c-card" onclick="showFakeToast()">
-                        <div class="c-poster"
-                            style="background-image: url('https://static.tvmaze.com/uploads/images/medium_portrait/557/1392576.jpg')">
-                        </div>
-                        <div class="c-fanart-content"
-                            style="background-image: url('https://static.tvmaze.com/uploads/images/original_untouched/557/1392576.jpg')">
                             <div class="c-fanart-mask"></div>
                             <div class="c-fanart-overlay"></div>
                             <div class="card-content">
-                                <div class="card-title">1923 (Con máscara)</div>
+                                <div class="card-title">1923</div>
                                 <div class="card-subtitle">T1 - E1 - 1923</div>
                                 <div class="card-time">21:05</div>
                             </div>
-                            <button class="kebab-menu-btn" onclick="toggleDropdown('menu-3-mask')">⋮</button>
-                            <div class="kebab-dropdown glass-panel hidden" id="menu-3-mask">
-                                <div class="dropdown-item">Editar Fecha</div>
-                                <div class="dropdown-item danger">Eliminar</div>
+                            <button class="kebab-menu-btn" onclick="toggleDropdown('menu-3-mask'); event.stopPropagation()">⋮</button>
+                            <div class="kebab-dropdown glass-panel" id="menu-3-mask">
+                                <div class="dropdown-item" onclick="showEditModal(); event.stopPropagation()">Editar Fecha</div>
+                                <div class="dropdown-item danger" onclick="showFakeToast(); event.stopPropagation()">Eliminar</div>
                             </div>
                         </div>
                     </div>
@@ -393,6 +377,28 @@
 
         </div>
 
+    </div>
+
+    <!-- EDIT MODAL (Copied from real index.html) -->
+    <div id="edit-modal" class="overlay hidden">
+        <div class="login-box glass-panel">
+            <h3 data-i18n="edit_title" style="margin-top:0; margin-bottom:20px; text-align:center;">Change Watch Date</h3>
+            <input type="datetime-local" id="edit-date-input" style="margin-bottom: 24px;">
+            
+            <label class="form-label" style="margin-bottom: 12px;">
+                <input type="checkbox" id="editSyncRemote1" checked>
+                <span data-i18n="modal_sync_remote">Checkbox normal (var--accent)</span>
+            </label>
+            <label class="form-label" style="margin-bottom: 24px;">
+                <input type="checkbox" id="editSyncRemote2" class="checkbox-dark" checked>
+                <span data-i18n="modal_sync_remote">Checkbox oscuro (var--accent-hover)</span>
+            </label>
+            <div class="modal-separator"></div>
+            <div class="modal-buttons">
+                <button onclick="hideEditModal()" data-i18n="btn_cancel">Cancelar</button>
+                <button onclick="hideEditModal(); showFakeToast()" data-i18n="btn_save">Guardar</button>
+            </div>
+        </div>
     </div>
 
     <!-- MOCKUP: BOTÓN FLOTANTE ESTILO MATERIAL -->
@@ -420,9 +426,9 @@
     <script>
         function toggleDropdown(id) {
             document.querySelectorAll('.kebab-dropdown').forEach(d => {
-                if (d.id !== id) d.classList.add('hidden');
+                if (d.id !== id) d.classList.remove('show');
             });
-            document.getElementById(id).classList.toggle('hidden');
+            document.getElementById(id).classList.toggle('show');
         }
         
         let testType = 'success';
@@ -482,6 +488,14 @@
                 toast.classList.add('toast-out');
                 toast.addEventListener('animationend', () => toast.remove());
             }, 3000);
+        }
+
+        function showEditModal() {
+            document.getElementById('edit-modal').classList.remove('hidden');
+        }
+
+        function hideEditModal() {
+            document.getElementById('edit-modal').classList.add('hidden');
         }
     </script>
 </body>

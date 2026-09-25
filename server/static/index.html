@@ -5,9 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SyncPK Dashboard</title>
-    <link rel="stylesheet" href="/style.css?v=38">
+    <link rel="stylesheet" href="/style.css?v=39">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <script src="/app.js?v=38" defer></script>
+    <script src="/app.js?v=39" defer></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -372,26 +372,49 @@
             <h4 style="margin-top:10px; margin-bottom: 8px; color: #aaa; font-size: 0.85rem;">Plex Client ID:</h4>
             <input type="text" id="config-plex-client-id" placeholder="SPK-UUID">
 
-            <h4 style="margin-top:10px; margin-bottom: 8px; color: #aaa; font-size: 0.85rem;">Preferred language:</h4>
+            <h4 style="margin-top:10px; margin-bottom: 8px; color: #aaa; font-size: 0.85rem;"
+                data-i18n="config_dashboard_lang_title">Dashboard Language:</h4>
+            <div class="c-dropdown" id="configDashboardLang-dd" style="margin-bottom: 8px;">
+                <div class="c-dropdown-trigger" id="configDashboardLang-trigger">
+                    <div class="c-dropdown-bottom">
+                        <span class="c-dropdown-value" id="configDashboardLang-val" data-i18n="lang_auto">Browser
+                            Default</span>
+                        <span class="c-dropdown-arrow">▾</span>
+                    </div>
+                </div>
+                <div class="c-dropdown-menu glass-panel" id="configDashboardLang-menu">
+                    <div class="c-dropdown-item selected" data-value="auto" data-i18n="lang_auto">Browser Default</div>
+                    <div class="c-dropdown-item" data-value="es" data-i18n="lang_es">Spanish</div>
+                    <div class="c-dropdown-item" data-value="en" data-i18n="lang_en">English</div>
+                    <div class="c-dropdown-item" data-value="fr" data-i18n="lang_fr">French</div>
+                    <div class="c-dropdown-item" data-value="de" data-i18n="lang_de">German</div>
+                    <div class="c-dropdown-item" data-value="it" data-i18n="lang_it">Italian</div>
+                    <div class="c-dropdown-item" data-value="pt" data-i18n="lang_pt">Portuguese</div>
+                    <div class="c-dropdown-item" data-value="ja" data-i18n="lang_ja">Japanese</div>
+                    <div class="c-dropdown-item" data-value="zh" data-i18n="lang_zh">Chinese</div>
+                </div>
+            </div>
+
+            <h4 style="margin-top:10px; margin-bottom: 8px; color: #aaa; font-size: 0.85rem;"
+                data-i18n="config_scraping_lang_title">Scraping Language (TMDB/Plex):</h4>
             <div class="c-dropdown" id="configLang-dd" style="margin-bottom: 8px;">
                 <div class="c-dropdown-trigger" id="configLang-trigger">
                     <div class="c-dropdown-bottom">
-                        <span class="c-dropdown-value" id="configLang-val" data-i18n="lang_es">Español</span>
+                        <span class="c-dropdown-value" id="configLang-val" data-i18n="lang_en">English</span>
                         <span class="c-dropdown-arrow">▾</span>
                     </div>
                 </div>
                 <div class="c-dropdown-menu glass-panel" id="configLang-menu">
-                    <div class="c-dropdown-item selected" data-value="es" data-i18n="lang_es">Español</div>
-                    <div class="c-dropdown-item" data-value="en" data-i18n="lang_en">English</div>
-                    <div class="c-dropdown-item" data-value="fr" data-i18n="lang_fr">Francés</div>
-                    <div class="c-dropdown-item" data-value="de" data-i18n="lang_de">Alemán</div>
-                    <div class="c-dropdown-item" data-value="it" data-i18n="lang_it">Italiano</div>
-                    <div class="c-dropdown-item" data-value="pt" data-i18n="lang_pt">Portugués</div>
-                    <div class="c-dropdown-item" data-value="ja" data-i18n="lang_ja">Japonés</div>
-                    <div class="c-dropdown-item" data-value="zh" data-i18n="lang_zh">Chino</div>
+                    <div class="c-dropdown-item selected" data-value="en" data-i18n="lang_en">English</div>
+                    <div class="c-dropdown-item" data-value="es" data-i18n="lang_es">Spanish</div>
+                    <div class="c-dropdown-item" data-value="fr" data-i18n="lang_fr">French</div>
+                    <div class="c-dropdown-item" data-value="de" data-i18n="lang_de">German</div>
+                    <div class="c-dropdown-item" data-value="it" data-i18n="lang_it">Italian</div>
+                    <div class="c-dropdown-item" data-value="pt" data-i18n="lang_pt">Portuguese</div>
+                    <div class="c-dropdown-item" data-value="ja" data-i18n="lang_ja">Japanese</div>
+                    <div class="c-dropdown-item" data-value="zh" data-i18n="lang_zh">Chinese</div>
                 </div>
             </div>
-
             <div style="margin-top:20px;">
                 <label class="form-label" for="config-debug">
                     <input type="checkbox" id="config-debug" style="width:20px; height:20px; cursor:pointer;">

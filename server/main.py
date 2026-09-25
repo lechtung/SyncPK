@@ -1200,9 +1200,11 @@ def get_cloud_episodes_for_scope(plex_show_guid, ref_season, ref_episode, scope)
     if not plex_show_guid: return []
     show_id = plex_show_guid.split("/")[-1]
     
+    lang = os.getenv("SYNC_LANGUAGE", "en")
     headers = {
         "Accept": "application/json",
         "X-Plex-Token": PLEX_TOKEN,
+        "X-Plex-Language": lang,
         "X-Plex-Container-Start":"0",
         "X-Plex-Container-Size":"99"
     }
@@ -1951,7 +1953,7 @@ def push_cloud_orphans_to_db():
                             gp_guid = item["grandparentGuid"]
                             gp_id = gp_guid.split("/")[-1]
                             try:
-                                gp_url = f"https://metadata.provider.plex.tv/library/metadata/{gp_id}?X-Plex-Token={PLEX_TOKEN}"
+                                gp_url = f"https://metadata.provider.plex.tv/library/metadata/{gp_id}?X-Plex-Token={PLEX_TOKEN}&X-Plex-Language={lang}"
                                 gp_resp = requests.get(gp_url, headers={"Accept": "application/json"}, timeout=5)
                                 if gp_resp.status_code == 200:
                                     gp_data = gp_resp.json().get("MediaContainer", {}).get("Metadata", [])
@@ -2138,11 +2140,13 @@ class ManualAddRequest(BaseModel):
     force_rewatch: bool = False
 
 @app.get("/api/tmdb/search")
-def search_tmdb(q: str, lang: str = "es", authorization: str = Depends(verify_api_key)):
+def search_tmdb(q: str, lang: str = None, authorization: str = Depends(verify_api_key)):
     if not q or len(q) < 3:
         return {"results": []}
     
-    url = f"https://api.themoviedb.org/3/search/multi?api_key={TMDB_API_KEY}&language={lang}&query={q}&page=1&include_adult=false"
+    # Force server configured language
+    sync_lang = os.getenv("SYNC_LANGUAGE", "es")
+    url = f"https://api.themoviedb.org/3/search/multi?api_key={TMDB_API_KEY}&language={sync_lang}&query={q}&page=1&include_adult=false"
     try:
         res = requests.get(url, timeout=5)
         if res.status_code == 200:
@@ -2412,6 +2416,7 @@ def get_config():
         "plex_token": PLEX_TOKEN,
         "tmdb_api_key": TMDB_API_KEY,
         "sync_language": os.getenv("SYNC_LANGUAGE", "es"),
+        "dashboard_language": os.getenv("DASHBOARD_LANGUAGE", "auto"),
         "plex_client_id": PLEX_CLIENT_ID,
         "debug_mode": os.getenv("DEBUG", "false") == "true"
     }
@@ -2421,6 +2426,7 @@ class ConfigPayload(BaseModel):
     plex_token: str
     tmdb_api_key: str
     sync_language: str
+    dashboard_language: str
     plex_client_id: str
     debug_mode: Optional[bool] = False
     master_password: Optional[str] = None
@@ -2445,6 +2451,7 @@ def save_config(payload: ConfigPayload):
     env_vars["PLEX_TOKEN"] = payload.plex_token
     env_vars["TMDB_API_KEY"] = payload.tmdb_api_key
     env_vars["SYNC_LANGUAGE"] = payload.sync_language
+    env_vars["DASHBOARD_LANGUAGE"] = payload.dashboard_language
     env_vars["PLEX_CLIENT_ID"] = payload.plex_client_id
     env_vars["DEBUG"] = "true" if payload.debug_mode else "false"
     
@@ -2555,5 +2562,19 @@ def restore_config():
 # --- SERVE FRONTEND ---
 # Mount the static folder at the end to avoid overwriting routes /api/
 os.makedirs("static", exist_ok=True)
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+@app.get("/")
+def serve_index():
+    index_path = os.path.join("static", "index.html")
+    if not os.path.exists(index_path):
+        return HTMLResponse("index.html not found", status_code=404)
+        
+    with open(index_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    
+    dashboard_lang = os.getenv("DASHBOARD_LANGUAGE", "auto")
+    inject_script = f"<script>window.DASHBOARD_LANG = '{dashboard_lang}';</script>"
+    content = content.replace("<head>", f"<head>\n    {inject_script}", 1)
+    
+    return HTMLResponse(content=content)
 
+app.mount("/", StaticFiles(directory="static"), name="static")

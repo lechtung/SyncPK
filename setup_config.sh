@@ -13,11 +13,69 @@ if ! command -v whiptail &> /dev/null || ! command -v jq &> /dev/null || ! comma
     apt-get install -y whiptail curl jq &>/dev/null
 fi
 
+# Detect Timezone to guess initial installation language
+TZ=$(timedatectl show -p Timezone --value 2>/dev/null || cat /etc/timezone 2>/dev/null)
+DETECTED_LANG="en"
+case "$TZ" in
+    Europe/Madrid|America/Mexico_City|America/Buenos_Aires|America/Bogota|America/Lima) DETECTED_LANG="es" ;;
+    Europe/Berlin|Europe/Vienna|Europe/Zurich) DETECTED_LANG="de" ;;
+    Europe/Paris|America/Montreal) DETECTED_LANG="fr" ;;
+    Europe/Rome) DETECTED_LANG="it" ;;
+    Europe/Lisbon|America/Sao_Paulo) DETECTED_LANG="pt" ;;
+    Asia/Tokyo) DETECTED_LANG="ja" ;;
+    Asia/Shanghai|Asia/Chongqing) DETECTED_LANG="zh" ;;
+    *) DETECTED_LANG="en" ;;
+esac
+
+# Ask for Installation Language
+INSTALL_LANG=$(whiptail --menu "Choose your preferred language for the installation wizard:" 16 60 8 \
+"en" "English" \
+"es" "Español" \
+"de" "Deutsch" \
+"fr" "Français" \
+"it" "Italiano" \
+"pt" "Português" \
+"zh" "Chinese (Simplified)" \
+"ja" "Japanese" \
+--default-item "$DETECTED_LANG" \
+3>&1 1>&2 2>&3)
+
+if [ $? -ne 0 ] || [ -z "$INSTALL_LANG" ]; then 
+    INSTALL_LANG="en" 
+fi
+
+# Download the selected language JSON to parse texts
+echo "[Info] Loading language pack ($INSTALL_LANG)..."
+# We assume the user is installing from main branch if running directly, 
+# but if the user has a local copy (e.g., baremetal git clone), we try to read it locally first.
+JSON_PATH="server/static/locales/${INSTALL_LANG}.json"
+if [ -f "$JSON_PATH" ]; then
+    cp "$JSON_PATH" /tmp/install.json
+else
+    curl -s "https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/${INSTALL_LANG}.json" -o /tmp/install.json
+fi
+
+# Helper to read translation keys
+function t() {
+    jq -r ".$1" /tmp/install.json | sed 's/\\n/\n/g'
+}
+
+T_PLEX_URL=$(t "install_plex_url")
+T_PLEX_PASS=$(t "install_plex_pass")
+T_PLEX_AUTH=$(t "install_plex_auth")
+T_PWD=$(t "install_pwd")
+T_PWD_CONFIRM=$(t "install_pwd_confirm")
+T_PWD_ERR=$(t "install_pwd_error")
+T_TMDB=$(t "install_tmdb")
+T_SYNC_LANG=$(t "install_sync_lang")
+T_DASH_LANG=$(t "install_dash_lang")
+T_DEBUG=$(t "install_debug")
+
 # 1. Interactive form
-PLEX_URL=$(whiptail --inputbox "Enter your Plex server URL (e.g., http://192.168.1.100:32400):" 10 60 "http://" --title "Plex Configuration" 3>&1 1>&2 2>&3)
+PLEX_URL=$(whiptail --inputbox "$T_PLEX_URL" 10 60 "http://" --title "Plex Configuration" 3>&1 1>&2 2>&3)
 if [ $? -ne 0 ]; then exit 1; fi
 
-HAS_PLEX_PASS=$(whiptail --yesno "Do you have an active Plex Pass subscription?" 10 60 --title "Plex Configuration" 3>&1 1>&2 2>&3; echo $?)
+HAS_PLEX_PASS=$(whiptail --yesno "$T_PLEX_PASS" 10 60 --title "Plex Configuration" 3>&1 1>&2 2>&3; echo $?)
 if [ "$HAS_PLEX_PASS" -eq 0 ]; then
     HAS_PLEX_PASS="true"
 else
@@ -32,7 +90,7 @@ PIN_ID=$(echo "$PIN_RESPONSE" | jq -r '.id')
 PIN_CODE=$(echo "$PIN_RESPONSE" | jq -r '.code')
 AUTH_URL="https://app.plex.tv/auth#?clientID=$PLEX_CLIENT_ID&code=$PIN_CODE&context[device][product]=SyncPK"
 
-whiptail --msgbox "Plex Authentication Required!\n\nOn the next screen, you will see a link. Copy it and open it in your browser. The script will wait for you to authorize." 10 60
+whiptail --msgbox "$T_PLEX_AUTH" 10 60
 clear
 echo -e "\n============================================="
 echo -e "🔗 PLEX AUTHORIZATION LINK:"
@@ -48,23 +106,24 @@ done
 echo "[Info] Plex authentication successful!"
 
 while true; do
-    SYNC_PASSWORD=$(whiptail --passwordbox "Create a master password for the Web Dashboard:" 10 60 --title "Security" 3>&1 1>&2 2>&3)
+    SYNC_PASSWORD=$(whiptail --passwordbox "$T_PWD" 10 60 --title "Security" 3>&1 1>&2 2>&3)
     if [ $? -ne 0 ]; then exit 1; fi
 
-    SYNC_PASSWORD_CONFIRM=$(whiptail --passwordbox "Confirm your master password:" 10 60 --title "Security" 3>&1 1>&2 2>&3)
+    SYNC_PASSWORD_CONFIRM=$(whiptail --passwordbox "$T_PWD_CONFIRM" 10 60 --title "Security" 3>&1 1>&2 2>&3)
     if [ $? -ne 0 ]; then exit 1; fi
 
     if [ "$SYNC_PASSWORD" == "$SYNC_PASSWORD_CONFIRM" ]; then
         break
     else
-        whiptail --msgbox "Passwords do not match. Please try again." 8 45 --title "Error"
+        whiptail --msgbox "$T_PWD_ERR" 8 45 --title "Error"
     fi
 done
 
-TMDB_API_KEY=$(whiptail --inputbox "Enter your TMDB API Key (Free at themoviedb.org) to load posters:" 10 60 --title "TMDB (The Movie Database)" 3>&1 1>&2 2>&3)
+TMDB_API_KEY=$(whiptail --inputbox "$T_TMDB" 10 60 --title "TMDB (The Movie Database)" 3>&1 1>&2 2>&3)
 if [ $? -ne 0 ]; then exit 1; fi
 
-SYNC_LANGUAGE=$(whiptail --menu "Choose your preferred language for metadata:" 16 60 8 \
+DASHBOARD_LANGUAGE=$(whiptail --menu "$T_DASH_LANG" 16 60 9 \
+"auto" "Browser Default" \
 "en" "English" \
 "es" "Español" \
 "de" "Deutsch" \
@@ -72,13 +131,29 @@ SYNC_LANGUAGE=$(whiptail --menu "Choose your preferred language for metadata:" 1
 "it" "Italiano" \
 "pt" "Português" \
 "zh" "Chinese (Simplified)" \
-"ja" "Japanese" 3>&1 1>&2 2>&3)
+"ja" "Japanese" \
+--default-item "auto" 3>&1 1>&2 2>&3)
+
+if [ $? -ne 0 ] || [ -z "$DASHBOARD_LANGUAGE" ]; then 
+    DASHBOARD_LANGUAGE="auto" 
+fi
+
+SYNC_LANGUAGE=$(whiptail --menu "$T_SYNC_LANG" 16 60 8 \
+"en" "English" \
+"es" "Español" \
+"de" "Deutsch" \
+"fr" "Français" \
+"it" "Italiano" \
+"pt" "Português" \
+"zh" "Chinese (Simplified)" \
+"ja" "Japanese" \
+--default-item "$INSTALL_LANG" 3>&1 1>&2 2>&3)
 
 if [ $? -ne 0 ] || [ -z "$SYNC_LANGUAGE" ]; then 
     SYNC_LANGUAGE="en" 
 fi
 
-if whiptail --yesno "Do you want to enable extensive DEBUG logging for the backend?" 10 60 --defaultno --title "Backend Configuration" 3>&1 1>&2 2>&3; then
+if whiptail --yesno "$T_DEBUG" 10 60 --defaultno --title "Backend Configuration" 3>&1 1>&2 2>&3; then
     DEBUG_MODE="true"
 else
     DEBUG_MODE="false"
@@ -102,6 +177,7 @@ WEB_HASH=$WEB_HASH
 API_HASH=$API_HASH
 TMDB_API_KEY=$TMDB_API_KEY
 SYNC_LANGUAGE=$SYNC_LANGUAGE
+DASHBOARD_LANGUAGE=$DASHBOARD_LANGUAGE
 DEBUG=$DEBUG_MODE
 # Save the API_TOKEN as well for MOTD generation later
 API_TOKEN_RAW=$API_TOKEN

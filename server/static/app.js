@@ -142,6 +142,9 @@ async function loadUIConfig() {
 
 async function loadTranslations() {
     let lang = navigator.language.split('-')[0];
+    if (window.DASHBOARD_LANG && window.DASHBOARD_LANG !== "auto") {
+        lang = window.DASHBOARD_LANG;
+    }
     try {
         let res = await fetch(`locales/${lang}.json`);
         if (!res.ok) throw new Error("Not found");
@@ -1006,6 +1009,18 @@ function setupConfigModal() {
                         valEl.textContent = selectedItem.textContent;
                         valEl.setAttribute('data-i18n', selectedItem.getAttribute('data-i18n'));
                     }
+                    
+                    let dashLangValue = data.dashboard_language || 'auto';
+                    let dashLangDd = document.getElementById('configDashboardLang-dd');
+                    dashLangDd.dataset.currentValue = dashLangValue;
+                    dashLangDd.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected'));
+                    let dashSelectedItem = dashLangDd.querySelector(`.c-dropdown-item[data-value="${dashLangValue}"]`);
+                    if (dashSelectedItem) {
+                        dashSelectedItem.classList.add('selected');
+                        let dashValEl = dashLangDd.querySelector('.c-dropdown-value');
+                        dashValEl.textContent = dashSelectedItem.textContent;
+                        dashValEl.setAttribute('data-i18n', dashSelectedItem.getAttribute('data-i18n'));
+                    }
                     configModal.dataset.originalLang = langValue;
 
                     // Resetear estado del formulario
@@ -1106,6 +1121,7 @@ function setupConfigModal() {
     saveBtn.addEventListener('click', async () => {
         const origLang = configModal.dataset.originalLang;
         const newLang = document.getElementById('configLang-dd').dataset.currentValue || 'es';
+        const newDashLang = document.getElementById('configDashboardLang-dd').dataset.currentValue || 'auto';
         const pwd = pwdInput.value;
 
         const payload = {
@@ -1114,7 +1130,8 @@ function setupConfigModal() {
             tmdb_api_key: document.getElementById('config-tmdb-api').value,
             plex_client_id: document.getElementById('config-plex-client-id').value,
             debug_mode: document.getElementById('config-debug').checked,
-            sync_language: newLang
+            sync_language: newLang,
+            dashboard_language: newDashLang
         };
 
         if (pwd) payload.master_password = pwd;
