@@ -6,6 +6,7 @@
     --text-secondary: #8b949e;
     --accent: #58a6ff;
     --accent-hover: #3182ce;
+    --accent-dark: #2568a8;
     --danger: #f85149;
 }
 
@@ -163,6 +164,15 @@ input[type="checkbox"]:checked {
     border-color: var(--accent-hover);
 }
 
+input[type="checkbox"]:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+input[type="checkbox"]:checked:hover {
+    background-color: var(--accent-dark);
+    border-color: var(--accent-dark);
+}
+
 /* CUSTOM RADIO STYLING */
 input[type="radio"] {
     appearance: none;
@@ -199,6 +209,15 @@ input[type="radio"]:checked::before {
 input[type="radio"]:checked {
     background-color: var(--accent-hover);
     border-color: var(--accent-hover);
+}
+
+input[type="radio"]:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+input[type="radio"]:checked:hover {
+    background-color: var(--accent-dark);
+    border-color: var(--accent-dark);
 }
 
 

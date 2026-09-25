@@ -14,6 +14,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --accent-dark: #2568a8;
+        }
         /* Estilos específicos para el Mockup del Toast y el Overlay de carga */
 
         /* 1. MOCKUP: Toast de éxito flotante y muy visible */
@@ -193,14 +196,17 @@
         }
 
         input[type="checkbox"]:checked {
-            background-color: var(--accent);
-            border-color: var(--accent);
-        }
-
-        /* Variante Oscura */
-        input[type="checkbox"].checkbox-dark:checked {
             background-color: var(--accent-hover);
             border-color: var(--accent-hover);
+        }
+
+        input[type="checkbox"]:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        input[type="checkbox"]:checked:hover {
+            background-color: var(--accent-dark);
+            border-color: var(--accent-dark);
         }
 
         /* CUSTOM RADIO STYLING */
@@ -239,6 +245,15 @@
         input[type="radio"]:checked {
             background-color: var(--accent-hover);
             border-color: var(--accent-hover);
+        }
+
+        input[type="radio"]:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        input[type="radio"]:checked:hover {
+            background-color: var(--accent-dark);
+            border-color: var(--accent-dark);
         }
     </style>
 </head>
