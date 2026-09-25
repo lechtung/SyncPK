@@ -171,8 +171,10 @@ pct push $CTID .env /opt/syncpk/.env
 echo "[Info] Launching automated system installer inside LXC..."
 pct exec $CTID -- bash -c "apt-get update >/dev/null 2>&1 && apt-get install -y curl ca-certificates >/dev/null 2>&1 && cd /opt/syncpk && curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/setup_system.sh -o setup_system.sh && chmod +x setup_system.sh && ./setup_system.sh"
 
+curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/show_summary.sh -o /tmp/show_summary.sh
+chmod +x /tmp/show_summary.sh
 source .env
-bash show_summary.sh "$CT_IP" "$API_TOKEN_RAW" "LXC container at /opt/syncpk"
+/tmp/show_summary.sh "$CT_IP" "$API_TOKEN_RAW" "LXC container at /opt/syncpk"
 
 echo "Installation completed! Server IP: $CT_IP"
 

@@ -1005,8 +1005,10 @@ def get_plex_activity_nodes(metadata_id, types=None, max_timeout=600):
                 retry_after = int(r.headers.get("Retry-After", 5))
                 time.sleep(retry_after)
                 continue
+            else:
+                return []
         except Exception:
-            pass
+            return []
 
         if (time.time() - start_time) >= max_timeout:
             return []

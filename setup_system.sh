@@ -36,11 +36,19 @@ curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRAN
 curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/app.js -o $INSTALL_DIR/static/app.js
 curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/locales/en.json -o $INSTALL_DIR/static/locales/en.json
 curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/locales/es.json -o $INSTALL_DIR/static/locales/es.json
+curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/locales/de.json -o $INSTALL_DIR/static/locales/de.json
+curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/locales/fr.json -o $INSTALL_DIR/static/locales/fr.json
+curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/locales/it.json -o $INSTALL_DIR/static/locales/it.json
+curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/locales/pt.json -o $INSTALL_DIR/static/locales/pt.json
+curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/locales/ja.json -o $INSTALL_DIR/static/locales/ja.json
+curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/locales/zh.json -o $INSTALL_DIR/static/locales/zh.json
 curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/favicon.ico -o $INSTALL_DIR/static/favicon.ico
 curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/requirements.txt -o $INSTALL_DIR/requirements.txt
 
 # Copy the generated .env file to the installation directory
-cp .env $INSTALL_DIR/.env
+if [ "$(realpath .env 2>/dev/null)" != "$(realpath $INSTALL_DIR/.env 2>/dev/null)" ]; then
+    cp .env $INSTALL_DIR/.env
+fi
 
 # Fallback requirements
 if [ ! -f $INSTALL_DIR/requirements.txt ] || ! grep -q "fastapi" $INSTALL_DIR/requirements.txt; then
