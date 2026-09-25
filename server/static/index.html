@@ -5,9 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SyncPK Dashboard</title>
-    <link rel="stylesheet" href="/style.css?v=36">
+    <link rel="stylesheet" href="/style.css?v=37">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <script src="/app.js?v=36" defer></script>
+    <script src="/app.js?v=37" defer></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -352,12 +352,6 @@
             <h2 data-i18n="config_title" style="margin-top:0; margin-bottom: 20px; text-align: center;">Configuración
             </h2>
 
-            <button id="config-restore-btn"
-                style="width: 100%; margin-bottom: 15px; background: transparent; border: 1px solid var(--accent); color: var(--accent); font-size: 0.85rem; padding: 8px; border-radius: 6px; cursor: pointer; transition: all 0.2s ease;"
-                onmouseover="this.style.background='rgba(255,165,0,0.1)'"
-                onmouseout="this.style.background='transparent'">Restaurar
-                config original</button>
-
             <h4 style="margin-top:0; margin-bottom: 8px; color: #aaa; font-size: 0.85rem; display: block;">Plex URL:
             </h4>
             <input type="text" id="config-plex-url" placeholder="http://192.168.1.100:32400">
@@ -406,7 +400,7 @@
                 </label>
             </div>
 
-            <div style="margin-top:20px; padding-top: 15px; border-top: 1px solid var(--glass-border);">
+            <div style="margin-top:20px;">
                 <h4 style="margin-top:0; margin-bottom: 8px; color: #aaa; font-size: 0.85rem;">Master Password:</h4>
                 <div style="position: relative;">
                     <input type="text" id="config-password" placeholder="Nueva contraseña (opcional)"
@@ -421,6 +415,12 @@
                 <div id="config-password-error" class="error-text hidden"
                     style="margin-bottom: 16px; text-align: center;">Las contraseñas no coinciden</div>
             </div>
+
+            <button id="config-restore-btn"
+                style="width: 100%; margin-top: 10px; background: transparent; border: 1px solid var(--accent); color: var(--accent); font-size: 0.85rem; padding: 8px; border-radius: 6px; cursor: pointer; transition: all 0.2s ease;"
+                onmouseover="this.style.background='rgba(255,165,0,0.1)'"
+                onmouseout="this.style.background='transparent'">Restaurar
+                config original</button>
 
             <div class="modal-separator"></div>
             <div class="modal-buttons">
