@@ -1030,27 +1030,27 @@ function setupConfigModal() {
     const restoreBtn = document.getElementById('config-restore-btn');
     if (restoreBtn) {
         restoreBtn.addEventListener('click', async () => {
-            if (!confirm('¿Estás seguro de querer restaurar la configuración original? Se perderán los cambios no guardados.')) return;
+            if (!confirm(currentLangData.config_restore_confirm || 'Are you sure you want to restore the original configuration? Unsaved changes will be lost.')) return;
 
-            showProcessingOverlay('Restaurando', 'Cargando copia de seguridad...');
+            showProcessingOverlay(currentLangData.config_restoring || 'Restoring', currentLangData.config_restoring_sub || 'Loading backup...');
             try {
                 let res = await apiFetch('/api/config/restore', { method: 'POST' });
                 if (res.ok) {
                     let data = await res.json();
                     if (data.status === 'success') {
-                        updateOverlayResult('success', 'Restaurado con éxito.');
+                        updateOverlayResult('success', currentLangData.config_restore_success || 'Restored successfully.');
                         setTimeout(() => window.location.reload(), 1500);
                     } else {
-                        updateOverlayResult('error', data.message || 'Error al restaurar');
+                        updateOverlayResult('error', data.message || currentLangData.config_restore_error || 'Error restoring');
                         hideOverlay(3000);
                     }
                 } else {
-                    updateOverlayResult('error', 'Error de red');
+                    updateOverlayResult('error', currentLangData.network_error || 'Network error');
                     hideOverlay(3000);
                 }
             } catch (e) {
                 console.error(e);
-                updateOverlayResult('error', 'Error crítico');
+                updateOverlayResult('error', currentLangData.critical_error || 'Critical error');
                 hideOverlay(3000);
             }
         });
@@ -1060,7 +1060,7 @@ function setupConfigModal() {
     document.getElementById('config-get-token-btn').addEventListener('click', async () => {
         const statusEl = document.getElementById('config-pin-status');
         statusEl.classList.remove('hidden');
-        statusEl.textContent = 'Obteniendo PIN...';
+        statusEl.textContent = currentLangData.config_pin_getting || 'Getting PIN...';
 
         try {
             const formData = new URLSearchParams();
@@ -1080,7 +1080,7 @@ function setupConfigModal() {
             const authAppUrl = `https://app.plex.tv/auth#?clientID=SyncPK-Server-App&code=${pinCode}&context%5Bdevice%5D%5Bproduct%5D=SyncPK`;
             window.open(authAppUrl, '_blank');
 
-            statusEl.textContent = 'Por favor inicia sesión en la nueva pestaña de Plex...';
+            statusEl.textContent = currentLangData.config_pin_login || 'Please log in on the new Plex tab...';
 
             if (plexPinPollingInterval) clearInterval(plexPinPollingInterval);
             plexPinPollingInterval = setInterval(async () => {
@@ -1091,13 +1091,13 @@ function setupConfigModal() {
                 if (checkData.authToken) {
                     clearInterval(plexPinPollingInterval);
                     document.getElementById('config-plex-token').value = checkData.authToken;
-                    statusEl.textContent = '¡Token obtenido correctamente!';
+                    statusEl.textContent = currentLangData.config_pin_success || 'Token obtained successfully!';
                     setTimeout(() => statusEl.classList.add('hidden'), 3000);
                 }
             }, 2000);
 
         } catch (e) {
-            statusEl.textContent = 'Error obteniendo PIN de Plex.';
+            statusEl.textContent = currentLangData.config_pin_error || 'Error getting Plex PIN.';
             console.error(e);
         }
     });
@@ -1120,7 +1120,8 @@ function setupConfigModal() {
         if (pwd) payload.master_password = pwd;
 
         if (newLang !== origLang) {
-            if (!confirm('You have changed the language. Do you want to rescan your ENTIRE library (Titles and Posters) to apply the new language? (This may take a few minutes)')) {
+            let rescanConfirmMsg = currentLangData.config_rescan_confirm || 'You have changed the language. Do you want to rescan your ENTIRE library (Titles and Posters) to apply the new language? (This may take a few minutes)';
+            if (!confirm(rescanConfirmMsg)) {
                 return; // Wait or just save without rescan? Let's just save. Actually, if they say NO, maybe just save. Let's do a custom modal or just native confirm.
             } else {
                 payload.force_rescan = true;
@@ -1356,7 +1357,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         const data = await res.json();
                         if (data.status === 'confirm_rewatch') {
                             hideOverlay(0);
-                            const confirmed = window.confirm(`Ya has visto esto anteriormente (última vez: ${new Date(data.last_watched).toLocaleDateString()}). ¿Deseas registrar un NUEVO visionado (re-watch)?`);
+                            let rewMsg = currentLangData.manual_rewatch_confirm || 'You have watched this before (last time: {date}). Do you want to log a NEW watch (re-watch)?';
+                            rewMsg = rewMsg.replace('{date}', new Date(data.last_watched).toLocaleDateString());
+                            const confirmed = window.confirm(rewMsg);
                             if (confirmed) {
                                 payload.force_rewatch = true;
                                 showProcessingOverlay(currentLangData.overlay_processing || 'Processing request', currentLangData.overlay_wait || 'Please wait...');
