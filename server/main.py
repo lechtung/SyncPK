@@ -306,9 +306,18 @@ def download_episode_fanart_sync(thumb_url, metadata_id):
     if fanart_local:
         return fanart_local
         
-    # Replace /original/ with /w780/ or similar if it's a tmdb url
+    # Arreglar URLs relativas de Plex y usar transcodificador
+    if thumb_url.startswith("/"):
+        if "/photo/:/transcode" not in thumb_url:
+            import urllib.parse
+            encoded_url = urllib.parse.quote_plus(thumb_url)
+            thumb_url = f"{PLEX_URL}/photo/:/transcode?width=300&height=169&minSize=1&upscale=1&url={encoded_url}&X-Plex-Token={PLEX_TOKEN}"
+        else:
+            thumb_url = f"{PLEX_URL}{thumb_url}&X-Plex-Token={PLEX_TOKEN}" if "?" in thumb_url else f"{PLEX_URL}{thumb_url}?X-Plex-Token={PLEX_TOKEN}"
+            
+    # Replace /original/ with /w300/ or similar if it's a tmdb url
     if "/original/" in thumb_url:
-        thumb_url = thumb_url.replace("/original/", "/w780/")
+        thumb_url = thumb_url.replace("/original/", "/w300/")
         
     import requests
     try:
@@ -1046,8 +1055,16 @@ def mutate_plex_activity(node_id, action, watched_at_graphql=None, title="", max
         try:
             r = requests.post(url, headers=headers, json=payload, timeout=10)
             if r.status_code == 200:
-                print(f"{msg} for '{title}': HTTP 200", flush=True)
-                return True
+                resp_json = r.json()
+                import os
+                if os.getenv("DEBUG") == "true":
+                    print(f"[DEBUG] mutate_plex_activity response for '{title}': {resp_json}", flush=True)
+                    
+                if "errors" in resp_json:
+                    print(f"⚠️ Mutation error in Plex Cloud for '{title}': {resp_json['errors']}", flush=True)
+                else:
+                    print(f"{msg} for '{title}': HTTP 200", flush=True)
+                    return True
             elif r.status_code == 429:
                 retry_after = int(r.headers.get("Retry-After", 5))
                 time.sleep(retry_after)
@@ -1561,25 +1578,14 @@ def get_oldest_date(rating_key, metadata_id, xml_watched_at):
         elif hr.status_code == 401:
             print(f"❌ Access denied (401) in local API for {rating_key}. Check Token.", flush=True)
         elif hr.status_code == 404:
-            print(f"ℹ️ No local history for {rating_key} (404).", flush=True)
-        else:
-            print(f"⚠️ Error {hr.status_code} in local history for {rating_key}: {hr.text}", flush=True)
-            
+            pass # No local history for this item
     except requests.exceptions.RequestException as req_err:
         print(f"❌ Connection error to local Plex server ({PLEX_URL}): {req_err}", flush=True)
     except Exception as e:
         print(f"❌ Unknown error processing local history for {rating_key}: {e}", flush=True)
         
-    # GraphQL API (Cloud)
-    # --- NUEVO UNIFICADO ---
-    nodes = get_plex_activity_nodes(
-        metadata_id, 
-        types=["METADATA_MESSAGE", "RATING", "WATCH_HISTORY", "WATCHLIST", "POST", "WATCH_SESSION", "WATCH_RATING", "REVIEW", "WATCH_REVIEW"]
-    )
-    for n in nodes:
-        if "date" in n:
-            fechas.append(n["date"])
-    # -------------------------------------------------------------
+# NOTE: We have removed the individual slow GraphQL query (get_plex_activity_nodes) 
+    # from this phase. Smart Extractor V2 is now responsible for querying dates from the cloud.
         
     if not fechas:
         return xml_watched_at
@@ -1589,6 +1595,12 @@ def get_oldest_date(rating_key, metadata_id, xml_watched_at):
 def build_payload_from_plex(item, media_type, show_map=None):
     if show_map is None: show_map = {}
     
+    guid = item.get("guid", "")
+    
+    # Completely ignore any content that does not have a real match in Plex (local/none agent)
+    if "tv.plex.agents.none" in guid or "local://" in guid:
+        return None
+        
     last_viewed_at = item.get("lastViewedAt")
     if last_viewed_at:
         utc_dt = datetime.datetime.utcfromtimestamp(last_viewed_at)
@@ -1730,7 +1742,9 @@ def push_all_to_db():
                             seen_keys.add(dedup_key)
                                 
                             p = build_payload_from_plex(item, actual_media_type, show_map)
-                            
+                            if not p:
+                                continue
+                                
                             if process_plex_payload(p, cursor, is_bulk=True):
                                 count += 1
                                 
@@ -1793,7 +1807,8 @@ def push_recent_to_db(last_sync_utc_str):
                 if m_type in ["movie", "episode"]:
                     history_map = {r_key: viewed_at}
                     payload = build_payload_from_plex(item_data, m_type, history_map, viewed_at)
-                    payloads.append(payload)
+                    if payload:
+                        payloads.append(payload)
         except Exception as e:
             pass
             
@@ -1915,6 +1930,7 @@ def push_cloud_orphans_to_db():
     count_updates = 0
     
     processed_shows = set()
+    show_titles_cache = {}
     
     def process_item_node(node, is_secondary=False):
         nonlocal count_orphans, count_updates
@@ -1950,21 +1966,46 @@ def push_cloud_orphans_to_db():
                         actual_media_type = m_type
                         
                         p = build_payload_from_plex(item, actual_media_type)
+                        if not p:
+                            return
                         p["Metadata"]["watched_at"] = cloud_date 
                         
                         if actual_media_type == "episode" and "grandparentGuid" in item:
                             gp_guid = item["grandparentGuid"]
-                            gp_id = gp_guid.split("/")[-1]
-                            try:
-                                gp_url = f"https://metadata.provider.plex.tv/library/metadata/{gp_id}?X-Plex-Token={PLEX_TOKEN}&X-Plex-Language={lang}"
-                                gp_resp = requests.get(gp_url, headers={"Accept": "application/json"}, timeout=5)
-                                if gp_resp.status_code == 200:
-                                    gp_data = gp_resp.json().get("MediaContainer", {}).get("Metadata", [])
-                                    if gp_data:
-                                        p["Metadata"]["grandparentGuids"] = gp_data[0].get("Guid", [])
-                            except Exception:
-                                pass
-                        
+                            
+                            if gp_guid not in show_titles_cache:
+                                # 1. Buscar en BD local para heredar el nombre
+                                cursor.execute("SELECT show_title FROM watch_history WHERE plex_show_guid = ? LIMIT 1", (gp_guid,))
+                                row_show = cursor.fetchone()
+                                local_title = row_show["show_title"] if (row_show and row_show["show_title"]) else None
+                                
+                                # 2. Buscar en Plex Cloud para rellenar Guids y por si acaso el nombre no está local
+                                cloud_guids = []
+                                cloud_title = None
+                                gp_id = gp_guid.split("/")[-1]
+                                try:
+                                    gp_url = f"https://metadata.provider.plex.tv/library/metadata/{gp_id}?X-Plex-Token={PLEX_TOKEN}&X-Plex-Language={lang}"
+                                    gp_resp = requests.get(gp_url, headers={"Accept": "application/json"}, timeout=5)
+                                    if gp_resp.status_code == 200:
+                                        gp_data = gp_resp.json().get("MediaContainer", {}).get("Metadata", [])
+                                        if gp_data:
+                                            cloud_title = gp_data[0].get("title")
+                                            cloud_guids = gp_data[0].get("Guid", [])
+                                except Exception:
+                                    pass
+                                    
+                                # Guardar en caché el nombre final (prioridad local) y los guids
+                                show_titles_cache[gp_guid] = {
+                                    "title": local_title or cloud_title,
+                                    "guids": cloud_guids
+                                }
+                                
+                            cached_data = show_titles_cache[gp_guid]
+                            if cached_data["title"]:
+                                p["Metadata"]["grandparentTitle"] = cached_data["title"]
+                            if cached_data["guids"]:
+                                p["Metadata"]["grandparentGuids"] = cached_data["guids"]
+                                
                         if process_plex_payload(p, cursor, is_bulk=True):
                             conn.commit()
                             count_orphans += 1
@@ -2022,6 +2063,7 @@ def push_cloud_orphans_to_db():
             "operationName": "GetActivityFeed"
         }
         
+        retries_primary = 0
         try:
             resp = requests.post(url_graphql, headers=headers_fetch, json=payload, timeout=20)
             if resp.status_code == 429:
@@ -2031,7 +2073,21 @@ def push_cloud_orphans_to_db():
                 print(f"Error {resp.status_code} fetching from Plex Cloud.")
                 break
                 
-            data = resp.json().get("data", {}).get("activityFeed", {})
+            resp_json = resp.json()
+            if "errors" in resp_json:
+                print(f"⚠️ Error interno en GraphQL de Plex Cloud: {resp_json['errors']}")
+                retries_primary += 1
+                if retries_primary > 3:
+                    print("❌ Demasiados fallos consecutivos en Plex Cloud. Saltando...")
+                    break
+                time.sleep(5)
+                continue
+                
+            data = resp_json.get("data")
+            if not data:
+                break
+            
+            data = data.get("activityFeed", {})
             nodes = data.get("nodes", [])
             page_info = data.get("pageInfo", {})
             
