@@ -10,6 +10,14 @@ echo "======================================================"
 echo "          SyncPK Installer (Baremetal/Linux)          "
 echo "======================================================"
 
+# 0. Setup Language
+echo "[Info] Launching language selection..."
+bash select_language.sh
+if [ $? -ne 0 ]; then
+    echo -e "\e[31m[ERROR] Language selection was aborted or failed.\e[0m"
+    exit 1
+fi
+
 # 1. Run the interactive configuration wizard
 echo "[Info] Launching interactive setup..."
 bash setup_config.sh

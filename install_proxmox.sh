@@ -24,6 +24,17 @@ fi
 apt-get update &>/dev/null
 apt-get install -y whiptail curl jq base64 &>/dev/null
 
+# 0. Setup Language
+echo "[Info] Launching language selection..."
+if [ -f "select_language.sh" ]; then
+    bash select_language.sh "$GITHUB_USER" "$GITHUB_REPO" "$GITHUB_BRANCH"
+else
+    curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/select_language.sh -o /tmp/select_language.sh
+    chmod +x /tmp/select_language.sh
+    /tmp/select_language.sh "$GITHUB_USER" "$GITHUB_REPO" "$GITHUB_BRANCH"
+fi
+if [ $? -ne 0 ]; then exit 1; fi
+
 # 1. Storage autodiscovery
 echo "[Info] Searching for storages compatible with LXC containers..."
 STORAGES=$(pvesm status -content rootdir | awk 'NR>1 {print $1}')

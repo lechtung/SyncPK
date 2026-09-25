@@ -13,46 +13,20 @@ if ! command -v whiptail &> /dev/null || ! command -v jq &> /dev/null || ! comma
     apt-get install -y whiptail curl jq &>/dev/null
 fi
 
-# Detect Timezone to guess initial installation language
-TZ=$(timedatectl show -p Timezone --value 2>/dev/null || cat /etc/timezone 2>/dev/null)
-DETECTED_LANG="en"
-case "$TZ" in
-    Europe/Madrid|America/Mexico_City|America/Buenos_Aires|America/Bogota|America/Lima) DETECTED_LANG="es" ;;
-    Europe/Berlin|Europe/Vienna|Europe/Zurich) DETECTED_LANG="de" ;;
-    Europe/Paris|America/Montreal) DETECTED_LANG="fr" ;;
-    Europe/Rome) DETECTED_LANG="it" ;;
-    Europe/Lisbon|America/Sao_Paulo) DETECTED_LANG="pt" ;;
-    Asia/Tokyo) DETECTED_LANG="ja" ;;
-    Asia/Shanghai|Asia/Chongqing) DETECTED_LANG="zh" ;;
-    *) DETECTED_LANG="en" ;;
-esac
-
-# Ask for Installation Language
-INSTALL_LANG=$(whiptail --menu "Choose your preferred language for the installation wizard:" 16 60 8 \
-"en" "English" \
-"es" "Español" \
-"de" "Deutsch" \
-"fr" "Français" \
-"it" "Italiano" \
-"pt" "Português" \
-"zh" "Chinese (Simplified)" \
-"ja" "Japanese" \
---default-item "$DETECTED_LANG" \
-3>&1 1>&2 2>&3)
-
-if [ $? -ne 0 ] || [ -z "$INSTALL_LANG" ]; then 
-    INSTALL_LANG="en" 
+if [ -f /tmp/install_lang ]; then
+    INSTALL_LANG=$(cat /tmp/install_lang)
+else
+    INSTALL_LANG="en"
 fi
 
-# Download the selected language JSON to parse texts
-echo "[Info] Loading language pack ($INSTALL_LANG)..."
-# We assume the user is installing from main branch if running directly, 
-# but if the user has a local copy (e.g., baremetal git clone), we try to read it locally first.
-JSON_PATH="server/static/locales/${INSTALL_LANG}.json"
-if [ -f "$JSON_PATH" ]; then
-    cp "$JSON_PATH" /tmp/install.json
-else
-    curl -s "https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/${INSTALL_LANG}.json" -o /tmp/install.json
+if [ ! -f /tmp/install.json ]; then
+    echo "[Info] Loading language pack ($INSTALL_LANG)..."
+    JSON_PATH="server/static/locales/${INSTALL_LANG}.json"
+    if [ -f "$JSON_PATH" ]; then
+        cp "$JSON_PATH" /tmp/install.json
+    else
+        curl -s "https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/${INSTALL_LANG}.json" -o /tmp/install.json
+    fi
 fi
 
 # Helper to read translation keys
