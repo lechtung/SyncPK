@@ -1,4 +1,4 @@
-﻿{
+{
     "login_title": "SyncPK",
     "login_desc": "マスターパスワードを入力してください",
     "login_btn": "ログイン",
@@ -168,15 +168,14 @@
     "summary_nopass_instructions": "Kodi アドオンに IP と API トークンを入力します。\nSyncPK は定期的に自動的に Plex をチェックします。",
     "config_pass_upgrade_hint": "最近 Plex Pass をサブスクライブした場合は、Webhook を有効にするために再度ログインしてください。",
     "config_pass_found": "Plex Pass が検出されました！Webhook が有効になりました。",
-    "config_pass_not_found": "Plex Pass は検出されませんでした。"
-,
-    "update_title": "New Version Available!",
-    "update_subtitle": "SyncPK version [VERSION] is ready to download. Do you want to install it now?",
-    "update_ignore": "Ignore this specific version",
-    "update_never_notify": "Do not notify about new versions",
-    "btn_dismiss": "Dismiss",
-    "btn_update_now": "Update Now",
-    "config_notify_updates": "Notify me about new updates",
-    "updating_title": "Updating System",
-    "updating_subtitle": "Please wait a few minutes while the system updates and restarts..."
+    "config_pass_not_found": "Plex Pass は検出されませんでした。",
+    "update_title": "新しいバージョンが利用可能です！",
+    "update_subtitle": "SyncPKバージョン[VERSION]のダウンロード準備ができました。今すぐインストールしますか？",
+    "update_ignore": "この特定のバージョンを無視する",
+    "update_never_notify": "新しいバージョンについて通知しない",
+    "btn_dismiss": "無視",
+    "btn_update_now": "今すぐ更新",
+    "config_notify_updates": "新しい更新について通知する",
+    "updating_title": "システムの更新中",
+    "updating_subtitle": "システムが更新されて再起動するまで、数分お待ちください..."
 }

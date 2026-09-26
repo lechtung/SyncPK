@@ -1,4 +1,4 @@
-﻿{
+{
     "login_title": "SyncPK",
     "login_desc": "Geben Sie Ihr Master-Passwort ein",
     "login_btn": "Anmelden",
@@ -24,7 +24,7 @@
     "action_edit": "Datum ändern",
     "edit_scope_episode": "Nur diese Episode",
     "edit_scope_backwards": "Diese Episode und vorherige",
-    "edit_scope_onwards": "Ab dieser Episode",
+    "edit_scope_onwards": "Diese Episode und neuere",
     "edit_scope_season": "Ganze Staffel",
     "edit_scope_show": "Ganze Serie",
     "confirm_delete": "Diesen Eintrag aus dem Verlauf löschen?",
@@ -168,15 +168,14 @@
     "summary_nopass_instructions": "Geben Sie die IP und das API-Token in Ihr Kodi-Addon ein.\nSyncPK überprüft Plex automatisch regelmäßig.",
     "config_pass_upgrade_hint": "Wenn Sie kürzlich Plex Pass abonniert haben, melden Sie sich bitte erneut an, um Webhooks zu aktivieren.",
     "config_pass_found": "Plex Pass erkannt! Webhooks sind jetzt aktiviert.",
-    "config_pass_not_found": "Kein Plex Pass erkannt."
-,
-    "update_title": "New Version Available!",
-    "update_subtitle": "SyncPK version [VERSION] is ready to download. Do you want to install it now?",
-    "update_ignore": "Ignore this specific version",
-    "update_never_notify": "Do not notify about new versions",
-    "btn_dismiss": "Dismiss",
-    "btn_update_now": "Update Now",
-    "config_notify_updates": "Notify me about new updates",
-    "updating_title": "Updating System",
-    "updating_subtitle": "Please wait a few minutes while the system updates and restarts..."
+    "config_pass_not_found": "Kein Plex Pass erkannt.",
+    "update_title": "Neue Version verfügbar!",
+    "update_subtitle": "SyncPK Version [VERSION] ist zum Download bereit. Möchten Sie sie jetzt installieren?",
+    "update_ignore": "Diese spezifische Version ignorieren",
+    "update_never_notify": "Nicht über neue Versionen benachrichtigen",
+    "btn_dismiss": "Verwerfen",
+    "btn_update_now": "Jetzt aktualisieren",
+    "config_notify_updates": "Mich über neue Updates benachrichtigen",
+    "updating_title": "System wird aktualisiert",
+    "updating_subtitle": "Bitte warten Sie einige Minuten, während das System aktualisiert und neu gestartet wird..."
 }

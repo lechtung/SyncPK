@@ -1,4 +1,4 @@
-﻿{
+{
     "login_title": "SyncPK",
     "login_desc": "请输入您的主密码",
     "login_btn": "登录",
@@ -24,7 +24,7 @@
     "action_edit": "更改日期",
     "edit_scope_episode": "仅此集",
     "edit_scope_backwards": "此集及以前的集数",
-    "edit_scope_onwards": "从此集开始",
+    "edit_scope_onwards": "此集及以后",
     "edit_scope_season": "整季",
     "edit_scope_show": "整部剧",
     "confirm_delete": "从历史记录中删除此项目？",
@@ -168,15 +168,14 @@
     "summary_nopass_instructions": "在您的 Kodi 插件中输入 IP 和 API 令牌。\nSyncPK 将定期自动检查 Plex。",
     "config_pass_upgrade_hint": "如果您最近订阅了 Plex Pass，请重新登录以激活 Webhooks。",
     "config_pass_found": "检测到 Plex Pass！已启用 Webhooks。",
-    "config_pass_not_found": "未检测到 Plex Pass。"
-,
-    "update_title": "New Version Available!",
-    "update_subtitle": "SyncPK version [VERSION] is ready to download. Do you want to install it now?",
-    "update_ignore": "Ignore this specific version",
-    "update_never_notify": "Do not notify about new versions",
-    "btn_dismiss": "Dismiss",
-    "btn_update_now": "Update Now",
-    "config_notify_updates": "Notify me about new updates",
-    "updating_title": "Updating System",
-    "updating_subtitle": "Please wait a few minutes while the system updates and restarts..."
+    "config_pass_not_found": "未检测到 Plex Pass。",
+    "update_title": "有新版本可用！",
+    "update_subtitle": "SyncPK 版本 [VERSION] 已准备好下载。您现在要安装它吗？",
+    "update_ignore": "忽略此特定版本",
+    "update_never_notify": "不要通知我新版本",
+    "btn_dismiss": "忽略",
+    "btn_update_now": "立即更新",
+    "config_notify_updates": "通知我有关新更新的信息",
+    "updating_title": "正在更新系统",
+    "updating_subtitle": "系统更新并重新启动时，请稍等几分钟..."
 }

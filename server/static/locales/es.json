@@ -1,4 +1,4 @@
-﻿{
+{
     "login_title": "SyncPK",
     "login_desc": "Introduce tu Contraseña Maestra",
     "login_btn": "Entrar",
@@ -24,7 +24,7 @@
     "action_edit": "Cambiar fecha",
     "edit_scope_episode": "Solo este episodio",
     "edit_scope_backwards": "Este episodio y anteriores",
-    "edit_scope_onwards": "A partir de este episodio",
+    "edit_scope_onwards": "Este episodio y posteriores",
     "edit_scope_season": "Temporada completa",
     "edit_scope_show": "Serie completa",
     "confirm_delete": "¿Eliminar este elemento del historial?",
@@ -168,8 +168,7 @@
     "summary_nopass_instructions": "Introduce la IP y el Token de API en tu Addon de Kodi.\nSyncPK revisará Plex automáticamente de forma periódica.",
     "config_pass_upgrade_hint": "Si has contratado Plex Pass recientemente, por favor identifícate de nuevo para activar los webhooks.",
     "config_pass_found": "¡Plex Pass detectado! Los webhooks están ahora activados.",
-    "config_pass_not_found": "No se ha detectado Plex Pass."
-,
+    "config_pass_not_found": "No se ha detectado Plex Pass.",
     "update_title": "¡Nueva Versión Disponible!",
     "update_subtitle": "La versión [VERSION] de SyncPK está lista para descargar. ¿Deseas instalarla ahora?",
     "update_ignore": "Ignorar esta versión específica",

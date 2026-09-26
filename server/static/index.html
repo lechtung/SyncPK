@@ -251,6 +251,22 @@
             style="min-width:340px; width:fit-content; max-width:90vw; text-align:center;">
             <p id="confirm-message" style="margin-bottom:24px; color:#fff; font-size:1rem;" data-i18n="confirm_delete">
                 Delete this item from history?</p>
+            <h4 id="deleteScope-title" style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;" data-i18n="edit_scope_title">Alcance</h4>
+            <div class="c-dropdown hidden" id="deleteScope-dd" style="margin-bottom: 24px;">
+                <div class="c-dropdown-trigger" id="deleteScope-trigger">
+                    <div class="c-dropdown-bottom">
+                        <span class="c-dropdown-value" id="deleteScope-val" data-i18n="edit_scope_episode">Only this episode</span>
+                        <span class="c-dropdown-arrow">▾</span>
+                    </div>
+                </div>
+                <div class="c-dropdown-menu glass-panel" id="deleteScope-menu">
+                    <div class="c-dropdown-item selected" data-value="episode" data-i18n="edit_scope_episode">Only this episode</div>
+                    <div class="c-dropdown-item" data-value="backwards" data-i18n="edit_scope_backwards">This episode and previous ones</div>
+                    <div class="c-dropdown-item" data-value="onwards" data-i18n="edit_scope_onwards">From this episode onwards</div>
+                    <div class="c-dropdown-item" data-value="season" data-i18n="edit_scope_season">Entire season</div>
+                    <div class="c-dropdown-item" data-value="show" data-i18n="edit_scope_show">Entire show</div>
+                </div>
+            </div>
             <label class="form-label" style="justify-content: center; margin-bottom: 24px;">
                 <input type="checkbox" id="deleteSyncRemote" checked>
                 <span data-i18n="modal_sync_remote">Update automatically on Plex & Kodi</span>

@@ -1,4 +1,4 @@
-﻿{
+{
     "login_title": "SyncPK",
     "login_desc": "Digite sua Senha Mestra",
     "login_btn": "Entrar",
@@ -24,7 +24,7 @@
     "action_edit": "Alterar data",
     "edit_scope_episode": "Apenas este episódio",
     "edit_scope_backwards": "Este episódio e os anteriores",
-    "edit_scope_onwards": "A partir deste episódio",
+    "edit_scope_onwards": "Este episódio e posteriores",
     "edit_scope_season": "Temporada inteira",
     "edit_scope_show": "Série inteira",
     "confirm_delete": "Excluir este item do histórico?",
@@ -168,15 +168,14 @@
     "summary_nopass_instructions": "Insira o IP e o token da API no seu Addon do Kodi.\nO SyncPK verificará o Plex automaticamente de forma periódica.",
     "config_pass_upgrade_hint": "Se você assinou recentemente o Plex Pass, faça o login novamente para ativar os webhooks.",
     "config_pass_found": "Plex Pass detectado! Os webhooks agora estão ativados.",
-    "config_pass_not_found": "Nenhum Plex Pass detectado."
-,
-    "update_title": "New Version Available!",
-    "update_subtitle": "SyncPK version [VERSION] is ready to download. Do you want to install it now?",
-    "update_ignore": "Ignore this specific version",
-    "update_never_notify": "Do not notify about new versions",
-    "btn_dismiss": "Dismiss",
-    "btn_update_now": "Update Now",
-    "config_notify_updates": "Notify me about new updates",
-    "updating_title": "Updating System",
-    "updating_subtitle": "Please wait a few minutes while the system updates and restarts..."
+    "config_pass_not_found": "Nenhum Plex Pass detectado.",
+    "update_title": "Nova versão disponível!",
+    "update_subtitle": "A versão [VERSION] do SyncPK está pronta para download. Deseja instalá-la agora?",
+    "update_ignore": "Ignorar esta versão específica",
+    "update_never_notify": "Não notificar sobre novas versões",
+    "btn_dismiss": "Dispensar",
+    "btn_update_now": "Atualizar agora",
+    "config_notify_updates": "Notificar-me sobre novas atualizações",
+    "updating_title": "Atualizando o sistema",
+    "updating_subtitle": "Aguarde alguns minutos enquanto o sistema é atualizado e reiniciado..."
 }

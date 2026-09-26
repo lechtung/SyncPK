@@ -1,4 +1,4 @@
-﻿{
+{
     "login_title": "SyncPK",
     "login_desc": "Entrez votre mot de passe principal",
     "login_btn": "Se connecter",
@@ -24,7 +24,7 @@
     "action_edit": "Changer la date",
     "edit_scope_episode": "Seulement cet épisode",
     "edit_scope_backwards": "Cet épisode et les précédents",
-    "edit_scope_onwards": "À partir de cet épisode",
+    "edit_scope_onwards": "Cet épisode et les suivants",
     "edit_scope_season": "Saison entière",
     "edit_scope_show": "Série entière",
     "confirm_delete": "Supprimer cet élément de l'historique ?",
@@ -168,15 +168,14 @@
     "summary_nopass_instructions": "Entrez l'IP et le jeton API dans votre module complémentaire Kodi.\nSyncPK vérifiera automatiquement Plex de manière périodique.",
     "config_pass_upgrade_hint": "Si vous vous êtes récemment abonné à Plex Pass, veuillez vous reconnecter pour activer les webhooks.",
     "config_pass_found": "Plex Pass détecté ! Les webhooks sont maintenant activés.",
-    "config_pass_not_found": "Aucun Plex Pass détecté."
-,
-    "update_title": "New Version Available!",
-    "update_subtitle": "SyncPK version [VERSION] is ready to download. Do you want to install it now?",
-    "update_ignore": "Ignore this specific version",
-    "update_never_notify": "Do not notify about new versions",
-    "btn_dismiss": "Dismiss",
-    "btn_update_now": "Update Now",
-    "config_notify_updates": "Notify me about new updates",
-    "updating_title": "Updating System",
-    "updating_subtitle": "Please wait a few minutes while the system updates and restarts..."
+    "config_pass_not_found": "Aucun Plex Pass détecté.",
+    "update_title": "Nouvelle version disponible !",
+    "update_subtitle": "La version [VERSION] de SyncPK est prête à être téléchargée. Voulez-vous l'installer maintenant ?",
+    "update_ignore": "Ignorer cette version spécifique",
+    "update_never_notify": "Ne pas m'informer des nouvelles versions",
+    "btn_dismiss": "Ignorer",
+    "btn_update_now": "Mettre à jour maintenant",
+    "config_notify_updates": "M'informer des nouvelles mises à jour",
+    "updating_title": "Mise à jour du système",
+    "updating_subtitle": "Veuillez patienter quelques minutes pendant que le système se met à jour et redémarre..."
 }

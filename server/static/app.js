@@ -216,7 +216,7 @@ function setupEventListeners() {
 
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-            ['edit-modal', 'manual-add-modal', 'config-modal', 'log-modal', 'update-modal'].forEach(id => {
+            ['edit-modal', 'manual-modal', 'confirm-modal', 'config-modal', 'log-modal', 'update-modal'].forEach(id => {
                 const modal = document.getElementById(id);
                 if (modal && !modal.classList.contains('hidden')) {
                     if (id === 'update-modal') {
@@ -327,19 +327,6 @@ async function fetchLogs() {
 function initDropdowns() {
     document.querySelectorAll('.c-dropdown').forEach(dd => {
         let trigger = dd.querySelector('.c-dropdown-trigger');
-        let closeTimer;
-
-        // Hover to open (excepto para editScope-dd, editDistMode-dd y configLang-dd)
-        if (dd.id !== 'editScope-dd' && dd.id !== 'editDistMode-dd' && dd.id !== 'configLang-dd') {
-            dd.addEventListener('mouseenter', () => {
-                clearTimeout(closeTimer);
-                dd.classList.add('open');
-            });
-            dd.addEventListener('mouseleave', () => {
-                closeTimer = setTimeout(() => dd.classList.remove('open'), 180);
-            });
-        }
-
         // Click trigger also toggles
         trigger.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -664,7 +651,7 @@ async function renderHistory(items) {
                     </div>
                     <button class="kebab-menu-btn" onclick="toggleDropdown(${item.id}, event)">⋮</button>
                     <div class="kebab-dropdown glass-panel" id="dropdown-${item.id}">
-                        <div class="dropdown-item danger" onclick="deleteItem(${item.id})" data-i18n="action_delete">${currentLangData.action_delete || 'Delete'}</div>
+                        <div class="dropdown-item danger" onclick="deleteItem(${item.id}, '${item.media_type}')" data-i18n="action_delete">${currentLangData.action_delete || 'Delete'}</div>
                         <div class="dropdown-item" onclick="openEditModal(${item.id}, '${item.watched_at}', '${item.media_type}')" data-i18n="action_edit">${currentLangData.action_edit || 'Edit'}</div>
                     </div>
                 </div>
@@ -683,9 +670,31 @@ window.toggleDropdown = function (id, e) {
     document.getElementById(`dropdown-${id}`).classList.toggle('show');
 }
 
-window.deleteItem = function (id) {
+window.deleteItem = function (id, mediaType) {
     let modal = document.getElementById('confirm-modal');
     modal.classList.remove('hidden');
+    
+    let scopeSelect = document.getElementById('deleteScope-dd');
+    let scopeValEl = document.getElementById('deleteScope-val');
+    let scopeTitle = document.getElementById('deleteScope-title');
+    
+    // Reset selection to default (episode)
+    if (scopeSelect) {
+        scopeSelect.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected'));
+        let defaultItem = scopeSelect.querySelector('.c-dropdown-item[data-value="episode"]');
+        if (defaultItem) defaultItem.classList.add('selected');
+        scopeSelect.dataset.currentValue = 'episode';
+        
+        if (mediaType === 'episode') {
+            scopeSelect.classList.remove('hidden');
+            if (scopeTitle) scopeTitle.classList.remove('hidden');
+            if (currentLangData.edit_scope_episode) scopeValEl.textContent = currentLangData.edit_scope_episode;
+        } else {
+            scopeSelect.classList.add('hidden');
+            if (scopeTitle) scopeTitle.classList.add('hidden');
+        }
+    }
+
     let yesBtn = document.getElementById('confirm-yes-btn');
     let noBtn = document.getElementById('confirm-no-btn');
 
@@ -700,13 +709,14 @@ window.deleteItem = function (id) {
         modal.classList.add('hidden');
         try {
             let syncRemote = document.getElementById('deleteSyncRemote') ? document.getElementById('deleteSyncRemote').checked : false;
+            let scopeVal = scopeSelect ? (scopeSelect.dataset.currentValue || 'episode') : 'episode';
 
             showProcessingOverlay(
                 currentLangData.overlay_processing || 'Processing request',
                 currentLangData.deleting_msg || 'Deleting, please wait...'
             );
 
-            let res = await apiFetch(`/api/history/${id}?sync_remote=${syncRemote}`, { method: 'DELETE' });
+            let res = await apiFetch(`/api/history/${id}?sync_remote=${syncRemote}&scope=${scopeVal}`, { method: 'DELETE' });
             if (res.ok) {
                 let card = document.getElementById(`card-${id}`);
                 if (card) {

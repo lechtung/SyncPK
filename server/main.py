@@ -981,9 +981,9 @@ def download_logs():
         return {"error": f"Error descargando logs: {e}"}
 
 @app.delete("/api/history/{item_id}")
-def delete_history_item(item_id: int, sync_remote: bool = False, authorization: str = Depends(verify_api_key)):
+def delete_history_item(item_id: int, scope: str = "episode", sync_remote: bool = False, authorization: str = Depends(verify_api_key)):
     if os.getenv("DEBUG") == "true":
-        print(f"[DEBUG] delete_history_item: Deleting item_id {item_id}, sync_remote={sync_remote}")
+        print(f"[DEBUG] delete_history_item: Deleting item_id {item_id}, scope={scope}, sync_remote={sync_remote}")
     conn = sqlite3.connect("sync.db")
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -992,16 +992,23 @@ def delete_history_item(item_id: int, sync_remote: bool = False, authorization: 
     row = cursor.fetchone()
     if row:
         item = dict(row)
-        if sync_remote:
-            now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-            cursor.execute("""
-                INSERT OR REPLACE INTO deleted_history (id, media_type, title, show_title, season, episode, tmdb_id, show_tmdb_id, deleted_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (item["id"], item["media_type"], item["title"], item.get("show_title"), item.get("season"), item.get("episode"), item.get("tmdb_id"), item.get("show_tmdb_id"), now_utc))
-            import threading
-            threading.Thread(target=unscrobble_plex, args=(item,)).start()
+        items_to_delete = get_items_for_scope(item, scope, cursor)
         
-    cursor.execute("DELETE FROM watch_history WHERE id = ?", (item_id,))
+        for d_item in items_to_delete:
+            if sync_remote:
+                now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                cursor.execute("""
+                    INSERT OR REPLACE INTO deleted_history (id, media_type, title, show_title, season, episode, tmdb_id, show_tmdb_id, deleted_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (d_item.get("id"), d_item.get("media_type"), d_item.get("title"), d_item.get("show_title"), d_item.get("season"), d_item.get("episode"), d_item.get("tmdb_id"), d_item.get("show_tmdb_id"), now_utc))
+                import threading
+                threading.Thread(target=unscrobble_plex, args=(d_item,)).start()
+            
+            if d_item.get("id"):
+                cursor.execute("DELETE FROM watch_history WHERE id = ?", (d_item["id"],))
+            elif d_item.get("plex_guid"):
+                cursor.execute("DELETE FROM watch_history WHERE plex_guid = ?", (d_item.get("plex_guid"),))
+                
     conn.commit()
     conn.close()
     return {"success": True}
@@ -1301,7 +1308,55 @@ def get_cloud_episodes_for_scope(plex_show_guid, ref_season, ref_episode, scope)
             
     return episodes
 
+
+def get_items_for_scope(item: dict, scope: str, cursor) -> list:
+    import os
+    items_to_modify = []
+    
+    if item.get("media_type") == "episode" and scope != "episode":
+        cloud_eps = get_cloud_episodes_for_scope(item.get("plex_show_guid"), item.get("season"), item.get("episode"), scope)
+        if cloud_eps:
+            for ep in cloud_eps:
+                items_to_modify.append({
+                    "id": None, 
+                    "title": ep.get("title", f"Episodio {ep.get('index')}"),
+                    "show_title": item.get("show_title"),
+                    "media_type": "episode",
+                    "season": ep.get("parentIndex"),
+                    "episode": ep.get("index"),
+                    "plex_guid": ep.get("guid"),
+                    "plex_show_guid": item.get("plex_show_guid"),
+                    "show_tmdb_id": item.get("show_tmdb_id"),
+                    "duration": int(ep.get("duration", 0)) // 60000 if ep.get("duration") else 0,
+                    "thumb": ep.get("thumb"),
+                    "Guid": ep.get("Guid", []),
+                    "poster_path": item.get("poster_path")
+                })
+        else:
+            if scope == "show":
+                cursor.execute("SELECT * FROM watch_history WHERE show_title = ?", (item.get("show_title"),))
+            elif scope == "season":
+                cursor.execute("SELECT * FROM watch_history WHERE show_title = ? AND season = ?", (item.get("show_title"), item.get("season")))
+            elif scope == "onwards":
+                cursor.execute("SELECT * FROM watch_history WHERE show_title = ? AND (season > ? OR (season = ? AND episode >= ?))", (item.get("show_title"), item.get("season"), item.get("season"), item.get("episode")))
+            elif scope == "backwards":
+                cursor.execute("SELECT * FROM watch_history WHERE show_title = ? AND (season < ? OR (season = ? AND episode <= ?))", (item.get("show_title"), item.get("season"), item.get("season"), item.get("episode")))
+            
+            for r in cursor.fetchall():
+                r_dict = dict(r)
+                if not any(x.get("id") == r_dict["id"] for x in items_to_modify):
+                    items_to_modify.append(r_dict)
+    else:
+        if item.get("id"):
+            cursor.execute("SELECT * FROM watch_history WHERE id = ?", (item["id"],))
+            items_to_modify = [dict(r) for r in cursor.fetchall()]
+        else:
+            items_to_modify = [item]
+            
+    return items_to_modify
+
 @app.put("/api/history/{item_id}")
+
 def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: str = Depends(verify_api_key)):
     conn = sqlite3.connect("sync.db")
     conn.row_factory = sqlite3.Row
@@ -1323,44 +1378,7 @@ def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: 
         print(f"[DEBUG] update_history_item: Modifying {item['title']}, Scope: {scope}, Dist: {getattr(req, 'dist_mode', 'same')}")
         print(f"[DEBUG] plex_show_guid of the source item: {item.get('plex_show_guid')}")
     
-    if item["media_type"] == "episode" and scope != "episode":
-        cloud_eps = get_cloud_episodes_for_scope(item.get("plex_show_guid"), item["season"], item["episode"], scope)
-        
-        if os.getenv("DEBUG") == "true":
-            print(f"[DEBUG] get_cloud_episodes_for_scope returned {len(cloud_eps) if cloud_eps else 0} episodes")
-            
-        if cloud_eps:
-            for ep in cloud_eps:
-                items_to_modify.append({
-                    "id": None, 
-                    "title": ep.get("title", f"Episodio {ep.get('index')}"),
-                    "show_title": item["show_title"],
-                    "media_type": "episode",
-                    "season": ep.get("parentIndex"),
-                    "episode": ep.get("index"),
-                    "plex_guid": ep.get("guid"),
-                    "plex_show_guid": item.get("plex_show_guid"),
-                    "show_tmdb_id": item.get("show_tmdb_id"),
-                    "duration": int(ep.get("duration", 0)) // 60000,
-                    "thumb": ep.get("thumb"),
-                    "Guid": ep.get("Guid", []),
-                    "poster_path": item.get("poster_path")
-                })
-        else:
-            if os.getenv("DEBUG") == "true":
-                print(f"[DEBUG] cloud_eps was empty, falling back to local DB search for {scope}")
-            if scope == "show":
-                cursor.execute("SELECT * FROM watch_history WHERE show_title = ?", (item["show_title"],))
-            elif scope == "season":
-                cursor.execute("SELECT * FROM watch_history WHERE show_title = ? AND season = ?", (item["show_title"], item["season"]))
-            elif scope == "onwards":
-                cursor.execute("SELECT * FROM watch_history WHERE show_title = ? AND (season > ? OR (season = ? AND episode >= ?))", (item["show_title"], item["season"], item["season"], item["episode"]))
-            elif scope == "backwards":
-                cursor.execute("SELECT * FROM watch_history WHERE show_title = ? AND (season < ? OR (season = ? AND episode <= ?))", (item["show_title"], item["season"], item["season"], item["episode"]))
-            items_to_modify = [dict(r) for r in cursor.fetchall()]
-    else:
-        cursor.execute("SELECT * FROM watch_history WHERE id = ?", (item_id,))
-        items_to_modify = [dict(r) for r in cursor.fetchall()]
+    items_to_modify = get_items_for_scope(item, scope, cursor)
         
     total_items = len(items_to_modify)
     
