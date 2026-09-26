@@ -59,6 +59,16 @@ function updateOverlayResult(type, title, subtitle) {
         subtitleEl.style.display = 'none';
     }
 
+    // Allow closing on click only if it's an error
+    overlay.onclick = function() {
+        if (type === 'error') {
+            overlay.classList.add('hidden');
+        }
+    };
+    if (type !== 'error') {
+        overlay.onclick = null;
+    }
+
     const iconContainer = document.getElementById('overlay-icon-container');
     if (iconContainer) {
         if (type === 'success') {

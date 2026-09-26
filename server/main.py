@@ -990,19 +990,34 @@ def delete_history_item(item_id: int, scope: str = "episode", sync_remote: bool 
     
     cursor.execute("SELECT * FROM watch_history WHERE id = ?", (item_id,))
     row = cursor.fetchone()
-    if row:
-        item = dict(row)
-        items_to_delete = get_items_for_scope(item, scope, cursor)
+    if not row:
+        conn.close()
+        return {"success": False, "status": "error", "errors": ["Item not found"]}
         
-        for d_item in items_to_delete:
+    item = dict(row)
+    items_to_delete = get_items_for_scope(item, scope, cursor)
+    
+    total_items = len(items_to_delete)
+    success_count = 0
+    errors = []
+    
+    for d_item in items_to_delete:
+        should_delete_db = True
+        if sync_remote:
+            success = unscrobble_plex(d_item)
+            if not success:
+                should_delete_db = False
+                errors.append(f"Fallo al eliminar en Plex para: {d_item.get('title')}")
+                print(f"Skipping DB delete for {d_item.get('title')} because Plex unscrobble failed.")
+        
+        if should_delete_db:
+            success_count += 1
             if sync_remote:
                 now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
                 cursor.execute("""
                     INSERT OR REPLACE INTO deleted_history (id, media_type, title, show_title, season, episode, tmdb_id, show_tmdb_id, deleted_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (d_item.get("id"), d_item.get("media_type"), d_item.get("title"), d_item.get("show_title"), d_item.get("season"), d_item.get("episode"), d_item.get("tmdb_id"), d_item.get("show_tmdb_id"), now_utc))
-                import threading
-                threading.Thread(target=unscrobble_plex, args=(d_item,)).start()
             
             if d_item.get("id"):
                 cursor.execute("DELETE FROM watch_history WHERE id = ?", (d_item["id"],))
@@ -1011,7 +1026,13 @@ def delete_history_item(item_id: int, scope: str = "episode", sync_remote: bool 
                 
     conn.commit()
     conn.close()
-    return {"success": True}
+    
+    if success_count == total_items:
+        return {"success": True, "status": "success"}
+    elif success_count > 0:
+        return {"success": True, "status": "partial", "errors": errors}
+    else:
+        return {"success": False, "status": "error", "errors": errors}
 
 # --- UNIFIED PLEX ACTIVITY FEED FUNCTION ---
 def get_plex_activity_nodes(metadata_id, types=None, max_timeout=600):
@@ -1116,74 +1137,93 @@ def mutate_plex_activity(node_id, action, watched_at_graphql=None, title="", max
 
 def unscrobble_plex(item):
     import requests
-    # 1. Cloud
+    import datetime
+    
     plex_guid = item.get("plex_guid")
+    metadata_id = None
     if plex_guid:
         metadata_id = plex_guid.split("/")[-1]
-        # --- NUEVO UNIFICADO ---
+        
+    success_cloud = True
+    should_unscrobble_local = True
+    
+    if metadata_id:
         nodes = get_plex_activity_nodes(metadata_id)
         if nodes:
-            node_id = nodes[0].get("id")
             target_date_str = item.get("watched_at")
+            nodes_to_delete = []
+            
             if target_date_str:
-                import datetime
                 try:
-                    # target_date format is usually YYYY-MM-DDTHH:MM:SSZ
                     td_str = target_date_str.replace("Z", "").split(".")[0]
                     target_date = datetime.datetime.strptime(td_str, "%Y-%m-%dT%H:%M:%S")
                     
-                    best_node = None
-                    min_diff = float('inf')
+                    # Find exact or close matches (e.g. within 1 hour)
                     for node in nodes:
                         nd_str = node.get("date")
                         if nd_str:
-                            try:
-                                nd_clean = nd_str.replace("Z", "").split(".")[0]
-                                nd = datetime.datetime.strptime(nd_clean, "%Y-%m-%dT%H:%M:%S")
-                                diff = abs((nd - target_date).total_seconds())
-                                if diff < min_diff:
-                                    min_diff = diff
-                                    best_node = node
-                            except Exception:
-                                pass
-                    if best_node:
-                        node_id = best_node.get("id")
-                        print(f"  [unscrobble] Found closest node {node_id} (diff: {min_diff}s) for {target_date_str}")
-                except Exception as e:
-                    print(f"  [unscrobble] Date parsing error: {e}. Falling back to nodes[0].")
+                            nd_clean = nd_str.replace("Z", "").split(".")[0]
+                            nd = datetime.datetime.strptime(nd_clean, "%Y-%m-%dT%H:%M:%S")
+                            diff = abs((nd - target_date).total_seconds())
+                            if diff < 3600:
+                                nodes_to_delete.append(node)
+                except Exception:
+                    pass
+            
+            if not nodes_to_delete:
+                nodes_to_delete = nodes
+                
+            if len(nodes_to_delete) < len(nodes):
+                should_unscrobble_local = False
+                
+            for node in nodes_to_delete:
+                node_id = node.get("id")
+                print(f"  [unscrobble] Deleting node {node_id} for {item.get('title')}")
+                res = mutate_plex_activity(node_id, "delete", title=item.get("title"))
+                if not res:
+                    success_cloud = False
                     
-            mutate_plex_activity(node_id, "delete", title=item.get('title'))
-        # -------------------------------------------------------------
-
-    # 2. Local Unscrobble
-    media_type = item.get("media_type")
-    title = item.get("title")
-    show_title = item.get("show_title")
-    tmdb_id = item.get("tmdb_id")
-    show_tmdb_id = item.get("show_tmdb_id")
-    season = item.get("season")
-    episode = item.get("episode")
-    
-    plex_movies, plex_shows = get_plex_items_map()
-    rating_key = None
-    
-    if media_type == "movie":
-        matched = match_movie({"movie": {"title": title}}, plex_movies, tmdb_id)
-        if matched: rating_key = matched.get("ratingKey")
-    else:
-        matched = match_show({"show": {"title": show_title}}, plex_shows, show_tmdb_id)
-        if matched:
-            parent_key = matched.get("ratingKey")
-            ep_url = f"{PLEX_URL}/library/metadata/{parent_key}/allLeaves"
+    if not success_cloud:
+        return False
+        
+    if should_unscrobble_local:
+        media_type = item.get("media_type")
+        title = item.get("title")
+        show_title = item.get("show_title")
+        tmdb_id = item.get("tmdb_id")
+        show_tmdb_id = item.get("show_tmdb_id")
+        season = item.get("season")
+        episode = item.get("episode")
+        
+        plex_movies, plex_shows = get_plex_items_map()
+        rating_key = None
+        
+        if media_type == "movie":
+            matched = match_movie({"movie": {"title": title}}, plex_movies, tmdb_id)
+            if matched: rating_key = matched.get("ratingKey")
+        else:
+            matched = match_show({"show": {"title": show_title}}, plex_shows, show_tmdb_id)
+            if matched:
+                parent_key = matched.get("ratingKey")
+                ep_url = f"{PLEX_URL}/library/metadata/{parent_key}/allLeaves"
+                try:
+                    req = urllib.request.Request(ep_url, headers=plex_headers)
+                    with urllib.request.urlopen(req) as res:
+                        tree = ET.fromstring(res.read())
+                        for v in tree.findall("Video"):
+                            if int(v.get("parentIndex", -1)) == season and int(v.get("index", -1)) == episode:
+                                rating_key = v.get("ratingKey")
+                                break
+                except: pass
+                
+        if rating_key:
             try:
-                req = urllib.request.Request(ep_url, headers=plex_headers)
-                with urllib.request.urlopen(req) as res:
-                    tree = ET.fromstring(res.read())
-                    for v in tree.findall("Video"):
-                        if int(v.get("parentIndex", -1)) == season and int(v.get("index", -1)) == episode:
-                            rating_key = v.get("ratingKey")
-                            break
+                url = f"{PLEX_URL}/:/unscrobble?identifier=com.plexapp.plugins.library&key={rating_key}"
+                requests.get(url, headers=plex_headers, timeout=10)
+                print(f"??? Local Unscrobble for {title} (key={rating_key})")
             except: pass
+            
+    return True
             
     if rating_key:
         try:
