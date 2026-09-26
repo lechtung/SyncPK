@@ -998,11 +998,15 @@ def delete_history_item(item_id: int, scope: str = "episode", sync_remote: bool 
     items_to_delete = get_items_for_scope(item, scope, cursor)
     
     total_items = len(items_to_delete)
+    if os.getenv("DEBUG") == "true":
+        print(f"[DEBUG] Found {total_items} items to delete from local database.")
     success_count = 0
     errors = []
     
     for d_item in items_to_delete:
         should_delete_db = True
+        if os.getenv("DEBUG") == "true":
+            print(f"[DEBUG] Processing deletion for episode: {d_item.get('title')}")
         if sync_remote:
             success = unscrobble_plex(d_item)
             if not success:
@@ -1138,6 +1142,9 @@ def mutate_plex_activity(node_id, action, watched_at_graphql=None, title="", max
 def unscrobble_plex(item):
     import requests
     import datetime
+    import os
+    
+    is_debug = os.getenv("DEBUG") == "true"
     
     plex_guid = item.get("plex_guid")
     metadata_id = None
@@ -1147,9 +1154,16 @@ def unscrobble_plex(item):
     success_cloud = True
     should_unscrobble_local = True
     
+    title = item.get('title')
+    
     if metadata_id:
+        if is_debug: print(f"[DEBUG] [unscrobble] Fetching Plex activity nodes for '{title}' (metadata_id: {metadata_id})", flush=True)
         nodes = get_plex_activity_nodes(metadata_id)
+        
         if nodes:
+            total_nodes = len(nodes)
+            if is_debug: print(f"[DEBUG] [unscrobble] Found {total_nodes} activity node(s) for '{title}'.", flush=True)
+            
             target_date_str = item.get("watched_at")
             nodes_to_delete = []
             
@@ -1157,8 +1171,8 @@ def unscrobble_plex(item):
                 try:
                     td_str = target_date_str.replace("Z", "").split(".")[0]
                     target_date = datetime.datetime.strptime(td_str, "%Y-%m-%dT%H:%M:%S")
+                    if is_debug: print(f"[DEBUG] [unscrobble] Looking for activity matching date: {target_date_str}", flush=True)
                     
-                    # Find exact or close matches (e.g. within 1 hour)
                     for node in nodes:
                         nd_str = node.get("date")
                         if nd_str:
@@ -1167,28 +1181,42 @@ def unscrobble_plex(item):
                             diff = abs((nd - target_date).total_seconds())
                             if diff < 3600:
                                 nodes_to_delete.append(node)
-                except Exception:
+                except Exception as e:
+                    if is_debug: print(f"[DEBUG] [unscrobble] Error parsing dates: {e}", flush=True)
                     pass
             
             if not nodes_to_delete:
+                if is_debug: print(f"[DEBUG] [unscrobble] No exact date match found. Deleting ALL {total_nodes} activities.", flush=True)
                 nodes_to_delete = nodes
+            else:
+                if is_debug: print(f"[DEBUG] [unscrobble] Found {len(nodes_to_delete)} matching activit(ies) to delete.", flush=True)
                 
-            if len(nodes_to_delete) < len(nodes):
+            if len(nodes_to_delete) < total_nodes:
+                remaining = total_nodes - len(nodes_to_delete)
+                if is_debug: print(f"[DEBUG] [unscrobble] Warning: {remaining} other activity node(s) will remain. SKIPPING local unscrobble.", flush=True)
                 should_unscrobble_local = False
+            else:
+                if is_debug: print(f"[DEBUG] [unscrobble] All activities will be deleted. Local unscrobble will proceed.", flush=True)
                 
             for node in nodes_to_delete:
                 node_id = node.get("id")
-                print(f"  [unscrobble] Deleting node {node_id} for {item.get('title')}")
-                res = mutate_plex_activity(node_id, "delete", title=item.get("title"))
+                if is_debug: print(f"[DEBUG] [unscrobble] Deleting node {node_id} from Plex Cloud for '{title}'...", flush=True)
+                res = mutate_plex_activity(node_id, "delete", title=title)
                 if not res:
+                    if is_debug: print(f"[DEBUG] [unscrobble] FAILED to delete node {node_id}.", flush=True)
                     success_cloud = False
+                else:
+                    if is_debug: print(f"[DEBUG] [unscrobble] Successfully deleted node {node_id}.", flush=True)
+        else:
+            if is_debug: print(f"[DEBUG] [unscrobble] No activity nodes found in Plex Cloud for '{title}'.", flush=True)
                     
     if not success_cloud:
+        if is_debug: print(f"[DEBUG] [unscrobble] Aborting unscrobble due to Cloud API failure.", flush=True)
         return False
         
     if should_unscrobble_local:
+        if is_debug: print(f"[DEBUG] [unscrobble] Executing local Plex unscrobble for '{title}'...", flush=True)
         media_type = item.get("media_type")
-        title = item.get("title")
         show_title = item.get("show_title")
         tmdb_id = item.get("tmdb_id")
         show_tmdb_id = item.get("show_tmdb_id")
@@ -1220,8 +1248,11 @@ def unscrobble_plex(item):
             try:
                 url = f"{PLEX_URL}/:/unscrobble?identifier=com.plexapp.plugins.library&key={rating_key}"
                 requests.get(url, headers=plex_headers, timeout=10)
-                print(f"??? Local Unscrobble for {title} (key={rating_key})")
-            except: pass
+                if is_debug: print(f"[DEBUG] [unscrobble] Local unscrobble SUCCESS for '{title}' (key={rating_key})", flush=True)
+            except Exception as e:
+                if is_debug: print(f"[DEBUG] [unscrobble] Local unscrobble FAILED for '{title}': {e}", flush=True)
+        else:
+            if is_debug: print(f"[DEBUG] [unscrobble] Local unscrobble skipped. Could not find local ratingKey for '{title}'", flush=True)
             
     return True
             
@@ -1315,10 +1346,20 @@ def get_cloud_episodes_for_scope(plex_show_guid, ref_season, ref_episode, scope)
     seasons_data = r.json().get("MediaContainer", {}).get("Metadata", [])
     
     episodes = []
+    try:
+        ref_season = int(ref_season)
+        ref_episode = int(ref_episode)
+    except:
+        pass
+        
     for s in seasons_data:
         s_index = s.get("index")
-        if not s_index: continue
-        
+        if s_index is None: continue
+        try:
+            s_index = int(s_index)
+        except:
+            continue
+            
         if scope == "season" and s_index != ref_season:
             continue
         if scope == "exact_episode" and s_index != ref_season:
@@ -1336,6 +1377,10 @@ def get_cloud_episodes_for_scope(plex_show_guid, ref_season, ref_episode, scope)
                 eps_data = r_ep.json().get("MediaContainer", {}).get("Metadata", [])
                 for ep in eps_data:
                     ep_index = ep.get("index")
+                    if ep_index is None: continue
+                    try: ep_index = int(ep_index)
+                    except: continue
+                    
                     if scope == "exact_episode" and ep_index != ref_episode:
                         continue
                     if scope == "onwards" and s_index == ref_season and ep_index < ref_episode:

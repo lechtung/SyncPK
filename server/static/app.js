@@ -723,7 +723,7 @@ window.deleteItem = function (id, mediaType) {
 
             showProcessingOverlay(
                 currentLangData.overlay_processing || 'Processing request',
-                currentLangData.deleting_msg || 'Deleting, please wait...'
+                currentLangData.overlay_wait || 'Please wait...'
             );
 
             let res = await apiFetch(`/api/history/${id}?sync_remote=${syncRemote}&scope=${scopeVal}`, { method: 'DELETE' });

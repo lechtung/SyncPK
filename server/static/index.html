@@ -5,9 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SyncPK Dashboard</title>
-    <link rel="stylesheet" href="/style.css?v=41">
+    <link rel="stylesheet" href="/style.css?v=42">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <script src="/app.js?v=41" defer></script>
+    <script src="/app.js?v=42" defer></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -251,18 +251,23 @@
             style="min-width:340px; width:fit-content; max-width:90vw; text-align:center;">
             <p id="confirm-message" style="margin-bottom:24px; color:#fff; font-size:1rem;" data-i18n="confirm_delete">
                 Delete this item from history?</p>
-            <h4 id="deleteScope-title" style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;" data-i18n="edit_scope_title">Alcance</h4>
+            <h4 id="deleteScope-title" style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;"
+                data-i18n="edit_scope_title">Alcance</h4>
             <div class="c-dropdown hidden" id="deleteScope-dd" style="margin-bottom: 24px;">
                 <div class="c-dropdown-trigger" id="deleteScope-trigger">
                     <div class="c-dropdown-bottom">
-                        <span class="c-dropdown-value" id="deleteScope-val" data-i18n="edit_scope_episode">Only this episode</span>
+                        <span class="c-dropdown-value" id="deleteScope-val" data-i18n="edit_scope_episode">Only this
+                            episode</span>
                         <span class="c-dropdown-arrow">▾</span>
                     </div>
                 </div>
                 <div class="c-dropdown-menu glass-panel" id="deleteScope-menu">
-                    <div class="c-dropdown-item selected" data-value="episode" data-i18n="edit_scope_episode">Only this episode</div>
-                    <div class="c-dropdown-item" data-value="backwards" data-i18n="edit_scope_backwards">This episode and previous ones</div>
-                    <div class="c-dropdown-item" data-value="onwards" data-i18n="edit_scope_onwards">From this episode onwards</div>
+                    <div class="c-dropdown-item selected" data-value="episode" data-i18n="edit_scope_episode">Only this
+                        episode</div>
+                    <div class="c-dropdown-item" data-value="backwards" data-i18n="edit_scope_backwards">This episode
+                        and previous ones</div>
+                    <div class="c-dropdown-item" data-value="onwards" data-i18n="edit_scope_onwards">From this episode
+                        onwards</div>
                     <div class="c-dropdown-item" data-value="season" data-i18n="edit_scope_season">Entire season</div>
                     <div class="c-dropdown-item" data-value="show" data-i18n="edit_scope_show">Entire show</div>
                 </div>
@@ -377,7 +382,8 @@
                 <button id="config-get-token-btn" style="width: auto; padding: 0 16px; background: #333;"
                     title="Obtener Token mediante PIN">🔑</button>
             </div>
-            <div style="font-size:0.75rem; color:#888; margin-top:4px;" data-i18n="config_pass_upgrade_hint">If you have recently subscribed to Plex Pass, please log in again to activate webhooks.</div>
+            <div style="font-size:0.75rem; color:#888; margin-top:4px;" data-i18n="config_pass_upgrade_hint">If you have
+                recently subscribed to Plex Pass, please log in again to activate webhooks.</div>
             <div id="config-pin-status" class="hidden" data-i18n="config_pin_waiting"
                 style="color: var(--accent); font-size: 0.8rem; margin-top: 4px; margin-bottom: 16px;">Waiting for Plex
                 login...</div>
@@ -438,17 +444,19 @@
                     <span data-i18n="config_debug_mode">Enable Debug Logs (Backend)</span>
                 </label>
             </div>
-            
+
             <div style="margin-top:20px;">
                 <label class="form-label" for="config-auto-update">
-                    <input type="checkbox" id="config-auto-update" style="width:20px; height:20px; cursor:pointer;" checked>
+                    <input type="checkbox" id="config-auto-update" style="width:20px; height:20px; cursor:pointer;"
+                        checked>
                     <span data-i18n="config_auto_update">Enable Automatic Updates</span>
                 </label>
             </div>
-            
+
             <div style="margin-top:20px;">
                 <label class="form-label" for="config-notify-updates">
-                    <input type="checkbox" id="config-notify-updates" style="width:20px; height:20px; cursor:pointer;" checked>
+                    <input type="checkbox" id="config-notify-updates" style="width:20px; height:20px; cursor:pointer;"
+                        checked>
                     <span data-i18n="config_notify_updates">Notify me about new updates</span>
                 </label>
             </div>
@@ -538,7 +546,8 @@
                     style="font-size: 65px; color: #58a6ff; text-shadow: 0 0 10px rgba(88, 166, 255, 0.3);"></i>
             </div>
             <div class="loading-title" style="margin-bottom: 5px;" data-i18n="update_title">New Version Available!</div>
-            <div class="loading-subtitle" style="margin-bottom: 30px;" id="update-subtitle">SyncPK version X is ready to download.</div>
+            <div class="loading-subtitle" style="margin-bottom: 30px;" id="update-subtitle">SyncPK version X is ready to
+                download.</div>
 
             <label class="form-label"
                 style="margin-bottom: 10px; width: 100%; justify-content: flex-start; text-align: left; align-items: flex-start;">

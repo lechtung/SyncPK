@@ -431,6 +431,7 @@ button:disabled {
     max-width: 130px;
 }
 
+#deleteScope-val,
 #editScope-val,
 #editDistMode-val {
     max-width: none;
