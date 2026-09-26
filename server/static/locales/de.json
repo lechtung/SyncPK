@@ -1,4 +1,4 @@
-{
+﻿{
     "login_title": "SyncPK",
     "login_desc": "Geben Sie Ihr Master-Passwort ein",
     "login_btn": "Anmelden",
@@ -169,4 +169,14 @@
     "config_pass_upgrade_hint": "Wenn Sie kürzlich Plex Pass abonniert haben, melden Sie sich bitte erneut an, um Webhooks zu aktivieren.",
     "config_pass_found": "Plex Pass erkannt! Webhooks sind jetzt aktiviert.",
     "config_pass_not_found": "Kein Plex Pass erkannt."
+,
+    "update_title": "New Version Available!",
+    "update_subtitle": "SyncPK version [VERSION] is ready to download. Do you want to install it now?",
+    "update_ignore": "Ignore this specific version",
+    "update_never_notify": "Do not notify about new versions",
+    "btn_dismiss": "Dismiss",
+    "btn_update_now": "Update Now",
+    "config_notify_updates": "Notify me about new updates",
+    "updating_title": "Updating System",
+    "updating_subtitle": "Please wait a few minutes while the system updates and restarts..."
 }

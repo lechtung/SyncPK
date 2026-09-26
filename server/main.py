@@ -20,6 +20,7 @@ import threading
 import queue
 
 #### TODOLIST ####
+
 # last minute found: python plex api: https://github.com/pushingkarmaorg/python-plexapi
 # check the plex api of the previous proyect
 # delete or replace the "x-plex-client-identifier" header, problably is not needed.
@@ -27,8 +28,8 @@ import queue
 # more statistics options
 # maybe a small mark in the dashboard to see what items are not in the plex library anymore (need to see how we can detect when the user delete something in plex)
 # manual option to re-scan the plex library to import in our local db
-# implement something to check if the use has pless pass, maybe with the api to get user information?
-# TODO: FUTURAS CONFIGURACIONES DE UI (Para añadir en .conf o UI Dashboard)
+
+# FUTURAS CONFIGURACIONES DE UI (Para añadir en .conf o UI Dashboard)
 # - TAMAÑOS: Ancho y alto de las tarjetas (Poster y Fanart) para ajustarlo al gusto.
 # - PREFERENCIA DE ARTE: Usar el Fanart/Poster propio del episodio, o forzar siempre el de la temporada/serie.
 # - TIPOGRAFÍA: 
@@ -49,6 +50,11 @@ import queue
 # Pondria en la pantalla de configuracion arriba, como un selector de pestaña, o botones para seleccionar secciones, algo, y tendria tres
 # Servicio, UI, Scrapping (o como cojones se escriba) y cada uno con su correspondiente configuración   
 
+#### DONE ####
+
+# implement something to check if the use has pless pass, maybe with the api to get user information?
+# Auto Update desde el repo, bueno, que pregunte al menos... o bien ponemos un parámetro. 
+
 
 # Manual .env fallback
 if os.path.exists(".env"):
@@ -67,6 +73,28 @@ if os.path.exists(".conf"):
             if line and not line.startswith("#") and "=" in line:
                 key, val = line.split("=", 1)
                 os.environ[key.strip()] = val.strip().strip('"').strip("'")
+else:
+    # Create default .conf if it doesn't exist
+    default_conf = """# General Configuration
+
+# ui section
+
+# Controls the opacity of the dark mask over fanart images (0.0 to 1.0)
+FANART_MASK_OPACITY=0.3
+
+# update section
+
+# If a new version is available, it will be stored here
+UPDATE_AVAILABLE=
+
+# If the user ignores a specific version, it will be stored here
+IGNORED_UPDATE_VERSION=
+
+# If the user wants to be notified of new updates (true/false)
+NOTIFY_UPDATES=true
+"""
+    with open(".conf", "w") as f:
+        f.write(default_conf)
 
 app = FastAPI()
 
@@ -2477,7 +2505,9 @@ def get_config():
         "sync_language": os.getenv("SYNC_LANGUAGE", "es"),
         "dashboard_language": os.getenv("DASHBOARD_LANGUAGE", "auto"),
         "plex_client_id": PLEX_CLIENT_ID,
-        "debug_mode": os.getenv("DEBUG", "false") == "true"
+        "debug_mode": os.getenv("DEBUG", "false") == "true",
+        "auto_update": os.getenv("AUTO_UPDATE", "true") == "true",
+        "notify_updates": os.getenv("NOTIFY_UPDATES", "true").lower() == "true"
     }
 
 class ConfigPayload(BaseModel):
@@ -2488,6 +2518,8 @@ class ConfigPayload(BaseModel):
     dashboard_language: str
     plex_client_id: str
     debug_mode: Optional[bool] = False
+    auto_update: Optional[bool] = True
+    notify_updates: Optional[bool] = True
     master_password: Optional[str] = None
     force_rescan: Optional[bool] = False
 
@@ -2513,6 +2545,8 @@ def save_config(payload: ConfigPayload):
     env_vars["DASHBOARD_LANGUAGE"] = payload.dashboard_language
     env_vars["PLEX_CLIENT_ID"] = payload.plex_client_id
     env_vars["DEBUG"] = "true" if payload.debug_mode else "false"
+    env_vars["AUTO_UPDATE"] = "true" if payload.auto_update else "false"
+    env_vars["NOTIFY_UPDATES"] = "true" if payload.notify_updates else "false"
     
     has_plex_pass = None
     if payload.plex_token and payload.plex_client_id:
@@ -2637,6 +2671,66 @@ def restore_config():
         threading.Thread(target=rescan_task, daemon=True).start()
         
     return {"status": "success"}
+
+class UpdateIgnoreRequest(BaseModel):
+    ignore_version: str = ""
+    never_notify: bool = False
+
+@app.get("/api/update/status", dependencies=[Depends(verify_api_key)])
+def update_status():
+    update_available = os.getenv("UPDATE_AVAILABLE", "")
+    ignored_version = os.getenv("IGNORED_UPDATE_VERSION", "")
+    notify_updates = os.getenv("NOTIFY_UPDATES", "true").lower() == "true"
+    
+    if update_available and update_available != ignored_version and notify_updates:
+        return {"has_update": True, "version": update_available}
+    return {"has_update": False}
+
+@app.post("/api/update/ignore", dependencies=[Depends(verify_api_key)])
+def update_ignore(req: UpdateIgnoreRequest):
+    # Update .conf
+    conf_lines = []
+    if os.path.exists(".conf"):
+        with open(".conf", "r") as f:
+            conf_lines = f.readlines()
+            
+    # Set IGNORED_UPDATE_VERSION and NOTIFY_UPDATES in .conf
+    new_conf_lines = []
+    for line in conf_lines:
+        if line.startswith("IGNORED_UPDATE_VERSION="): continue
+        if line.startswith("NOTIFY_UPDATES="): continue
+        if line.startswith("UPDATE_AVAILABLE="): continue
+        new_conf_lines.append(line)
+        
+    if req.ignore_version:
+        new_conf_lines.append(f"IGNORED_UPDATE_VERSION={req.ignore_version}\n")
+        os.environ["IGNORED_UPDATE_VERSION"] = req.ignore_version
+        
+    if req.never_notify:
+        new_conf_lines.append("NOTIFY_UPDATES=false\n")
+        os.environ["NOTIFY_UPDATES"] = "false"
+    else:
+        new_conf_lines.append("NOTIFY_UPDATES=true\n")
+        os.environ["NOTIFY_UPDATES"] = "true"
+        
+    # Clear UPDATE_AVAILABLE
+    new_conf_lines.append("UPDATE_AVAILABLE=\n")
+    os.environ["UPDATE_AVAILABLE"] = ""
+        
+    with open(".conf", "w") as f:
+        f.writelines(new_conf_lines)
+        
+    return {"status": "success"}
+
+@app.post("/api/update/trigger", dependencies=[Depends(verify_api_key)])
+def update_trigger():
+    import subprocess
+    try:
+        # We start the systemd service. We don't wait for it because it will restart our service!
+        subprocess.Popen(["sudo", "systemctl", "start", "syncpk-updater.service"])
+        return {"status": "success", "message": "Update triggered"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 # --- SERVE FRONTEND ---
 # Mount the static folder at the end to avoid overwriting routes /api/

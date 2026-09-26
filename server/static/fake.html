@@ -17,6 +17,7 @@
         :root {
             --accent-dark: #2568a8;
         }
+
         /* Estilos específicos para el Mockup del Toast y el Overlay de carga */
 
         /* 1. MOCKUP: Toast de éxito flotante y muy visible */
@@ -44,7 +45,7 @@
             color: white;
             padding: 14px 20px;
             border-radius: 8px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
             display: flex;
             align-items: center;
             gap: 12px;
@@ -53,9 +54,11 @@
             animation: toastIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
             pointer-events: auto;
         }
+
         .mockup-toast.toast-out {
             animation: toastOut 0.3s ease forwards;
         }
+
         .mockup-toast i {
             font-size: 18px;
             /* Color original verde: color: #3fb950; */
@@ -63,12 +66,27 @@
         }
 
         @keyframes toastIn {
-            from { transform: translateY(16px) scale(0.95); opacity: 0; }
-            to { transform: translateY(0) scale(1); opacity: 1; }
+            from {
+                transform: translateY(16px) scale(0.95);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0) scale(1);
+                opacity: 1;
+            }
         }
+
         @keyframes toastOut {
-            from { transform: translateY(0) scale(1); opacity: 1; }
-            to { transform: translateY(16px) scale(0.95); opacity: 0; }
+            from {
+                transform: translateY(0) scale(1);
+                opacity: 1;
+            }
+
+            to {
+                transform: translateY(16px) scale(0.95);
+                opacity: 0;
+            }
         }
 
         /* 2. MOCKUP: Loading Overlay más premium */
@@ -97,8 +115,13 @@
         }
 
         @keyframes spinPremium {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
 
         /* Animated SVG (Check & Cross) */
@@ -108,6 +131,7 @@
             display: block;
             margin: 0 auto 20px;
         }
+
         .svg-anim .circle {
             stroke-dasharray: 166;
             stroke-dashoffset: 166;
@@ -116,15 +140,20 @@
             fill: none;
             animation: strokeAnim 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
         }
-        .svg-anim .check, .svg-anim .cross {
+
+        .svg-anim .check,
+        .svg-anim .cross {
             stroke-dasharray: 48;
             stroke-dashoffset: 48;
             stroke-width: 3;
             fill: none;
             animation: strokeAnim 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.6s forwards;
         }
+
         @keyframes strokeAnim {
-            100% { stroke-dashoffset: 0; }
+            100% {
+                stroke-dashoffset: 0;
+            }
         }
 
         .loading-title {
@@ -151,10 +180,12 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0, 0, 0, 0.5); /* Ajustar opacidad según preferencia */
-            z-index: 0; /* Asegurar que quede por debajo del gradiente y el texto */
+            background-color: rgba(0, 0, 0, 0.5);
+            /* Ajustar opacidad según preferencia */
+            z-index: 0;
+            /* Asegurar que quede por debajo del gradiente y el texto */
         }
-        
+
         /* Asegurar que la tarjeta content y menu estén por encima de la máscara */
         .c-fanart-content .card-content,
         .c-fanart-content .kebab-menu-btn,
@@ -219,7 +250,8 @@
             width: 1.4em;
             height: 1.4em;
             border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 50%; /* Circle */
+            border-radius: 50%;
+            /* Circle */
             display: grid;
             place-content: center;
             cursor: pointer;
@@ -365,11 +397,36 @@
                                 <div class="card-title">Big Bang</div>
                                 <div class="card-subtitle">T2 - E10 - El enigma Vartabedian</div>
                                 <div class="card-time">22:03</div>
-                            </div>
-                            <button class="kebab-menu-btn" onclick="toggleDropdown('menu-1-mask'); event.stopPropagation()">⋮</button>
+                            </div> <button class="kebab-menu-btn"
+                                onclick="toggleDropdown('menu-1-mask'); event.stopPropagation()">⋮</button>
                             <div class="kebab-dropdown glass-panel" id="menu-1-mask">
-                                <div class="dropdown-item" onclick="showEditModal(); event.stopPropagation()">Editar Fecha</div>
-                                <div class="dropdown-item danger" onclick="showFakeToast(); event.stopPropagation()">Eliminar</div>
+                                <div class="dropdown-item" onclick="showEditModal(); event.stopPropagation()">Editar
+                                    Fecha</div>
+                                <div class="dropdown-item danger" onclick="showFakeToast(); event.stopPropagation()">
+                                    Eliminar</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="c-card" onclick="showFakeToast()">
+                        <div class="c-poster"
+                            style="background-image: url('https://static.tvmaze.com/uploads/images/medium_portrait/173/433868.jpg')">
+                        </div>
+                        <div class="c-fanart-content"
+                            style="background-image: url('https://static.tvmaze.com/uploads/images/original_untouched/173/433868.jpg')">
+                            <div class="c-fanart-mask"></div>
+                            <div class="c-fanart-overlay"></div>
+                            <div class="card-content">
+                                <div class="card-title">Big Bang</div>
+                                <div class="card-subtitle">T2 - E9 - La triangulación de los espárragos blancos</div>
+                                <div class="card-time">22:39</div>
+                            </div> <button class="kebab-menu-btn"
+                                onclick="toggleDropdown('menu-1b-mask'); event.stopPropagation()">⋮</button>
+                            <div class="kebab-dropdown glass-panel" id="menu-1b-mask">
+                                <div class="dropdown-item" onclick="showEditModal(); event.stopPropagation()">Editar
+                                    Fecha</div>
+                                <div class="dropdown-item danger" onclick="showFakeToast(); event.stopPropagation()">
+                                    Eliminar</div>
                             </div>
                         </div>
                     </div>
@@ -379,9 +436,9 @@
             <div class="history-group">
                 <div class="history-group-title">17 de septiembre de 2026</div>
                 <div class="cards-grid">
-                    <div class="c-card" onclick="showFakeToast()">
+                    <div class="c-card" ondblclick="showUpdateOverlayModal()">
                         <div class="c-poster"
-                            style="background-image: url('https://media.themoviedb.org/t/p/w300_and_h450_face/3AnlxZ5CZnhKKzjgFyY6EHxmOyl.jpg')">
+                            style="background-image:url('https://media.themoviedb.org/t/p/w300_and_h450_face/3AnlxZ5CZnhKKzjgFyY6EHxmOyl.jpg')">
                         </div>
                         <div class="c-fanart-content"
                             style="background-image: url('https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/bMJdVmo6QqoUHpUsjWyei6MN02x.jpg')">
@@ -392,10 +449,13 @@
                                 <div class="card-subtitle"></div>
                                 <div class="card-time">21:34</div>
                             </div>
-                            <button class="kebab-menu-btn" onclick="toggleDropdown('menu-2-mask'); event.stopPropagation()">⋮</button>
+                            <button class="kebab-menu-btn"
+                                onclick="toggleDropdown('menu-2-mask'); event.stopPropagation()">⋮</button>
                             <div class="kebab-dropdown glass-panel" id="menu-2-mask">
-                                <div class="dropdown-item" onclick="showEditModal(); event.stopPropagation()">Editar Fecha</div>
-                                <div class="dropdown-item danger" onclick="showFakeToast(); event.stopPropagation()">Eliminar</div>
+                                <div class="dropdown-item" onclick="showEditModal(); event.stopPropagation()">Editar
+                                    Fecha</div>
+                                <div class="dropdown-item danger" onclick="showFakeToast(); event.stopPropagation()">
+                                    Eliminar</div>
                             </div>
                         </div>
                     </div>
@@ -405,7 +465,7 @@
             <div class="history-group">
                 <div class="history-group-title">16 de septiembre de 2026</div>
                 <div class="cards-grid">
-                    <div class="c-card" onclick="showFakeToast()">
+                    <div class="c-card" ondblclick="showUpdateModal()">
                         <div class="c-poster"
                             style="background-image: url('https://static.tvmaze.com/uploads/images/medium_portrait/557/1392576.jpg')">
                         </div>
@@ -418,10 +478,13 @@
                                 <div class="card-subtitle">T1 - E1 - 1923</div>
                                 <div class="card-time">21:05</div>
                             </div>
-                            <button class="kebab-menu-btn" onclick="toggleDropdown('menu-3-mask'); event.stopPropagation()">⋮</button>
+                            <button class="kebab-menu-btn"
+                                onclick="toggleDropdown('menu-3-mask'); event.stopPropagation()">⋮</button>
                             <div class="kebab-dropdown glass-panel" id="menu-3-mask">
-                                <div class="dropdown-item" onclick="showEditModal(); event.stopPropagation()">Editar Fecha</div>
-                                <div class="dropdown-item danger" onclick="showFakeToast(); event.stopPropagation()">Eliminar</div>
+                                <div class="dropdown-item" onclick="showEditModal(); event.stopPropagation()">Editar
+                                    Fecha</div>
+                                <div class="dropdown-item danger" onclick="showFakeToast(); event.stopPropagation()">
+                                    Eliminar</div>
                             </div>
                         </div>
                     </div>
@@ -430,6 +493,69 @@
 
         </div>
 
+    </div>
+
+    <!-- UPDATE MODAL STANDARD (Mockup viejo con acentos arreglados) -->
+    <div id="update-modal" class="overlay hidden">
+        <div class="login-box glass-panel">
+            <div id="overlay-icon-container"
+                style="text-align: center; margin-bottom: 15px; animation: toastIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; opacity: 0;">
+                <i class="fas fa-arrow-circle-up"
+                    style="font-size: 55px; color: #58a6ff; text-shadow: 0 0 10px rgba(88, 166, 255, 0.3);"></i>
+            </div>
+            <h3 style="margin-top:0; margin-bottom:10px; text-align:center;">¡Nueva Versión Disponible!</h3>
+            <p style="text-align:center; font-size: 0.9em; margin-bottom: 20px; opacity: 0.8;">La versión 1.2.0 de
+                SyncPK está disponible para su instalación.</p>
+
+            <label class="form-label" style="margin-bottom: 10px; align-items: flex-start;">
+                <input type="checkbox" id="updateIgnoreVersion" class="checkbox-dark" checked
+                    style="flex-shrink: 0; margin-top: 2px;">
+                <span>Ignorar esta versión específica</span>
+            </label>
+            <label class="form-label" style="margin-bottom: 24px; align-items: flex-start;">
+                <input type="checkbox" id="updateNeverNotify" class="checkbox-dark"
+                    style="flex-shrink: 0; margin-top: 2px;">
+                <span>No avisar de nuevas versiones</span>
+            </label>
+            <div class="modal-separator"></div>
+            <div class="modal-buttons" style="width: 100%;">
+                <button onclick="hideUpdateModal()" style="flex: 1;">Descartar</button>
+                <button onclick="hideUpdateModal(); showFakeToast()" style="flex: 1;">Actualizar Ahora</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- UPDATE MODAL (NUEVO ESTILO OVERLAY DE CARGA) -->
+    <div id="update-overlay-modal" class="overlay hidden" style="z-index: 9999;">
+        <div class="login-box loading-box"
+            style="display: flex; flex-direction: column; align-items: center; max-width: 400px; width: 90%;">
+            <div id="overlay-icon-container"
+                style="margin-bottom: 20px; animation: toastIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; opacity: 0;">
+                <i class="fas fa-arrow-circle-up"
+                    style="font-size: 65px; color: #58a6ff; text-shadow: 0 0 10px rgba(88, 166, 255, 0.3);"></i>
+            </div>
+            <div class="loading-title" style="margin-bottom: 5px;">¡Nueva Versión Disponible!</div>
+            <div class="loading-subtitle" style="margin-bottom: 30px;">La versión 1.2.0 de SyncPK está lista para
+                descargar.</div>
+
+            <label class="form-label"
+                style="margin-bottom: 10px; width: 100%; justify-content: flex-start; text-align: left; align-items: flex-start;">
+                <input type="checkbox" id="updateOverlayIgnoreVersion" class="checkbox-dark" checked
+                    style="flex-shrink: 0; margin-top: 2px;">
+                <span>Ignorar esta versión específica</span>
+            </label>
+            <label class="form-label"
+                style="margin-bottom: 30px; width: 100%; justify-content: flex-start; text-align: left; align-items: flex-start;">
+                <input type="checkbox" id="updateOverlayNeverNotify" class="checkbox-dark"
+                    style="flex-shrink: 0; margin-top: 2px;">
+                <span>No avisar de nuevas versiones</span>
+            </label>
+
+            <div class="modal-buttons" style="width: 100%;">
+                <button onclick="hideUpdateOverlayModal()" style="flex: 1;">Descartar</button>
+                <button onclick="hideUpdateOverlayModal(); showFakeToast()" style="flex: 1;">Actualizar Ahora</button>
+            </div>
+        </div>
     </div>
 
     <!-- EDIT MODAL (Copied from real index.html) -->
@@ -500,8 +626,7 @@
                     </div>
 
                     <!-- REMOVED HIDDEN CLASS FOR FAKE.HTML TESTING -->
-                    <div id="field-order"
-                        style="display:flex; flex-direction:column; gap:8px; align-items: center;">
+                    <div id="field-order" style="display:flex; flex-direction:column; gap:8px; align-items: center;">
                         <h4 style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;" data-i18n="label_order">Order
                         </h4>
                         <div style="display:flex; gap:16px; justify-content: center;">
@@ -558,7 +683,7 @@
             });
             document.getElementById(id).classList.toggle('show');
         }
-        
+
         let testType = 'success';
         function toggleOverlay() {
             const overlay = document.getElementById('mockup-loading-overlay');
@@ -571,7 +696,7 @@
             title.textContent = 'Procesando petición';
             subtitle.textContent = 'Plex Cloud está sincronizando. Espere por favor...';
             subtitle.style.display = 'block';
-            
+
             overlay.classList.remove('hidden');
 
             // Simulate network request finished
@@ -611,7 +736,7 @@
             toast.className = 'mockup-toast';
             toast.innerHTML = '<i class="fas fa-check-circle"></i><span>Guardado con éxito en Plex Cloud y Base de datos local.</span>';
             container.appendChild(toast);
-            
+
             setTimeout(() => {
                 toast.classList.add('toast-out');
                 toast.addEventListener('animationend', () => toast.remove());
@@ -625,6 +750,38 @@
         function hideEditModal() {
             document.getElementById('edit-modal').classList.add('hidden');
         }
+
+        function showUpdateModal() {
+            document.getElementById('update-modal').classList.remove('hidden');
+        }
+
+        function hideUpdateModal() {
+            document.getElementById('update-modal').classList.add('hidden');
+        }
+
+        function showUpdateOverlayModal() {
+            document.getElementById('update-overlay-modal').classList.remove('hidden');
+        }
+
+        function hideUpdateOverlayModal() {
+            document.getElementById('update-overlay-modal').classList.add('hidden');
+        }
+        // Close modals on Escape key
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape' || event.keyCode === 27) {
+                const updateModal = document.getElementById('update-modal');
+                const updateOverlayModal = document.getElementById('update-overlay-modal');
+                const editModal = document.getElementById('edit-modal');
+
+                if (updateModal && !updateModal.classList.contains('hidden')) {
+                    hideUpdateModal();
+                } else if (updateOverlayModal && !updateOverlayModal.classList.contains('hidden')) {
+                    hideUpdateOverlayModal();
+                } else if (editModal && !editModal.classList.contains('hidden')) {
+                    hideEditModal();
+                }
+            }
+        });
     </script>
 </body>
 

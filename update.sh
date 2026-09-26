@@ -2,8 +2,15 @@
 
 systemctl stop syncpk-server
 
-echo "[1/7] Download files..."
 curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/main.py
+
+# Download .conf only if it doesn't exist to avoid overwriting user preferences
+if [ ! -f .conf ]; then
+    curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/.conf
+fi
+
+curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/requirements.txt
+curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/.ver
 
 mkdir -p static/locales
 cd static
@@ -14,6 +21,12 @@ curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/
 cd locales
 curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/en.json
 curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/es.json
+curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/de.json
+curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/fr.json
+curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/it.json
+curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/pt.json
+curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/ja.json
+curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/zh.json
 cd ../..
 
 systemctl start syncpk-server

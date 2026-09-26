@@ -43,6 +43,8 @@ T_PWD_ERR=$(t "install_pwd_error")
 T_TMDB=$(t "install_tmdb")
 T_SYNC_LANG=$(t "install_sync_lang")
 T_DASH_LANG=$(t "install_dash_lang")
+T_AUTO_UPDATE_TITLE=$(t "install_auto_update_title")
+T_AUTO_UPDATE=$(t "install_auto_update")
 T_DEBUG=$(t "install_debug")
 
 T_TITLE_PLEX=$(t "install_title_plex")
@@ -153,6 +155,12 @@ if [ $? -ne 0 ] || [ -z "$SYNC_LANGUAGE" ]; then
     SYNC_LANGUAGE="en" 
 fi
 
+if whiptail --yesno "$T_AUTO_UPDATE" 10 60 --title "$T_AUTO_UPDATE_TITLE" --yes-button "$T_BTN_YES" --no-button "$T_BTN_NO" 3>&1 1>&2 2>&3; then
+    AUTO_UPDATE="true"
+else
+    AUTO_UPDATE="false"
+fi
+
 if whiptail --yesno "$T_DEBUG" 10 60 --defaultno --title "$T_TITLE_BACKEND" --yes-button "$T_BTN_YES" --no-button "$T_BTN_NO" 3>&1 1>&2 2>&3; then
     DEBUG_MODE="true"
 else
@@ -164,7 +172,7 @@ SALT=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 16 | head -n 1)
 WEB_HASH=$(echo -n "${SYNC_PASSWORD}${SALT}" | sha256sum | awk '{print $1}')
 
 API_TOKEN=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
-API_TOKEN="sk_syncpk_${API_TOKEN}"
+API_TOKEN="sk_${API_TOKEN}"
 API_HASH=$(echo -n "${API_TOKEN}${SALT}" | sha256sum | awk '{print $1}')
 
 echo "[Info] Saving configuration to .env file..."
@@ -178,6 +186,7 @@ API_HASH=$API_HASH
 TMDB_API_KEY=$TMDB_API_KEY
 SYNC_LANGUAGE=$SYNC_LANGUAGE
 DASHBOARD_LANGUAGE=$DASHBOARD_LANGUAGE
+AUTO_UPDATE=$AUTO_UPDATE
 DEBUG=$DEBUG_MODE
 # Save the API_TOKEN as well for MOTD generation later
 API_TOKEN_RAW=$API_TOKEN
@@ -189,12 +198,6 @@ cp .env .env.bak
 echo "[Info] Backup saved to .env.bak."
 
 if [ ! -f .conf ]; then
-    if [ -f .conf.example ]; then
-        cp .conf.example .conf
-        echo "[Info] Created .conf from .conf.example"
-    else
-        echo "# Controls the opacity of the dark mask over fanart images (0.0 to 1.0)" > .conf
-        echo "FANART_MASK_OPACITY=0.3" >> .conf
-        echo "[Info] Created new .conf"
-    fi
+    curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/.conf
+    echo "[Info] Downloaded .conf from GitHub"
 fi

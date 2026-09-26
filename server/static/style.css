@@ -1,4 +1,4 @@
-:root {
+﻿:root {
     --bg-color: #0d1117;
     --glass-bg: rgba(22, 27, 34, 0.7);
     --glass-border: rgba(255, 255, 255, 0.1);
@@ -584,11 +584,7 @@ button:disabled {
     padding-bottom: 8px;
 }
 
-.cards-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, 400px);
-    /* 396px + 4px borde/hueco = 400px rígidos */
-    justify-content: center;
+.cards-grid { display: grid; grid-template-columns: repeat(auto-fill, 400px); justify-content: flex-start;
     gap: 16px;
 }
 
@@ -1093,3 +1089,6 @@ button:disabled {
         stroke-dashoffset: 0;
     }
 }
+
+
+

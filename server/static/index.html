@@ -422,6 +422,20 @@
                     <span data-i18n="config_debug_mode">Enable Debug Logs (Backend)</span>
                 </label>
             </div>
+            
+            <div style="margin-top:20px;">
+                <label class="form-label" for="config-auto-update">
+                    <input type="checkbox" id="config-auto-update" style="width:20px; height:20px; cursor:pointer;" checked>
+                    <span data-i18n="config_auto_update">Enable Automatic Updates</span>
+                </label>
+            </div>
+            
+            <div style="margin-top:20px;">
+                <label class="form-label" for="config-notify-updates">
+                    <input type="checkbox" id="config-notify-updates" style="width:20px; height:20px; cursor:pointer;" checked>
+                    <span data-i18n="config_notify_updates">Notify me about new updates</span>
+                </label>
+            </div>
 
             <div style="margin-top:20px;">
                 <h4 style="margin-top:0; margin-bottom: 8px; color: #aaa; font-size: 0.85rem;">Master Password:</h4>
@@ -496,6 +510,38 @@
                 <circle cx="12" cy="19" r="2" />
             </svg>
         </button>
+    </div>
+
+    <!-- UPDATE MODAL -->
+    <div id="update-modal" class="overlay hidden" style="z-index: 9999;">
+        <div class="login-box loading-box"
+            style="display: flex; flex-direction: column; align-items: center; max-width: 400px; width: 90%;">
+            <div id="overlay-icon-container"
+                style="margin-bottom: 20px; animation: toastIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; opacity: 0;">
+                <i class="fas fa-arrow-circle-up"
+                    style="font-size: 65px; color: #58a6ff; text-shadow: 0 0 10px rgba(88, 166, 255, 0.3);"></i>
+            </div>
+            <div class="loading-title" style="margin-bottom: 5px;" data-i18n="update_title">New Version Available!</div>
+            <div class="loading-subtitle" style="margin-bottom: 30px;" id="update-subtitle">SyncPK version X is ready to download.</div>
+
+            <label class="form-label"
+                style="margin-bottom: 10px; width: 100%; justify-content: flex-start; text-align: left; align-items: flex-start;">
+                <input type="checkbox" id="updateIgnoreVersion" class="checkbox-dark" checked
+                    style="flex-shrink: 0; margin-top: 2px;">
+                <span data-i18n="update_ignore">Ignore this specific version</span>
+            </label>
+            <label class="form-label"
+                style="margin-bottom: 30px; width: 100%; justify-content: flex-start; text-align: left; align-items: flex-start;">
+                <input type="checkbox" id="updateNeverNotify" class="checkbox-dark"
+                    style="flex-shrink: 0; margin-top: 2px;">
+                <span data-i18n="update_never_notify">Do not notify about new versions</span>
+            </label>
+
+            <div class="modal-buttons" style="width: 100%;">
+                <button id="update-dismiss-btn" style="flex: 1;" data-i18n="btn_dismiss">Dismiss</button>
+                <button id="update-now-btn" style="flex: 1;" data-i18n="btn_update_now">Update Now</button>
+            </div>
+        </div>
     </div>
 
     <!-- MOCKUP: OVERLAY DE CARGA (NUEVO DISEÑO) -->

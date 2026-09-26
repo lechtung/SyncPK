@@ -1,4 +1,4 @@
-{
+﻿{
     "login_title": "SyncPK",
     "login_desc": "请输入您的主密码",
     "login_btn": "登录",
@@ -169,4 +169,14 @@
     "config_pass_upgrade_hint": "如果您最近订阅了 Plex Pass，请重新登录以激活 Webhooks。",
     "config_pass_found": "检测到 Plex Pass！已启用 Webhooks。",
     "config_pass_not_found": "未检测到 Plex Pass。"
+,
+    "update_title": "New Version Available!",
+    "update_subtitle": "SyncPK version [VERSION] is ready to download. Do you want to install it now?",
+    "update_ignore": "Ignore this specific version",
+    "update_never_notify": "Do not notify about new versions",
+    "btn_dismiss": "Dismiss",
+    "btn_update_now": "Update Now",
+    "config_notify_updates": "Notify me about new updates",
+    "updating_title": "Updating System",
+    "updating_subtitle": "Please wait a few minutes while the system updates and restarts..."
 }

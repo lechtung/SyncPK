@@ -31,6 +31,10 @@ mkdir -p $INSTALL_DIR
 echo "[Info] Downloading files from GitHub..."
 mkdir -p $INSTALL_DIR/static/locales
 curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/main.py -o $INSTALL_DIR/main.py
+if [ ! -f .conf ]; then
+    curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/.conf -o $INSTALL_DIR/.conf
+fi
+curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/.ver -o $INSTALL_DIR/.ver
 curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/index.html -o $INSTALL_DIR/static/index.html
 curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/style.css -o $INSTALL_DIR/static/style.css
 curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/app.js -o $INSTALL_DIR/static/app.js
@@ -50,6 +54,9 @@ if [ "$(realpath .env 2>/dev/null)" != "$(realpath $INSTALL_DIR/.env 2>/dev/null
     cp .env $INSTALL_DIR/.env
 fi
 
+if [ -f .conf ] && [ "$(realpath .conf 2>/dev/null)" != "$(realpath $INSTALL_DIR/.conf 2>/dev/null)" ]; then
+    cp .conf $INSTALL_DIR/.conf
+fi
 # Fallback requirements
 if [ ! -f $INSTALL_DIR/requirements.txt ] || ! grep -q "fastapi" $INSTALL_DIR/requirements.txt; then
     echo -e "fastapi\nuvicorn\nrequests\npython-dotenv\npython-multipart\nhttpx" > $INSTALL_DIR/requirements.txt
@@ -61,6 +68,11 @@ $INSTALL_DIR/venv/bin/pip install -r $INSTALL_DIR/requirements.txt
 
 # 3. Systemd Services
 echo "[Info] Creating systemd services..."
+
+# Download check_update.sh
+curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/check_update.sh -o $INSTALL_DIR/check_update.sh
+chmod +x $INSTALL_DIR/check_update.sh
+
 cat << EOF > /etc/systemd/system/syncpk-server.service
 [Unit]
 Description=SyncPK Central Server
@@ -77,9 +89,36 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
+cat << EOF > /etc/systemd/system/syncpk-updater.service
+[Unit]
+Description=SyncPK Auto-Updater Service
+After=network.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=$INSTALL_DIR
+ExecStart=/bin/bash $INSTALL_DIR/check_update.sh
+EOF
+
+cat << EOF > /etc/systemd/system/syncpk-updater.timer
+[Unit]
+Description=Timer for SyncPK Auto-Updater
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=24h
+Unit=syncpk-updater.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
 systemctl daemon-reload
 systemctl enable syncpk-server
 systemctl start syncpk-server
+systemctl enable syncpk-updater.timer
+systemctl start syncpk-updater.timer
 
 # Get local IP to display
 LOCAL_IP=$(hostname -I | awk '{print $1}')

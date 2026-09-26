@@ -112,6 +112,9 @@ document.addEventListener('DOMContentLoaded', init);
 async function init() {
     await loadTranslations();
     await loadUIConfig();
+    
+    // Check for updates
+    checkUpdates();
 
     // Check if token exists
     if (getAuthToken()) {
@@ -213,14 +216,24 @@ function setupEventListeners() {
 
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-            ['edit-modal', 'manual-add-modal', 'config-modal', 'log-modal'].forEach(id => {
+            ['edit-modal', 'manual-add-modal', 'config-modal', 'log-modal', 'update-modal'].forEach(id => {
                 const modal = document.getElementById(id);
                 if (modal && !modal.classList.contains('hidden')) {
-                    modal.classList.add('hidden');
+                    if (id === 'update-modal') {
+                        dismissUpdate();
+                    } else {
+                        modal.classList.add('hidden');
+                    }
                 }
             });
         }
     });
+    
+    let updateDismissBtn = document.getElementById('update-dismiss-btn');
+    if (updateDismissBtn) updateDismissBtn.addEventListener('click', dismissUpdate);
+    
+    let updateNowBtn = document.getElementById('update-now-btn');
+    if (updateNowBtn) updateNowBtn.addEventListener('click', triggerUpdate);
 }
 
 function openLogViewer() {
@@ -234,6 +247,65 @@ function closeLogViewer() {
     if (logInterval) {
         clearInterval(logInterval);
         logInterval = null;
+    }
+}
+
+async function checkUpdates() {
+    try {
+        let res = await apiFetch('/api/update/status');
+        if (res.ok) {
+            let data = await res.json();
+            if (data.has_update) {
+                let subtitle = currentLangData.update_subtitle || 'Version [VERSION] is available. Do you want to install it now?';
+                subtitle = subtitle.replace('[VERSION]', data.version);
+                document.getElementById('update-subtitle').textContent = subtitle;
+                
+                // Store version globally for ignoring
+                window.currentUpdateVersion = data.version;
+                document.getElementById('update-modal').classList.remove('hidden');
+            }
+        }
+    } catch (e) {
+        console.warn("Could not check updates", e);
+    }
+}
+
+async function dismissUpdate() {
+    document.getElementById('update-modal').classList.add('hidden');
+    
+    let ignoreVersion = document.getElementById('updateIgnoreVersion').checked;
+    let neverNotify = document.getElementById('updateNeverNotify').checked;
+    
+    try {
+        await apiFetch('/api/update/ignore', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                ignore_version: ignoreVersion ? window.currentUpdateVersion : "",
+                never_notify: neverNotify
+            })
+        });
+    } catch(e) {
+        console.warn("Could not save ignore update preferences", e);
+    }
+}
+
+async function triggerUpdate() {
+    document.getElementById('update-modal').classList.add('hidden');
+    showProcessingOverlay(
+        currentLangData.updating_title || 'Updating System',
+        currentLangData.updating_subtitle || 'Please wait a few minutes while the system updates and restarts...'
+    );
+    
+    try {
+        await apiFetch('/api/update/trigger', { method: 'POST' });
+        // The server will restart, we can just reload after a few seconds
+        setTimeout(() => {
+            window.location.reload();
+        }, 8000);
+    } catch(e) {
+        updateOverlayResult('error', currentLangData.error_state_msg || 'Error', '');
+        hideOverlay();
     }
 }
 
@@ -997,6 +1069,8 @@ function setupConfigModal() {
                     document.getElementById('config-tmdb-api').value = data.tmdb_api_key || '';
                     document.getElementById('config-plex-client-id').value = data.plex_client_id || '';
                     document.getElementById('config-debug').checked = !!data.debug_mode;
+                    document.getElementById('config-auto-update').checked = !!data.auto_update;
+                    document.getElementById('config-notify-updates').checked = !!data.notify_updates;
 
                     let langValue = data.sync_language || 'es';
                     let langDd = document.getElementById('configLang-dd');
@@ -1130,6 +1204,8 @@ function setupConfigModal() {
             tmdb_api_key: document.getElementById('config-tmdb-api').value,
             plex_client_id: document.getElementById('config-plex-client-id').value,
             debug_mode: document.getElementById('config-debug').checked,
+            auto_update: document.getElementById('config-auto-update').checked,
+            notify_updates: document.getElementById('config-notify-updates').checked,
             sync_language: newLang,
             dashboard_language: newDashLang
         };

@@ -6,10 +6,10 @@ INSTALL_PATH="${3:-/opt/syncpk}"
 
 source .env
 
-if [ -f "server/static/locales/${SYNC_LANGUAGE}.json" ]; then
-    JSON_PATH="server/static/locales/${SYNC_LANGUAGE}.json"
+if [ -f "$INSTALL_PATH/static/locales/${SYNC_LANGUAGE}.json" ]; then
+    JSON_PATH="$INSTALL_PATH/static/locales/${SYNC_LANGUAGE}.json"
 else
-    JSON_PATH="server/static/locales/en.json"
+    JSON_PATH="$INSTALL_PATH/static/locales/en.json"
 fi
 
 T_INST_PASS=$(jq -r '.summary_pass_instructions' "$JSON_PATH" | sed 's/\\n/\n/g')
