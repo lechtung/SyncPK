@@ -1,4 +1,4 @@
-﻿:root {
+:root {
     --bg-color: #0d1117;
     --glass-bg: rgba(22, 27, 34, 0.7);
     --glass-border: rgba(255, 255, 255, 0.1);
@@ -8,6 +8,10 @@
     --accent-hover: #3182ce;
     --accent-dark: #2568a8;
     --danger: #f85149;
+    /* nuevos colores UI */
+    --edit-bg: rgba(22, 27, 34, 0.85); /* fondo de componentes de edición */
+    --combo-bg: rgba(13, 17, 23, 0.95); /* fondo de combos / dropdowns */
+    --panel-bg: rgba(255, 255, 255, 0.03); /* fondo de paneles de cada pestaña */
 }
 
 * {
@@ -428,7 +432,7 @@ button:disabled {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 130px;
+    flex: 1;
 }
 
 #deleteScope-val,
@@ -585,7 +589,10 @@ button:disabled {
     padding-bottom: 8px;
 }
 
-.cards-grid { display: grid; grid-template-columns: repeat(auto-fill, 400px); justify-content: flex-start;
+.cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 400px);
+    justify-content: flex-start;
     gap: 16px;
 }
 
@@ -1091,5 +1098,202 @@ button:disabled {
     }
 }
 
+/* --- CONFIG MODAL TABS & PANELS --- */
+.segmented-control {
+    display: flex;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    padding: 4px;
+    margin-bottom: 20px;
+}
 
+.segmented-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #888;
+    padding: 8px;
+    font-size: 0.85rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
 
+.segmented-btn.active {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.segmented-btn:hover {
+    color: #fff;
+}
+
+.tab-content {
+    display: none;
+    animation: fadeIn 0.3s ease;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.inner-panel {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+}
+
+.inner-panel-title {
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.inner-panel-title i {
+    color: var(--accent);
+}
+
+.input-group {
+    margin-bottom: 12px;
+}
+
+.check-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    color: #fff;
+    font-size: 0.9rem;
+}
+
+.config-input {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.inner-panel>*:last-child,
+.inner-panel>*:last-child>*:last-child {
+    margin-bottom: 0 !important;
+}
+
+#config-modal .login-box::-webkit-scrollbar {
+    width: 6px;
+}
+
+#config-modal .login-box::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#config-modal .login-box::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+}
+
+#config-modal .login-box::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.icon-action-btn {
+    width: auto;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    padding: 0 16px;
+    cursor: pointer;
+    color: #fff;
+    transition: all 0.2s ease;
+}
+
+.icon-action-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: scale(1.05);
+}
+
+/* ACCORDION */
+.accordion {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    margin-bottom: 10px;
+    overflow: hidden;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.accordion-header {
+    padding: 14px 16px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    color: #fff;
+    font-weight: 500;
+    font-size: 0.9rem;
+    background: rgba(0, 0, 0, 0.1);
+    transition: background 0.2s;
+}
+
+.accordion-header:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.accordion-header i {
+    color: #888;
+}
+
+.accordion-body {
+    padding: 0 16px;
+    display: none;
+}
+
+.accordion.open {
+    overflow: visible;
+}
+
+.accordion.open .accordion-body {
+    display: block;
+    padding: 16px;
+    overflow: visible;
+}
+
+.accordion.open .accordion-header i.fa-chevron-down {
+    transform: rotate(180deg);
+}
+
+.accordion-body>*:last-child,
+.accordion-body>*:last-child>*:last-child {
+    margin-bottom: 0 !important;
+}
+
+/* Pickr custom button styles commented out – vanilla styling */
+
+.pickr input,
+.pickr button,
+.pcr-app input,
+.pcr-app button {
+    box-shadow: 0 0 0 1px hsla(0, 0%, 50%, 0.6), 0 0 0 3px var(--pcr-color);
+}

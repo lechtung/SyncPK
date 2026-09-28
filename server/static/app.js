@@ -9,6 +9,7 @@ let isLoading = false;
 let currentFilters = { type: 'all', year: 'all', month: 'all', search: '' };
 let statsCache = { movies: 0, moviesHours: 0, episodes: 0, episodesHours: 0 };
 let logInterval = null;
+let activeLang = navigator.language;
 
 // --- TOAST NOTIFICATION SYSTEM ---
 function showToast(message, type = 'info', duration = 4000) {
@@ -27,6 +28,31 @@ function showToast(message, type = 'info', duration = 4000) {
     toast.addEventListener('click', remove);
 }
 
+// --- GENERIC CONFIRM MODAL ---
+window.customConfirm = function (message) {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('generic-confirm-modal');
+        const msgEl = document.getElementById('generic-confirm-message');
+        const btnYes = document.getElementById('generic-confirm-yes');
+        const btnNo = document.getElementById('generic-confirm-no');
+
+        msgEl.textContent = message;
+        modal.classList.remove('hidden');
+
+        const handleYes = () => { cleanup(); resolve(true); };
+        const handleNo = () => { cleanup(); resolve(false); };
+
+        const cleanup = () => {
+            modal.classList.add('hidden');
+            btnYes.removeEventListener('click', handleYes);
+            btnNo.removeEventListener('click', handleNo);
+        };
+
+        btnYes.addEventListener('click', handleYes);
+        btnNo.addEventListener('click', handleNo);
+    });
+}
+
 // --- FULLSCREEN OVERLAY SYSTEM ---
 function showProcessingOverlay(title, subtitle) {
     const overlay = document.getElementById('loading-overlay');
@@ -36,7 +62,7 @@ function showProcessingOverlay(title, subtitle) {
 
     const icon = document.getElementById('overlay-icon');
     // Restaurar spinner inicial
-    const iconContainer = document.getElementById('overlay-icon-container');
+    const iconContainer = document.getElementById('loading-overlay-icon');
     if (iconContainer) {
         iconContainer.innerHTML = '<div class="spinner-premium"></div>';
     }
@@ -60,7 +86,7 @@ function updateOverlayResult(type, title, subtitle) {
     }
 
     // Allow closing on click only if it's an error
-    overlay.onclick = function() {
+    overlay.onclick = function () {
         if (type === 'error') {
             overlay.classList.add('hidden');
         }
@@ -69,7 +95,7 @@ function updateOverlayResult(type, title, subtitle) {
         overlay.onclick = null;
     }
 
-    const iconContainer = document.getElementById('overlay-icon-container');
+    const iconContainer = document.getElementById('loading-overlay-icon');
     if (iconContainer) {
         if (type === 'success') {
             iconContainer.innerHTML = `
@@ -122,7 +148,7 @@ document.addEventListener('DOMContentLoaded', init);
 async function init() {
     await loadTranslations();
     await loadUIConfig();
-    
+
     // Check for updates
     checkUpdates();
 
@@ -147,6 +173,28 @@ async function loadUIConfig() {
             if (data.fanart_mask_opacity) {
                 document.documentElement.style.setProperty('--fanart-mask-opacity', data.fanart_mask_opacity);
             }
+            if (data.dashboard_language) {
+                window.DASHBOARD_LANG = data.dashboard_language;
+            }
+            if (data.ui_poster_w) document.documentElement.style.setProperty('--poster-w', data.ui_poster_w + 'px');
+            if (data.ui_poster_h) document.documentElement.style.setProperty('--poster-h', data.ui_poster_h + 'px');
+            if (data.ui_fanart_w) document.documentElement.style.setProperty('--fanart-w', data.ui_fanart_w + 'px');
+            if (data.ui_fanart_h) document.documentElement.style.setProperty('--fanart-h', data.ui_fanart_h + 'px');
+            if (data.ui_grid_gap) document.documentElement.style.setProperty('--grid-gap', data.ui_grid_gap + 'px');
+            if (data.ui_card_radius) document.documentElement.style.setProperty('--card-radius', data.ui_card_radius + 'px');
+            if (data.ui_bg_color)       document.documentElement.style.setProperty('--bg-color',       data.ui_bg_color);
+            if (data.ui_glass_bg)       document.documentElement.style.setProperty('--glass-bg',       data.ui_glass_bg);
+            if (data.ui_glass_border)   document.documentElement.style.setProperty('--glass-border',   data.ui_glass_border);
+            if (data.ui_edit_bg)        document.documentElement.style.setProperty('--edit-bg',        data.ui_edit_bg);
+            if (data.ui_combo_bg)       document.documentElement.style.setProperty('--combo-bg',       data.ui_combo_bg);
+            if (data.ui_panel_bg)       document.documentElement.style.setProperty('--panel-bg',       data.ui_panel_bg);
+            if (data.ui_accent_primary) document.documentElement.style.setProperty('--accent',         data.ui_accent_primary);
+            if (data.ui_accent_hover)   document.documentElement.style.setProperty('--accent-hover',   data.ui_accent_hover);
+            if (data.ui_accent_dark)    document.documentElement.style.setProperty('--accent-dark',    data.ui_accent_dark);
+            if (data.ui_danger)         document.documentElement.style.setProperty('--danger',         data.ui_danger);
+            if (data.ui_text_primary)   document.documentElement.style.setProperty('--text-primary',   data.ui_text_primary);
+            if (data.ui_text_secondary) document.documentElement.style.setProperty('--text-secondary', data.ui_text_secondary);
+            if (data.ui_glass_blur)     document.documentElement.style.setProperty('--glass-blur', `blur(${data.ui_glass_blur}px)`);
         }
     } catch (e) {
         console.warn("Could not load UI config", e);
@@ -158,6 +206,7 @@ async function loadTranslations() {
     if (window.DASHBOARD_LANG && window.DASHBOARD_LANG !== "auto") {
         lang = window.DASHBOARD_LANG;
     }
+    activeLang = lang;
     try {
         let res = await fetch(`locales/${lang}.json`);
         if (!res.ok) throw new Error("Not found");
@@ -238,10 +287,10 @@ function setupEventListeners() {
             });
         }
     });
-    
+
     let updateDismissBtn = document.getElementById('update-dismiss-btn');
     if (updateDismissBtn) updateDismissBtn.addEventListener('click', dismissUpdate);
-    
+
     let updateNowBtn = document.getElementById('update-now-btn');
     if (updateNowBtn) updateNowBtn.addEventListener('click', triggerUpdate);
 }
@@ -269,7 +318,7 @@ async function checkUpdates() {
                 let subtitle = currentLangData.update_subtitle || 'Version [VERSION] is available. Do you want to install it now?';
                 subtitle = subtitle.replace('[VERSION]', data.version);
                 document.getElementById('update-subtitle').textContent = subtitle;
-                
+
                 // Store version globally for ignoring
                 window.currentUpdateVersion = data.version;
                 document.getElementById('update-modal').classList.remove('hidden');
@@ -282,10 +331,10 @@ async function checkUpdates() {
 
 async function dismissUpdate() {
     document.getElementById('update-modal').classList.add('hidden');
-    
+
     let ignoreVersion = document.getElementById('updateIgnoreVersion').checked;
     let neverNotify = document.getElementById('updateNeverNotify').checked;
-    
+
     try {
         await apiFetch('/api/update/ignore', {
             method: 'POST',
@@ -295,7 +344,7 @@ async function dismissUpdate() {
                 never_notify: neverNotify
             })
         });
-    } catch(e) {
+    } catch (e) {
         console.warn("Could not save ignore update preferences", e);
     }
 }
@@ -306,14 +355,14 @@ async function triggerUpdate() {
         currentLangData.updating_title || 'Updating System',
         currentLangData.updating_subtitle || 'Please wait a few minutes while the system updates and restarts...'
     );
-    
+
     try {
         await apiFetch('/api/update/trigger', { method: 'POST' });
         // The server will restart, we can just reload after a few seconds
         setTimeout(() => {
             window.location.reload();
         }, 8000);
-    } catch(e) {
+    } catch (e) {
         updateOverlayResult('error', currentLangData.error_state_msg || 'Error', '');
         hideOverlay();
     }
@@ -340,7 +389,29 @@ function initDropdowns() {
         // Click trigger also toggles
         trigger.addEventListener('click', (e) => {
             e.stopPropagation();
-            dd.classList.toggle('open');
+            let wasOpen = dd.classList.contains('open');
+            document.querySelectorAll('.c-dropdown').forEach(other => {
+                other.classList.remove('open');
+                let modal = other.closest('.login-box');
+                if (modal) modal.style.paddingBottom = '';
+            });
+            if (!wasOpen) {
+                dd.classList.add('open');
+                let menu = dd.querySelector('.c-dropdown-menu');
+                let modal = dd.closest('.login-box');
+                if (modal && menu) {
+                    // Small delay to allow DOM to render the menu and get height
+                    setTimeout(() => {
+                        let rect = menu.getBoundingClientRect();
+                        let modalRect = modal.getBoundingClientRect();
+                        if (rect.bottom > modalRect.bottom) {
+                            let diff = rect.bottom - modalRect.bottom;
+                            // Add diff + some margin to the base padding (32px)
+                            modal.style.paddingBottom = (32 + diff + 10) + 'px';
+                        }
+                    }, 10);
+                }
+            }
         });
 
         // Click items
@@ -356,6 +427,8 @@ function initDropdowns() {
                 item.classList.add('selected');
                 if (valEl) valEl.textContent = item.textContent;
                 dd.classList.remove('open');
+                let modal = dd.closest('.login-box');
+                if (modal) modal.style.paddingBottom = '';
 
                 // Update filter and reload if applicable
                 if (filterId) {
@@ -368,6 +441,15 @@ function initDropdowns() {
                     }
                 }
             });
+        });
+    });
+
+    // Close dropdowns when clicking anywhere outside
+    document.addEventListener('click', (e) => {
+        document.querySelectorAll('.c-dropdown.open').forEach(dd => {
+            dd.classList.remove('open');
+            let modal = dd.closest('.login-box');
+            if (modal) modal.style.paddingBottom = '';
         });
     });
 }
@@ -450,7 +532,7 @@ function populateMonthFilter() {
     console.log('[SyncPK] Locale detected for months:', locale);
 
     for (let i = 0; i < 12; i++) {
-        let monthName = new Date(2000, i, 1).toLocaleDateString(navigator.language, { month: 'long' });
+        let monthName = new Date(2000, i, 1).toLocaleDateString(activeLang, { month: 'long' });
         monthName = monthName.charAt(0).toUpperCase() + monthName.slice(1);
 
         let item = document.createElement('div');
@@ -589,7 +671,7 @@ async function renderHistory(items) {
     let grouped = {};
     items.forEach(item => {
         let dateObj = new Date(item.watched_at);
-        let dayString = dateObj.toLocaleDateString(navigator.language, { day: 'numeric', month: 'long', year: 'numeric' });
+        let dayString = dateObj.toLocaleDateString(activeLang, { day: 'numeric', month: 'long', year: 'numeric' });
         if (!grouped[dayString]) grouped[dayString] = [];
         grouped[dayString].push(item);
     });
@@ -683,18 +765,18 @@ window.toggleDropdown = function (id, e) {
 window.deleteItem = function (id, mediaType) {
     let modal = document.getElementById('confirm-modal');
     modal.classList.remove('hidden');
-    
+
     let scopeSelect = document.getElementById('deleteScope-dd');
     let scopeValEl = document.getElementById('deleteScope-val');
     let scopeTitle = document.getElementById('deleteScope-title');
-    
+
     // Reset selection to default (episode)
     if (scopeSelect) {
         scopeSelect.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected'));
         let defaultItem = scopeSelect.querySelector('.c-dropdown-item[data-value="episode"]');
         if (defaultItem) defaultItem.classList.add('selected');
         scopeSelect.dataset.currentValue = 'episode';
-        
+
         if (mediaType === 'episode') {
             scopeSelect.classList.remove('hidden');
             if (scopeTitle) scopeTitle.classList.remove('hidden');
@@ -982,8 +1064,8 @@ function generateTimeline(anchorDate) {
         let isToday = d.toDateString() === today.toDateString();
 
         // Browser locale day and month names
-        let weekdayStr = d.toLocaleDateString(navigator.language, { weekday: 'short' }).toUpperCase();
-        let monthStr = d.toLocaleDateString(navigator.language, { month: 'short' }).toUpperCase();
+        let weekdayStr = d.toLocaleDateString(activeLang, { weekday: 'short' }).toUpperCase();
+        let monthStr = d.toLocaleDateString(activeLang, { month: 'short' }).toUpperCase();
         let dateNum = d.getDate();
 
         let btn = document.createElement('button');
@@ -998,7 +1080,7 @@ function generateTimeline(anchorDate) {
             document.querySelectorAll('.day-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
 
-            let dayString = d.toLocaleDateString(navigator.language, { day: 'numeric', month: 'long', year: 'numeric' });
+            let dayString = d.toLocaleDateString(activeLang, { day: 'numeric', month: 'long', year: 'numeric' });
             let groupId = 'group-' + dayString.replace(/\s+/g, '-');
             let group = document.getElementById(groupId);
             if (group) {
@@ -1088,9 +1170,43 @@ function setupConfigModal() {
                     document.getElementById('config-plex-token').value = data.plex_token || '';
                     document.getElementById('config-tmdb-api').value = data.tmdb_api_key || '';
                     document.getElementById('config-plex-client-id').value = data.plex_client_id || '';
+
+                    if (data.api_token_raw) {
+                        document.getElementById('webhooks-toggle-container').style.display = 'block';
+                        const host = window.location.host;
+                        document.getElementById('webhook-url-plex').value = `http://${host}/webhook/plex?token=${data.api_token_raw}`;
+                        document.getElementById('webhook-url-kodi').value = `http://${host}/webhook/kodi?token=${data.api_token_raw}`;
+                    } else {
+                        document.getElementById('webhooks-toggle-container').style.display = 'none';
+                    }
+
                     document.getElementById('config-debug').checked = !!data.debug_mode;
                     document.getElementById('config-auto-update').checked = !!data.auto_update;
                     document.getElementById('config-notify-updates').checked = !!data.notify_updates;
+
+                    let posterDd = document.getElementById('configPosterPref-dd');
+                    if (posterDd) {
+                        let val = data.poster_pref || 'show';
+                        posterDd.dataset.currentValue = val;
+                        posterDd.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected'));
+                        let item = posterDd.querySelector(`.c-dropdown-item[data-value="${val}"]`);
+                        if (item) {
+                            item.classList.add('selected');
+                            posterDd.querySelector('.c-dropdown-value').textContent = item.textContent;
+                        }
+                    }
+
+                    let fanartDd = document.getElementById('configFanartPref-dd');
+                    if (fanartDd) {
+                        let val = data.fanart_pref || 'episode';
+                        fanartDd.dataset.currentValue = val;
+                        fanartDd.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected'));
+                        let item = fanartDd.querySelector(`.c-dropdown-item[data-value="${val}"]`);
+                        if (item) {
+                            item.classList.add('selected');
+                            fanartDd.querySelector('.c-dropdown-value').textContent = item.textContent;
+                        }
+                    }
 
                     let langValue = data.sync_language || 'es';
                     let langDd = document.getElementById('configLang-dd');
@@ -1103,7 +1219,7 @@ function setupConfigModal() {
                         valEl.textContent = selectedItem.textContent;
                         valEl.setAttribute('data-i18n', selectedItem.getAttribute('data-i18n'));
                     }
-                    
+
                     let dashLangValue = data.dashboard_language || 'auto';
                     let dashLangDd = document.getElementById('configDashboardLang-dd');
                     dashLangDd.dataset.currentValue = dashLangValue;
@@ -1116,6 +1232,79 @@ function setupConfigModal() {
                         dashValEl.setAttribute('data-i18n', dashSelectedItem.getAttribute('data-i18n'));
                     }
                     configModal.dataset.originalLang = langValue;
+                    configModal.dataset.originalDashLang = dashLangValue;
+                    configModal.dataset.originalPoster = data.poster_pref || 'show';
+                    configModal.dataset.originalFanart = data.fanart_pref || 'episode';
+
+                    document.getElementById('config-poster-w').value = data.ui_poster_w || 150;
+                    document.getElementById('val-poster-w').innerText = (data.ui_poster_w || 150) + 'px';
+                    document.getElementById('config-poster-h').value = data.ui_poster_h || 225;
+                    document.getElementById('val-poster-h').innerText = (data.ui_poster_h || 225) + 'px';
+                    document.getElementById('config-fanart-w').value = data.ui_fanart_w || 300;
+                    document.getElementById('val-fanart-w').innerText = (data.ui_fanart_w || 300) + 'px';
+                    document.getElementById('config-fanart-h').value = data.ui_fanart_h || 168;
+                    document.getElementById('val-fanart-h').innerText = (data.ui_fanart_h || 168) + 'px';
+                    document.getElementById('config-grid-gap').value = data.ui_grid_gap || 15;
+                    document.getElementById('val-gap').innerText = (data.ui_grid_gap || 15) + 'px';
+                    document.getElementById('config-card-radius').value = data.ui_card_radius || 8;
+                    document.getElementById('val-radius').innerText = (data.ui_card_radius || 8) + 'px';
+
+                    /*
+                    --bg-color: #0d1117;
+                    --glass-bg: rgba(22, 27, 34, 0.7);
+                    --glass-border: rgba(255, 255, 255, 0.1);
+                    --text-primary: #c9d1d9;
+                    --text-secondary: #8b949e;
+                    --accent: #58a6ff;
+                    --accent-hover: #3182ce;
+                    --accent-dark: #2568a8;
+                    --danger: #f85149;                    
+                    */
+
+                    document.getElementById('config-bg-color').value = data.ui_bg_color || '#0d1117';
+                    if (window.pickrBgColor) window.pickrBgColor.setColor(data.ui_bg_color || '#0d1117');
+                    document.getElementById('config-glass-bg').value = data.ui_glass_bg || 'rgba(22,27,34,0.7)';
+                    if (window.pickrGlassBg) window.pickrGlassBg.setColor(data.ui_glass_bg || 'rgba(22,27,34,0.7)');
+                    document.getElementById('config-glass-border').value = data.ui_glass_border || 'rgba(255,255,255,0.1)';
+                    if (window.pickrGlassBorder) window.pickrGlassBorder.setColor(data.ui_glass_border || 'rgba(255,255,255,0.1)');
+                    document.getElementById('config-edit-bg').value = data.ui_edit_bg || 'rgba(22,27,34,0.85)';
+                    if (window.pickrEditBg) window.pickrEditBg.setColor(data.ui_edit_bg || 'rgba(22,27,34,0.85)');
+                    document.getElementById('config-combo-bg').value = data.ui_combo_bg || 'rgba(13,17,23,0.95)';
+                    if (window.pickrComboBg) window.pickrComboBg.setColor(data.ui_combo_bg || 'rgba(13,17,23,0.95)');
+                    document.getElementById('config-panel-bg').value = data.ui_panel_bg || 'rgba(255,255,255,0.03)';
+                    if (window.pickrPanelBg) window.pickrPanelBg.setColor(data.ui_panel_bg || 'rgba(255,255,255,0.03)');
+                    document.getElementById('config-accent-primary').value = data.ui_accent_primary || '#58a6ff';
+                    if (window.pickrAccentPrimary) window.pickrAccentPrimary.setColor(data.ui_accent_primary || '#58a6ff');
+                    document.getElementById('config-accent-hover').value = data.ui_accent_hover || '#3182ce';
+                    if (window.pickrAccentHover) window.pickrAccentHover.setColor(data.ui_accent_hover || '#3182ce');
+                    document.getElementById('config-accent-dark').value = data.ui_accent_dark || '#2568a8';
+                    if (window.pickrAccentDark) window.pickrAccentDark.setColor(data.ui_accent_dark || '#2568a8');
+                    document.getElementById('config-danger').value = data.ui_danger || '#f85149';
+                    if (window.pickrDanger) window.pickrDanger.setColor(data.ui_danger || '#f85149');
+                    document.getElementById('config-text-primary').value = data.ui_text_primary || '#c9d1d9';
+                    if (window.pickrTextPrimary) window.pickrTextPrimary.setColor(data.ui_text_primary || '#c9d1d9');
+                    document.getElementById('config-text-secondary').value = data.ui_text_secondary || '#8b949e';
+                    if (window.pickrTextSecondary) window.pickrTextSecondary.setColor(data.ui_text_secondary || '#8b949e');
+
+
+                    document.getElementById('config-glass-blur').value = data.ui_glass_blur || 10;
+                    document.getElementById('val-blur').innerText = (data.ui_glass_blur || 10) + 'px';
+                    document.getElementById('config-fanart-opacity').value = data.fanart_mask_opacity || 0.3;
+                    document.getElementById('val-mask-opacity').innerText = data.fanart_mask_opacity || 0.3;
+                    document.getElementById('config-show-duration').checked = data.ui_show_duration !== false;
+                    document.getElementById('config-show-title').checked = data.ui_show_title !== false;
+
+                    let fontDd = document.getElementById('configFont-dd');
+                    if (fontDd) {
+                        let fontVal = data.ui_font || 'inter';
+                        fontDd.dataset.currentValue = fontVal;
+                        fontDd.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected'));
+                        let item = fontDd.querySelector(`.c-dropdown-item[data-value="${fontVal}"]`);
+                        if (item) {
+                            item.classList.add('selected');
+                            fontDd.querySelector('.c-dropdown-value').textContent = item.textContent;
+                        }
+                    }
 
                     // Resetear estado del formulario
                     pwdInput.value = '';
@@ -1139,7 +1328,8 @@ function setupConfigModal() {
     const restoreBtn = document.getElementById('config-restore-btn');
     if (restoreBtn) {
         restoreBtn.addEventListener('click', async () => {
-            if (!confirm(currentLangData.config_restore_confirm || 'Are you sure you want to restore the original configuration? Unsaved changes will be lost.')) return;
+            let confirmed = await window.customConfirm(currentLangData.config_restore_confirm || 'Are you sure you want to restore the original configuration? Unsaved changes will be lost.');
+            if (!confirmed) return;
 
             showProcessingOverlay(currentLangData.config_restoring || 'Restoring', currentLangData.config_restoring_sub || 'Loading backup...');
             try {
@@ -1214,8 +1404,13 @@ function setupConfigModal() {
     // Save Config
     saveBtn.addEventListener('click', async () => {
         const origLang = configModal.dataset.originalLang;
+        const origDashLang = configModal.dataset.originalDashLang || 'auto';
+        const origPoster = configModal.dataset.originalPoster;
+        const origFanart = configModal.dataset.originalFanart;
         const newLang = document.getElementById('configLang-dd').dataset.currentValue || 'es';
         const newDashLang = document.getElementById('configDashboardLang-dd').dataset.currentValue || 'auto';
+        const newPoster = document.getElementById('configPosterPref-dd').dataset.currentValue || 'show';
+        const newFanart = document.getElementById('configFanartPref-dd').dataset.currentValue || 'episode';
         const pwd = pwdInput.value;
 
         const payload = {
@@ -1227,21 +1422,46 @@ function setupConfigModal() {
             auto_update: document.getElementById('config-auto-update').checked,
             notify_updates: document.getElementById('config-notify-updates').checked,
             sync_language: newLang,
-            dashboard_language: newDashLang
+            dashboard_language: newDashLang,
+            poster_pref: newPoster,
+            fanart_pref: newFanart,
+            ui_poster_w: document.getElementById('config-poster-w').value,
+            ui_poster_h: document.getElementById('config-poster-h').value,
+            ui_fanart_w: document.getElementById('config-fanart-w').value,
+            ui_fanart_h: document.getElementById('config-fanart-h').value,
+            ui_grid_gap: document.getElementById('config-grid-gap').value,
+            ui_card_radius: document.getElementById('config-card-radius').value,
+            ui_bg_color: document.getElementById('config-bg-color').value,
+            ui_glass_bg: document.getElementById('config-glass-bg').value,
+            ui_glass_border: document.getElementById('config-glass-border').value,
+            ui_edit_bg: document.getElementById('config-edit-bg').value,
+            ui_combo_bg: document.getElementById('config-combo-bg').value,
+            ui_panel_bg: document.getElementById('config-panel-bg').value,
+            ui_accent_primary: document.getElementById('config-accent-primary').value,
+            ui_accent_hover: document.getElementById('config-accent-hover').value,
+            ui_accent_dark: document.getElementById('config-accent-dark').value,
+            ui_danger: document.getElementById('config-danger').value,
+            ui_glass_blur: document.getElementById('config-glass-blur').value,
+            ui_font: document.getElementById('configFont-dd').dataset.currentValue || 'inter',
+            ui_text_primary: document.getElementById('config-text-primary').value,
+            ui_text_secondary: document.getElementById('config-text-secondary').value,
+            ui_show_duration: document.getElementById('config-show-duration').checked,
+            ui_show_title: document.getElementById('config-show-title').checked,
+            fanart_mask_opacity: document.getElementById('config-fanart-opacity').value
         };
 
         if (pwd) payload.master_password = pwd;
 
-        if (newLang !== origLang) {
-            let rescanConfirmMsg = currentLangData.config_rescan_confirm || 'You have changed the language. Do you want to rescan your ENTIRE library (Titles and Posters) to apply the new language? (This may take a few minutes)';
-            if (!confirm(rescanConfirmMsg)) {
-                return; // Wait or just save without rescan? Let's just save. Actually, if they say NO, maybe just save. Let's do a custom modal or just native confirm.
-            } else {
+        configModal.classList.add('hidden');
+
+        if (newLang !== origLang || newPoster !== origPoster || newFanart !== origFanart) {
+            let rescanConfirmMsg = currentLangData.config_rescan_confirm || 'You have changed language or art preferences. Do you want to rescan your ENTIRE library (Titles and Posters) to apply the new settings? (This may take a few minutes)';
+            let confirmed = await window.customConfirm(rescanConfirmMsg);
+            if (confirmed) {
                 payload.force_rescan = true;
             }
         }
 
-        configModal.classList.add('hidden');
         showProcessingOverlay(currentLangData.overlay_processing || 'Processing request', currentLangData.overlay_wait || 'Please wait...');
 
         try {
@@ -1253,19 +1473,18 @@ function setupConfigModal() {
             if (res.ok) {
                 const data = await res.json();
                 if (data.status === 'success') {
-                    let successMsg = currentLangData.config_saved || 'Settings saved.';
-                    if (data.has_plex_pass === true) {
-                        successMsg += '\\n' + (currentLangData.config_pass_found || 'Plex Pass detected! Webhooks enabled.');
-                    } else if (data.has_plex_pass === false) {
-                        successMsg += '\\n' + (currentLangData.config_pass_not_found || 'No Plex Pass detected.');
-                    }
-                    
+                    let successTitle = currentLangData.config_saved || 'Settings saved.';
+
                     if (data.rescan_started) {
                         updateOverlayResult('success', currentLangData.config_saved_rescan || 'Settings saved. Rescan started in background.');
                     } else {
-                        updateOverlayResult('success', successMsg);
+                        updateOverlayResult('success', successTitle);
                     }
-                    hideOverlay(3000);
+                    if (newDashLang !== origDashLang) {
+                        setTimeout(() => window.location.reload(true), 3000);
+                    } else {
+                        hideOverlay(3000);
+                    }
                 } else {
                     updateOverlayResult('error', currentLangData.config_save_error || 'Error saving settings.');
                     hideOverlay(3000);
@@ -1478,8 +1697,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (data.status === 'confirm_rewatch') {
                             hideOverlay(0);
                             let rewMsg = currentLangData.manual_rewatch_confirm || 'You have watched this before (last time: {date}). Do you want to log a NEW watch (re-watch)?';
-                            rewMsg = rewMsg.replace('{date}', new Date(data.last_watched).toLocaleDateString());
-                            const confirmed = window.confirm(rewMsg);
+                            rewMsg = rewMsg.replace('{date}', new Date(data.last_watched).toLocaleDateString(activeLang));
+                            const confirmed = await window.customConfirm(rewMsg);
                             if (confirmed) {
                                 payload.force_rewatch = true;
                                 showProcessingOverlay(currentLangData.overlay_processing || 'Processing request', currentLangData.overlay_wait || 'Please wait...');
@@ -1512,9 +1731,98 @@ document.addEventListener('DOMContentLoaded', () => {
                     setTimeout(() => manualModal.classList.remove('hidden'), 3000);
                 }
             };
-            
+
             await sendManualPayload(payload);
             checkManualForm();
         });
     }
 });
+
+function switchTab(prefix, tab) {
+    document.querySelectorAll('#' + prefix + '-sys, #' + prefix + '-scrap, #' + prefix + '-ui').forEach(el => el.classList.remove('active'));
+    document.getElementById(prefix + '-' + tab).classList.add('active');
+
+    const btns = document.getElementById(prefix + '-' + tab).parentNode.querySelectorAll('.segmented-btn');
+    btns.forEach(b => b.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+}
+
+function toggleWebhooks() {
+    const content = document.getElementById('webhooks-content');
+    const btnSpan = document.querySelector('#webhooks-toggle-btn span');
+    content.classList.toggle('hidden');
+    if (content.classList.contains('hidden')) {
+        btnSpan.textContent = 'Mostrar Webhooks';
+    } else {
+        btnSpan.textContent = 'Ocultar Webhooks';
+    }
+}
+
+function toggleAcc(accElement) {
+    const wasOpen = accElement.classList.contains('open');
+    document.querySelectorAll('.accordion').forEach(a => a.classList.remove('open'));
+    if (!wasOpen) {
+        accElement.classList.add('open');
+    }
+}
+
+function initPickers() {
+    if (typeof Pickr === 'undefined') return;
+
+    const createPickr = (elId, inputId, defaultColor) => {
+        const el = document.getElementById(elId);
+        if (!el) return null;
+
+        const pickr = Pickr.create({
+            el: el,
+            theme: 'nano',
+            default: defaultColor,
+            swatches: [
+                '#0d1117',
+                'rgba(22, 27, 34, 0.7)',
+                '#3584e4',
+                '#1a5fb4',
+                '#242424'
+            ],
+            components: {
+                preview: true,
+                opacity: true,
+                hue: true,
+                interaction: {
+                    hex: true,
+                    rgba: true,
+                    input: true,
+                    save: true,
+                    cancel: true
+                }
+            },
+            i18n: {
+                'btn:save': 'Guardar',
+                'btn:cancel': 'Cancelar',
+                'btn:clear': 'Limpiar'
+            }
+        });
+
+        pickr.on('save', (color, instance) => {
+            document.getElementById(inputId).value = color.toRGBA().toString(0);
+            instance.hide();
+        });
+
+        return pickr;
+    };
+
+    window.pickrBgColor       = createPickr('pickr-bg-color',       'config-bg-color',       '#0d1117');
+    window.pickrGlassBg       = createPickr('pickr-glass-bg',       'config-glass-bg',       'rgba(22,27,34,0.7)');
+    window.pickrGlassBorder   = createPickr('pickr-glass-border',   'config-glass-border',   'rgba(255,255,255,0.1)');
+    window.pickrEditBg        = createPickr('pickr-edit-bg',        'config-edit-bg',        'rgba(22,27,34,0.85)');
+    window.pickrComboBg       = createPickr('pickr-combo-bg',       'config-combo-bg',       'rgba(13,17,23,0.95)');
+    window.pickrPanelBg       = createPickr('pickr-panel-bg',       'config-panel-bg',       'rgba(255,255,255,0.03)');
+    window.pickrAccentPrimary = createPickr('pickr-accent-primary', 'config-accent-primary', '#58a6ff');
+    window.pickrAccentHover   = createPickr('pickr-accent-hover',   'config-accent-hover',   '#3182ce');
+    window.pickrAccentDark    = createPickr('pickr-accent-dark',    'config-accent-dark',    '#2568a8');
+    window.pickrDanger        = createPickr('pickr-danger',         'config-danger',         '#f85149');
+    window.pickrTextPrimary   = createPickr('pickr-text-primary',   'config-text-primary',   '#c9d1d9');
+    window.pickrTextSecondary = createPickr('pickr-text-secondary', 'config-text-secondary', '#8b949e');
+}
+
+initPickers();

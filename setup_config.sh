@@ -67,7 +67,7 @@ if [ $? -ne 0 ]; then exit 1; fi
 
 # Plex PIN Auth
 echo "[Info] Requesting Plex authentication PIN..."
-PLEX_CLIENT_ID="SPK-$(uuidgen)"
+PLEX_CLIENT_ID="SPK-$(cat /proc/sys/kernel/random/uuid 2>/dev/null || cat /dev/urandom | tr -dc 'a-f0-9' | fold -w 32 | head -n 1)"
 PIN_RESPONSE=$(curl -s -X POST "https://plex.tv/api/v2/pins?strong=true" -H "Accept: application/json" -H "X-Plex-Product: SyncPK" -H "X-Plex-Client-Identifier: $PLEX_CLIENT_ID")
 PIN_ID=$(echo "$PIN_RESPONSE" | jq -r '.id')
 PIN_CODE=$(echo "$PIN_RESPONSE" | jq -r '.code')
@@ -176,28 +176,30 @@ API_TOKEN="sk_${API_TOKEN}"
 API_HASH=$(echo -n "${API_TOKEN}${SALT}" | sha256sum | awk '{print $1}')
 
 echo "[Info] Saving configuration to .env file..."
-cat << EOF > .env
-PLEX_URL=$PLEX_URL
-PLEX_TOKEN=$PLEX_TOKEN
-HAS_PLEX_PASS=$HAS_PLEX_PASS
-SALT=$SALT
-WEB_HASH=$WEB_HASH
-API_HASH=$API_HASH
-TMDB_API_KEY=$TMDB_API_KEY
-SYNC_LANGUAGE=$SYNC_LANGUAGE
-DASHBOARD_LANGUAGE=$DASHBOARD_LANGUAGE
-AUTO_UPDATE=$AUTO_UPDATE
-DEBUG=$DEBUG_MODE
-# Save the API_TOKEN as well for MOTD generation later
-API_TOKEN_RAW=$API_TOKEN
-PLEX_CLIENT_ID=$PLEX_CLIENT_ID
-EOF
+if [ -f server/.env.example ]; then
+    cp server/.env.example .env
+elif [ -f .env.example ]; then
+    cp .env.example .env
+else
+    # Fallback to downloading it if not present
+    curl -s https://raw.githubusercontent.com/lechtung/SyncPK/main/server/.env.example -o .env
+fi
+
+# Update variables in .env
+sed -i "s|^PLEX_URL=.*|PLEX_URL=$PLEX_URL|" .env
+sed -i "s|^PLEX_TOKEN=.*|PLEX_TOKEN=$PLEX_TOKEN|" .env
+sed -i "s|^HAS_PLEX_PASS=.*|HAS_PLEX_PASS=$HAS_PLEX_PASS|" .env
+sed -i "s|^SALT=.*|SALT=$SALT|" .env
+sed -i "s|^WEB_HASH=.*|WEB_HASH=$WEB_HASH|" .env
+sed -i "s|^API_HASH=.*|API_HASH=$API_HASH|" .env
+sed -i "s|^TMDB_API_KEY=.*|TMDB_API_KEY=$TMDB_API_KEY|" .env
+sed -i "s|^SYNC_LANGUAGE=.*|SYNC_LANGUAGE=\"$SYNC_LANGUAGE\"|" .env
+sed -i "s|^DASHBOARD_LANGUAGE=.*|DASHBOARD_LANGUAGE=\"$DASHBOARD_LANGUAGE\"|" .env
+sed -i "s|^AUTO_UPDATE=.*|AUTO_UPDATE=$AUTO_UPDATE|" .env
+sed -i "s|^DEBUG=.*|DEBUG=$DEBUG_MODE|" .env
+sed -i "s|^API_TOKEN_RAW=.*|API_TOKEN_RAW=$API_TOKEN|" .env
+sed -i "s|^PLEX_CLIENT_ID=.*|PLEX_CLIENT_ID=$PLEX_CLIENT_ID|" .env
 
 echo "[Info] Configuration saved successfully in .env."
 cp .env .env.bak
 echo "[Info] Backup saved to .env.bak."
-
-if [ ! -f .conf ]; then
-    curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/.conf
-    echo "[Info] Downloaded .conf from GitHub"
-fi

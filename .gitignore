@@ -15,8 +15,7 @@ sync.db
 sync.db-journal
 
 # Environment variables and secrets
-.env
-.env.*
+server/.env
 *.pem
 
 # Kodi or Python log files
@@ -25,5 +24,7 @@ sync.db-journal
 # Local development environments (VSCode, PyCharm, etc)
 .vscode/
 .idea/
+server/static/cache/
+server/.conf
+AGENTS.md
 
-server/_fix.py

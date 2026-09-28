@@ -97,3 +97,11 @@ Once the server is running, you need to install the Kodi addon on your media pla
    - **URL del Webhook**: `http://<YOUR_SERVER_IP>:8000/webhook/kodi`
    - **Contraseña del Servidor**: The Master Password you chose during the installation script.
 4. Restart Kodi. It will automatically perform a full sync!
+
+---
+
+## 🙏 Credits & Third-Party Libraries
+
+SyncPK uses the following open-source libraries:
+
+- **[Pickr](https://github.com/Simonwep/pickr)** by Simonwep: A flat, simple, and elegant color-picker used in the dashboard's appearance configuration.

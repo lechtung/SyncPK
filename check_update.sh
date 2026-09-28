@@ -48,23 +48,23 @@ if [ "$REMOTE_VER" != "" ] && [ "$REMOTE_VER" != "$LOCAL_VER" ]; then
         # Execute the update script
         bash "$TEMP_UPDATE_SCRIPT"
     else
-        echo "Auto-update is disabled. Updating .conf to notify the UI."
-        # Update or add UPDATE_AVAILABLE to .conf
-        if [ -f "$CONF_FILE" ]; then
-            if grep -q "^UPDATE_AVAILABLE=" "$CONF_FILE"; then
-                sed -i "s/^UPDATE_AVAILABLE=.*/UPDATE_AVAILABLE=$REMOTE_VER/" "$CONF_FILE"
+        echo "Auto-update is disabled. Updating .env to notify the UI."
+        # Update or add UPDATE_AVAILABLE to .env
+        if [ -f "$ENV_FILE" ]; then
+            if grep -q "^UPDATE_AVAILABLE=" "$ENV_FILE"; then
+                sed -i "s/^UPDATE_AVAILABLE=.*/UPDATE_AVAILABLE=$REMOTE_VER/" "$ENV_FILE"
             else
-                echo "UPDATE_AVAILABLE=$REMOTE_VER" >> "$CONF_FILE"
+                echo "UPDATE_AVAILABLE=$REMOTE_VER" >> "$ENV_FILE"
             fi
         else
-            echo "UPDATE_AVAILABLE=$REMOTE_VER" > "$CONF_FILE"
+            echo "UPDATE_AVAILABLE=$REMOTE_VER" > "$ENV_FILE"
         fi
     fi
 else
     echo "SyncPK is up to date (Version: $LOCAL_VER)."
-    # Clear UPDATE_AVAILABLE in .conf if it was set
-    if [ -f "$CONF_FILE" ]; then
-        sed -i "s/^UPDATE_AVAILABLE=.*/UPDATE_AVAILABLE=/" "$CONF_FILE"
+    # Clear UPDATE_AVAILABLE in .env if it was set
+    if [ -f "$ENV_FILE" ]; then
+        sed -i "s/^UPDATE_AVAILABLE=.*/UPDATE_AVAILABLE=/" "$ENV_FILE"
     fi
 fi
 

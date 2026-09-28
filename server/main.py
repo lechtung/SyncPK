@@ -18,6 +18,24 @@ import asyncio
 import time
 import threading
 import queue
+import sys
+
+class DualLogger(object):
+    def __init__(self, filename="syncpk.log"):
+        self.terminal = sys.stdout
+        self.log = open(filename, "a", encoding="utf-8")
+        
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+        self.log.flush()
+        
+    def flush(self):
+        self.terminal.flush()
+        self.log.flush()
+
+sys.stdout = DualLogger("syncpk.log")
+sys.stderr = sys.stdout
 
 #### TODOLIST ####
 
@@ -65,36 +83,7 @@ if os.path.exists(".env"):
                 key, val = line.split("=", 1)
                 os.environ[key.strip()] = val.strip().strip('"').strip("'")
 
-# Load .conf UI settings
-if os.path.exists(".conf"):
-    with open(".conf", "r") as f:
-        for line in f:
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                key, val = line.split("=", 1)
-                os.environ[key.strip()] = val.strip().strip('"').strip("'")
-else:
-    # Create default .conf if it doesn't exist
-    default_conf = """# General Configuration
 
-# ui section
-
-# Controls the opacity of the dark mask over fanart images (0.0 to 1.0)
-FANART_MASK_OPACITY=0.3
-
-# update section
-
-# If a new version is available, it will be stored here
-UPDATE_AVAILABLE=
-
-# If the user ignores a specific version, it will be stored here
-IGNORED_UPDATE_VERSION=
-
-# If the user wants to be notified of new updates (true/false)
-NOTIFY_UPDATES=true
-"""
-    with open(".conf", "w") as f:
-        f.write(default_conf)
 
 app = FastAPI()
 
@@ -107,7 +96,7 @@ WEB_HASH = os.getenv("WEB_HASH", "")
 API_HASH = os.getenv("API_HASH", "")
 HAS_PLEX_PASS = os.getenv("HAS_PLEX_PASS", "false").lower() == "true"
 PLEX_CLIENT_ID = os.getenv("PLEX_CLIENT_ID", "syncpk-default")
-FANART_MASK_OPACITY = os.getenv("FANART_MASK_OPACITY", "0.5")
+FANART_MASK_OPACITY = os.getenv("FANART_MASK_OPACITY", "0.3")
 
 plex_headers = {"Accept": "application/json", "X-Plex-Token": PLEX_TOKEN}
 
@@ -964,6 +953,14 @@ import subprocess
 @app.get("/api/logs")
 def get_logs(authorization: str = Depends(verify_api_key)):
     try:
+        import shutil
+        if os.name == 'nt' or not shutil.which('journalctl'):
+            if os.path.exists('syncpk.log'):
+                with open('syncpk.log', 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+                return {"logs": "".join(lines[-200:])}
+            return {"logs": "No logs available."}
+        
         # Request the last 200 lines of the service in Proxmox
         out = subprocess.check_output(['journalctl', '-u', 'syncpk-server', '-n', '200', '--no-pager']).decode('utf-8')
         return {"logs": out}
@@ -974,8 +971,18 @@ def get_logs(authorization: str = Depends(verify_api_key)):
 def download_logs():
     try:
         from fastapi.responses import Response
-        # Request FULL text history of the service without pagination
-        out = subprocess.check_output(['journalctl', '-u', 'syncpk-server', '--no-pager']).decode('utf-8')
+        import shutil
+        
+        if os.name == 'nt' or not shutil.which('journalctl'):
+            if os.path.exists('syncpk.log'):
+                with open('syncpk.log', 'r', encoding='utf-8') as f:
+                    out = f.read()
+            else:
+                out = "No logs available."
+        else:
+            # Request FULL text history of the service without pagination
+            out = subprocess.check_output(['journalctl', '-u', 'syncpk-server', '--no-pager']).decode('utf-8')
+            
         return Response(content=out, media_type="text/plain", headers={"Content-Disposition": "attachment; filename=syncpk_journal.txt"})
     except Exception as e:
         return {"error": f"Error descargando logs: {e}"}
@@ -2595,7 +2602,30 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
 @app.get("/api/ui_config")
 def get_ui_config():
     return {
-        "fanart_mask_opacity": FANART_MASK_OPACITY
+        "fanart_mask_opacity": os.getenv("FANART_MASK_OPACITY", "0.3"),
+        "dashboard_language": os.getenv("DASHBOARD_LANGUAGE", "auto"),
+        "ui_poster_w": os.getenv("UI_POSTER_W", "150"),
+        "ui_poster_h": os.getenv("UI_POSTER_H", "225"),
+        "ui_fanart_w": os.getenv("UI_FANART_W", "300"),
+        "ui_fanart_h": os.getenv("UI_FANART_H", "168"),
+        "ui_grid_gap": os.getenv("UI_GRID_GAP", "15"),
+        "ui_card_radius": os.getenv("UI_CARD_RADIUS", "8"),
+        "ui_bg_color": os.getenv("UI_BG_COLOR", "#0d1117"),
+        "ui_glass_bg": os.getenv("UI_GLASS_BG", "rgba(22,27,34,0.7)"),
+        "ui_glass_border": os.getenv("UI_GLASS_BORDER", "rgba(255,255,255,0.1)"),
+        "ui_edit_bg": os.getenv("UI_EDIT_BG", "rgba(22,27,34,0.85)"),
+        "ui_combo_bg": os.getenv("UI_COMBO_BG", "rgba(13,17,23,0.95)"),
+        "ui_panel_bg": os.getenv("UI_PANEL_BG", "rgba(255,255,255,0.03)"),
+        "ui_accent_primary": os.getenv("UI_ACCENT_PRIMARY", "#58a6ff"),
+        "ui_accent_hover": os.getenv("UI_ACCENT_HOVER", "#3182ce"),
+        "ui_accent_dark": os.getenv("UI_ACCENT_DARK", "#2568a8"),
+        "ui_danger": os.getenv("UI_DANGER", "#f85149"),
+        "ui_glass_blur": os.getenv("UI_GLASS_BLUR", "10"),
+        "ui_font": os.getenv("UI_FONT", "inter"),
+        "ui_text_primary": os.getenv("UI_TEXT_PRIMARY", "#c9d1d9"),
+        "ui_text_secondary": os.getenv("UI_TEXT_SECONDARY", "#8b949e"),
+        "ui_show_duration": os.getenv("UI_SHOW_DURATION", "true") == "true",
+        "ui_show_title": os.getenv("UI_SHOW_TITLE", "true") == "true",
     }
 
 # --- CONFIGURATION ---
@@ -2610,7 +2640,33 @@ def get_config():
         "plex_client_id": PLEX_CLIENT_ID,
         "debug_mode": os.getenv("DEBUG", "false") == "true",
         "auto_update": os.getenv("AUTO_UPDATE", "true") == "true",
-        "notify_updates": os.getenv("NOTIFY_UPDATES", "true").lower() == "true"
+        "notify_updates": os.getenv("NOTIFY_UPDATES", "true").lower() == "true",
+        "api_token_raw": os.getenv("API_TOKEN_RAW", ""),
+        "poster_pref": os.getenv("POSTER_PREF", "show"),
+        "fanart_pref": os.getenv("FANART_PREF", "episode"),
+        "ui_poster_w": os.getenv("UI_POSTER_W", "150"),
+        "ui_poster_h": os.getenv("UI_POSTER_H", "225"),
+        "ui_fanart_w": os.getenv("UI_FANART_W", "300"),
+        "ui_fanart_h": os.getenv("UI_FANART_H", "168"),
+        "ui_grid_gap": os.getenv("UI_GRID_GAP", "15"),
+        "ui_card_radius": os.getenv("UI_CARD_RADIUS", "8"),
+        "ui_bg_color": os.getenv("UI_BG_COLOR", "#0d1117"),
+        "ui_glass_bg": os.getenv("UI_GLASS_BG", "rgba(22,27,34,0.7)"),
+        "ui_glass_border": os.getenv("UI_GLASS_BORDER", "rgba(255,255,255,0.1)"),
+        "ui_edit_bg": os.getenv("UI_EDIT_BG", "rgba(22,27,34,0.85)"),
+        "ui_combo_bg": os.getenv("UI_COMBO_BG", "rgba(13,17,23,0.95)"),
+        "ui_panel_bg": os.getenv("UI_PANEL_BG", "rgba(255,255,255,0.03)"),
+        "ui_accent_primary": os.getenv("UI_ACCENT_PRIMARY", "#58a6ff"),
+        "ui_accent_hover": os.getenv("UI_ACCENT_HOVER", "#3182ce"),
+        "ui_accent_dark": os.getenv("UI_ACCENT_DARK", "#2568a8"),
+        "ui_danger": os.getenv("UI_DANGER", "#f85149"),
+        "ui_glass_blur": os.getenv("UI_GLASS_BLUR", "10"),
+        "ui_font": os.getenv("UI_FONT", "inter"),
+        "ui_text_primary": os.getenv("UI_TEXT_PRIMARY", "#c9d1d9"),
+        "ui_text_secondary": os.getenv("UI_TEXT_SECONDARY", "#8b949e"),
+        "ui_show_duration": os.getenv("UI_SHOW_DURATION", "true") == "true",
+        "ui_show_title": os.getenv("UI_SHOW_TITLE", "true") == "true",
+        "fanart_mask_opacity": os.getenv("FANART_MASK_OPACITY", "0.3")
     }
 
 class ConfigPayload(BaseModel):
@@ -2625,71 +2681,188 @@ class ConfigPayload(BaseModel):
     notify_updates: Optional[bool] = True
     master_password: Optional[str] = None
     force_rescan: Optional[bool] = False
+    poster_pref: Optional[str] = "show"
+    fanart_pref: Optional[str] = "episode"
+    ui_poster_w: Optional[str] = "150"
+    ui_poster_h: Optional[str] = "225"
+    ui_fanart_w: Optional[str] = "300"
+    ui_fanart_h: Optional[str] = "168"
+    ui_grid_gap: Optional[str] = "15"
+    ui_card_radius: Optional[str] = "8"
+    ui_bg_color: Optional[str] = "#0d1117"
+    ui_glass_bg: Optional[str] = "rgba(22,27,34,0.7)"
+    ui_glass_border: Optional[str] = "rgba(255,255,255,0.1)"
+    ui_edit_bg: Optional[str] = "rgba(22,27,34,0.85)"
+    ui_combo_bg: Optional[str] = "rgba(13,17,23,0.95)"
+    ui_panel_bg: Optional[str] = "rgba(255,255,255,0.03)"
+    ui_accent_primary: Optional[str] = "#58a6ff"
+    ui_accent_hover: Optional[str] = "#3182ce"
+    ui_accent_dark: Optional[str] = "#2568a8"
+    ui_danger: Optional[str] = "#f85149"
+    ui_glass_blur: Optional[str] = "10"
+    ui_font: Optional[str] = "inter"
+    ui_text_primary: Optional[str] = "#c9d1d9"
+    ui_text_secondary: Optional[str] = "#8b949e"
+    ui_show_duration: Optional[bool] = True
+    ui_show_title: Optional[bool] = True
+    fanart_mask_opacity: Optional[str] = "0.3"
 
 @app.post("/api/config", dependencies=[Depends(verify_api_key)])
 def save_config(payload: ConfigPayload):
-    env_path = ".env"
-    env_vars = {}
-    
-    # Read current environment
-    if os.path.exists(env_path):
-        with open(env_path, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith("#") and "=" in line:
-                    k, v = line.split("=", 1)
-                    env_vars[k.strip()] = v.strip().strip('"').strip("'")
-    
-    # Update values
-    env_vars["PLEX_URL"] = payload.plex_url
-    env_vars["PLEX_TOKEN"] = payload.plex_token
-    env_vars["TMDB_API_KEY"] = payload.tmdb_api_key
-    env_vars["SYNC_LANGUAGE"] = payload.sync_language
-    env_vars["DASHBOARD_LANGUAGE"] = payload.dashboard_language
-    env_vars["PLEX_CLIENT_ID"] = payload.plex_client_id
-    env_vars["DEBUG"] = "true" if payload.debug_mode else "false"
-    env_vars["AUTO_UPDATE"] = "true" if payload.auto_update else "false"
-    env_vars["NOTIFY_UPDATES"] = "true" if payload.notify_updates else "false"
-    
-    has_plex_pass = None
-    if payload.plex_token and payload.plex_client_id:
-        try:
-            req = urllib.request.Request("https://plex.tv/api/v2/user")
-            req.add_header("Accept", "application/json")
-            req.add_header("X-Plex-Client-Identifier", payload.plex_client_id)
-            req.add_header("X-Plex-Token", payload.plex_token)
-            with urllib.request.urlopen(req) as response:
-                user_data = json.loads(response.read().decode())
-                subscription = user_data.get("subscription") or {}
-                has_pass = subscription.get("active") is True
-                env_vars["HAS_PLEX_PASS"] = "true" if has_pass else "false"
-                has_plex_pass = has_pass
-                global HAS_PLEX_PASS
-                HAS_PLEX_PASS = has_pass
-        except Exception as e:
-            print(f"Error checking plex pass: {e}")
-    
-    if payload.master_password:
-        salt = env_vars.get("SALT", os.getenv("SALT", ""))
-        new_hash = hashlib.sha256((payload.master_password + salt).encode()).hexdigest()
-        env_vars["WEB_HASH"] = new_hash
-    
-    # Save to file
-    with open(env_path, "w", encoding="utf-8") as f:
-        for k, v in env_vars.items():
-            f.write(f'{k}="{v}"\n')
-            os.environ[k] = str(v)
-            
-    # Update variables in memory
-    global PLEX_URL, PLEX_TOKEN, TMDB_API_KEY, WEB_HASH, PLEX_CLIENT_ID
-    PLEX_URL = payload.plex_url
-    PLEX_TOKEN = payload.plex_token
-    TMDB_API_KEY = payload.tmdb_api_key
-    PLEX_CLIENT_ID = payload.plex_client_id
-    if payload.master_password:
-        WEB_HASH = env_vars.get("WEB_HASH")
+    try:
+        env_path = ".env"
+        env_vars = {}
         
-    return {"status": "success", "has_plex_pass": has_plex_pass}
+        # Read current environment
+        if os.path.exists(env_path):
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        env_vars[k.strip()] = v.strip().strip('"').strip("'")
+        
+        # Update values
+        env_vars["PLEX_URL"] = payload.plex_url
+        env_vars["PLEX_TOKEN"] = payload.plex_token
+        env_vars["TMDB_API_KEY"] = payload.tmdb_api_key
+        env_vars["SYNC_LANGUAGE"] = payload.sync_language
+        env_vars["DASHBOARD_LANGUAGE"] = payload.dashboard_language
+        env_vars["PLEX_CLIENT_ID"] = payload.plex_client_id
+        env_vars["DEBUG"] = "true" if payload.debug_mode else "false"
+        env_vars["AUTO_UPDATE"] = "true" if payload.auto_update else "false"
+        env_vars["NOTIFY_UPDATES"] = "true" if payload.notify_updates else "false"
+        
+        has_plex_pass = env_vars.get("HAS_PLEX_PASS", "false").lower() == "true"
+        
+        # Only check Plex Pass if the token has changed, otherwise it hangs unnecessarily
+        if payload.plex_token and payload.plex_client_id and payload.plex_token != env_vars.get("PLEX_TOKEN"):
+            try:
+                req = urllib.request.Request("https://plex.tv/api/v2/user")
+                req.add_header("Accept", "application/json")
+                req.add_header("User-Agent", "curl/7.68.0") # Pretend to be curl to avoid Plex API throttling
+                req.add_header("X-Plex-Client-Identifier", payload.plex_client_id)
+                req.add_header("X-Plex-Token", payload.plex_token)
+                with urllib.request.urlopen(req, timeout=5) as response:
+                    user_data = json.loads(response.read().decode())
+                    subscription = user_data.get("subscription") or {}
+                    has_pass = subscription.get("active") is True
+                    env_vars["HAS_PLEX_PASS"] = "true" if has_pass else "false"
+                    has_plex_pass = has_pass
+                    global HAS_PLEX_PASS
+                    HAS_PLEX_PASS = has_pass
+            except Exception as e:
+                print(f"Error checking plex pass: {e}")
+        
+        if payload.master_password:
+            salt = env_vars.get("SALT", os.getenv("SALT", ""))
+            new_hash = hashlib.sha256((payload.master_password + salt).encode()).hexdigest()
+            env_vars["WEB_HASH"] = new_hash
+            
+        
+        # Update .env while preserving comments
+        env_lines = []
+        if os.path.exists(env_path):
+            with open(env_path, "r", encoding="utf-8") as f:
+                env_lines = f.readlines()
+                
+        # Create a dict of variables we need to update in the file
+        updates = {
+            "PLEX_URL": payload.plex_url,
+            "PLEX_TOKEN": payload.plex_token,
+            "TMDB_API_KEY": payload.tmdb_api_key,
+            "SYNC_LANGUAGE": payload.sync_language,
+            "DASHBOARD_LANGUAGE": payload.dashboard_language,
+            "PLEX_CLIENT_ID": payload.plex_client_id,
+            "DEBUG": "true" if payload.debug_mode else "false",
+            "AUTO_UPDATE": "true" if payload.auto_update else "false",
+            "NOTIFY_UPDATES": "true" if payload.notify_updates else "false",
+            "POSTER_PREF": payload.poster_pref,
+            "FANART_PREF": payload.fanart_pref,
+            "UI_POSTER_W": payload.ui_poster_w,
+            "UI_POSTER_H": payload.ui_poster_h,
+            "UI_FANART_W": payload.ui_fanart_w,
+            "UI_FANART_H": payload.ui_fanart_h,
+            "UI_GRID_GAP": payload.ui_grid_gap,
+            "UI_CARD_RADIUS": payload.ui_card_radius,
+            "UI_BG_COLOR": payload.ui_bg_color,
+            "UI_GLASS_BG": payload.ui_glass_bg,
+            "UI_GLASS_BORDER": payload.ui_glass_border,
+            "UI_EDIT_BG": payload.ui_edit_bg,
+            "UI_COMBO_BG": payload.ui_combo_bg,
+            "UI_PANEL_BG": payload.ui_panel_bg,
+            "UI_ACCENT_PRIMARY": payload.ui_accent_primary,
+            "UI_ACCENT_HOVER": payload.ui_accent_hover,
+            "UI_ACCENT_DARK": payload.ui_accent_dark,
+            "UI_DANGER": payload.ui_danger,
+            "UI_GLASS_BLUR": payload.ui_glass_blur,
+            "UI_FONT": payload.ui_font,
+            "UI_TEXT_PRIMARY": payload.ui_text_primary,
+            "UI_TEXT_SECONDARY": payload.ui_text_secondary,
+            "UI_SHOW_DURATION": "true" if payload.ui_show_duration else "false",
+            "UI_SHOW_TITLE": "true" if payload.ui_show_title else "false",
+            "FANART_MASK_OPACITY": payload.fanart_mask_opacity
+        }
+        if payload.master_password:
+            updates["WEB_HASH"] = env_vars.get("WEB_HASH", "")
+            
+        new_env_lines = []
+        updated_keys = set()
+        
+        for line in env_lines:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or "=" not in stripped:
+                new_env_lines.append(line)
+                continue
+                
+            k = stripped.split("=", 1)[0].strip()
+            if k in updates:
+                new_env_lines.append(f'{k}="{updates[k]}"\n')
+                updated_keys.add(k)
+                # update memory
+                os.environ[k] = str(updates[k])
+            else:
+                new_env_lines.append(line)
+                
+        # Append any new keys that weren't in the file
+        for k, v in updates.items():
+            if k not in updated_keys:
+                new_env_lines.append(f'{k}="{v}"\n')
+                os.environ[k] = str(v)
+                
+        # Unhide file on Windows before writing
+        if os.name == 'nt' and os.path.exists(env_path):
+            import ctypes
+            # FILE_ATTRIBUTE_NORMAL = 128
+            ctypes.windll.kernel32.SetFileAttributesW(env_path, 128)
+            
+        # Save to file
+        with open(env_path, "w", encoding="utf-8") as f:
+            f.writelines(new_env_lines)
+                
+        # Hide file again on Windows
+        if os.name == 'nt':
+            try:
+                # FILE_ATTRIBUTE_HIDDEN = 2
+                ctypes.windll.kernel32.SetFileAttributesW(env_path, 2)
+            except:
+                pass
+                
+        # Update variables in memory
+        global PLEX_URL, PLEX_TOKEN, TMDB_API_KEY, WEB_HASH, PLEX_CLIENT_ID
+        PLEX_URL = payload.plex_url
+        PLEX_TOKEN = payload.plex_token
+        TMDB_API_KEY = payload.tmdb_api_key
+        PLEX_CLIENT_ID = payload.plex_client_id
+        if payload.master_password:
+            WEB_HASH = env_vars.get("WEB_HASH")
+            
+        return {"status": "success", "has_plex_pass": has_plex_pass}
+    except Exception as e:
+        import traceback
+        trace_str = traceback.format_exc()
+        print(f"Save config failed: {trace_str}")
+        return {"status": "error", "message": f"Server error: {str(e)}", "trace": trace_str}
 
 @app.post("/api/config/restore", dependencies=[Depends(verify_api_key)])
 def restore_config():
@@ -2697,7 +2870,15 @@ def restore_config():
     if not os.path.exists(".env.bak"):
         return {"status": "error", "message": "No backup found (.env.bak)"}
     
+    if os.name == 'nt' and os.path.exists(".env"):
+        import ctypes
+        ctypes.windll.kernel32.SetFileAttributesW(".env", 128)
+        
     shutil.copy(".env.bak", ".env")
+    
+    if os.name == 'nt':
+        import ctypes
+        ctypes.windll.kernel32.SetFileAttributesW(".env", 2)
     
     # Reload config into memory
     env_vars = {}
@@ -2791,37 +2972,48 @@ def update_status():
 
 @app.post("/api/update/ignore", dependencies=[Depends(verify_api_key)])
 def update_ignore(req: UpdateIgnoreRequest):
-    # Update .conf
-    conf_lines = []
-    if os.path.exists(".conf"):
-        with open(".conf", "r") as f:
-            conf_lines = f.readlines()
+    # Update .env
+    env_path = ".env"
+    env_lines = []
+    if os.path.exists(env_path):
+        with open(env_path, "r", encoding="utf-8") as f:
+            env_lines = f.readlines()
             
-    # Set IGNORED_UPDATE_VERSION and NOTIFY_UPDATES in .conf
-    new_conf_lines = []
-    for line in conf_lines:
+    # Set IGNORED_UPDATE_VERSION and NOTIFY_UPDATES in .env
+    new_env_lines = []
+    for line in env_lines:
         if line.startswith("IGNORED_UPDATE_VERSION="): continue
         if line.startswith("NOTIFY_UPDATES="): continue
         if line.startswith("UPDATE_AVAILABLE="): continue
-        new_conf_lines.append(line)
+        new_env_lines.append(line)
         
     if req.ignore_version:
-        new_conf_lines.append(f"IGNORED_UPDATE_VERSION={req.ignore_version}\n")
+        new_env_lines.append(f"IGNORED_UPDATE_VERSION={req.ignore_version}\n")
         os.environ["IGNORED_UPDATE_VERSION"] = req.ignore_version
         
     if req.never_notify:
-        new_conf_lines.append("NOTIFY_UPDATES=false\n")
+        new_env_lines.append("NOTIFY_UPDATES=false\n")
         os.environ["NOTIFY_UPDATES"] = "false"
     else:
-        new_conf_lines.append("NOTIFY_UPDATES=true\n")
+        new_env_lines.append("NOTIFY_UPDATES=true\n")
         os.environ["NOTIFY_UPDATES"] = "true"
         
     # Clear UPDATE_AVAILABLE
-    new_conf_lines.append("UPDATE_AVAILABLE=\n")
+    new_env_lines.append("UPDATE_AVAILABLE=\n")
     os.environ["UPDATE_AVAILABLE"] = ""
         
-    with open(".conf", "w") as f:
-        f.writelines(new_conf_lines)
+    if os.name == 'nt' and os.path.exists(env_path):
+        import ctypes
+        ctypes.windll.kernel32.SetFileAttributesW(env_path, 128)
+        
+    with open(env_path, "w", encoding="utf-8") as f:
+        f.writelines(new_env_lines)
+        
+    if os.name == 'nt':
+        try:
+            ctypes.windll.kernel32.SetFileAttributesW(env_path, 2)
+        except:
+            pass
         
     return {"status": "success"}
 

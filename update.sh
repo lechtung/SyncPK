@@ -4,9 +4,9 @@ systemctl stop syncpk-server
 
 curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/main.py
 
-# Download .conf only if it doesn't exist to avoid overwriting user preferences
-if [ ! -f .conf ]; then
-    curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/.conf
+# Download .env.example if it doesn't exist to ensure we have the template
+if [ ! -f server/.env.example ]; then
+    curl -s https://raw.githubusercontent.com/lechtung/SyncPK/main/server/.env.example -o server/.env.example
 fi
 
 curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/requirements.txt

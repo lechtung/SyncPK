@@ -31,8 +31,9 @@ mkdir -p $INSTALL_DIR
 echo "[Info] Downloading files from GitHub..."
 mkdir -p $INSTALL_DIR/static/locales
 curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/main.py -o $INSTALL_DIR/main.py
-if [ ! -f .conf ]; then
-    curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/.conf -o $INSTALL_DIR/.conf
+if [ ! -f $INSTALL_DIR/server/.env.example ]; then
+    mkdir -p $INSTALL_DIR/server
+    curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/.env.example -o $INSTALL_DIR/server/.env.example
 fi
 curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/.ver -o $INSTALL_DIR/.ver
 curl -s https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/server/static/index.html -o $INSTALL_DIR/static/index.html
@@ -54,9 +55,6 @@ if [ "$(realpath .env 2>/dev/null)" != "$(realpath $INSTALL_DIR/.env 2>/dev/null
     cp .env $INSTALL_DIR/.env
 fi
 
-if [ -f .conf ] && [ "$(realpath .conf 2>/dev/null)" != "$(realpath $INSTALL_DIR/.conf 2>/dev/null)" ]; then
-    cp .conf $INSTALL_DIR/.conf
-fi
 # Fallback requirements
 if [ ! -f $INSTALL_DIR/requirements.txt ] || ! grep -q "fastapi" $INSTALL_DIR/requirements.txt; then
     echo -e "fastapi\nuvicorn\nrequests\npython-dotenv\npython-multipart\nhttpx" > $INSTALL_DIR/requirements.txt
