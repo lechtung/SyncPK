@@ -37,6 +37,11 @@ class DualLogger(object):
 sys.stdout = DualLogger("syncpk.log")
 sys.stderr = sys.stdout
 
+DATA_DIR = os.getenv("DATA_DIR", ".")
+ENV_PATH = os.path.join(DATA_DIR, ".env")
+DB_PATH = os.path.join(DATA_DIR, "sync.db")
+SETTINGS_FILE = os.path.join(DATA_DIR, "plex_settings.json")
+
 #### TODOLIST ####
 
 # last minute found: python plex api: https://github.com/pushingkarmaorg/python-plexapi
@@ -76,10 +81,10 @@ sys.stderr = sys.stdout
     # * Ocultar/Mostrar metadatos específicos (ej. ocultar duración, o subtítulo).
     # * Formato de fecha (ej. DD/MM/YYYY vs MM/DD/YYYY).
 
-    
+
 # Manual .env fallback
-if os.path.exists(".env"):
-    with open(".env", "r") as f:
+if os.path.exists(ENV_PATH):
+    with open(ENV_PATH, "r") as f:
         for line in f:
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
@@ -2713,7 +2718,7 @@ class ConfigPayload(BaseModel):
 @app.post("/api/config", dependencies=[Depends(verify_api_key)])
 def save_config(payload: ConfigPayload):
     try:
-        env_path = ".env"
+        env_path = ENV_PATH
         env_vars = {}
         
         # Read current environment
@@ -2870,22 +2875,22 @@ def save_config(payload: ConfigPayload):
 @app.post("/api/config/restore", dependencies=[Depends(verify_api_key)])
 def restore_config():
     import shutil
-    if not os.path.exists(".env.bak"):
+    if not os.path.exists(ENV_PATH + ".bak"):
         return {"status": "error", "message": "No backup found (.env.bak)"}
     
-    if os.name == 'nt' and os.path.exists(".env"):
+    if os.name == 'nt' and os.path.exists(ENV_PATH):
         import ctypes
-        ctypes.windll.kernel32.SetFileAttributesW(".env", 128)
+        ctypes.windll.kernel32.SetFileAttributesW(ENV_PATH, 128)
         
-    shutil.copy(".env.bak", ".env")
+    shutil.copy(ENV_PATH + ".bak", ENV_PATH)
     
     if os.name == 'nt':
         import ctypes
-        ctypes.windll.kernel32.SetFileAttributesW(".env", 2)
+        ctypes.windll.kernel32.SetFileAttributesW(ENV_PATH, 2)
     
     # Reload config into memory
     env_vars = {}
-    with open(".env", "r", encoding="utf-8") as f:
+    with open(ENV_PATH, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
@@ -2976,7 +2981,7 @@ def update_status():
 @app.post("/api/update/ignore", dependencies=[Depends(verify_api_key)])
 def update_ignore(req: UpdateIgnoreRequest):
     # Update .env
-    env_path = ".env"
+    env_path = ENV_PATH
     env_lines = []
     if os.path.exists(env_path):
         with open(env_path, "r", encoding="utf-8") as f:
