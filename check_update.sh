@@ -4,12 +4,11 @@
 
 set -e
 
-APP_DIR="/opt/SyncPK"
-CONF_FILE="$APP_DIR/server/.conf"
-ENV_FILE="$APP_DIR/server/.env"
+APP_DIR="/opt/syncpk"
+ENV_FILE="$APP_DIR/.env"
 LOCAL_VER_FILE="$APP_DIR/.ver"
-REMOTE_VER_URL="https://raw.githubusercontent.com/chuchill/SyncPK/main/.ver"
-REMOTE_UPDATE_SCRIPT_URL="https://raw.githubusercontent.com/chuchill/SyncPK/main/update.sh"
+REMOTE_VER_URL="https://raw.githubusercontent.com/lechtung/SyncPK/main/.ver"
+REMOTE_UPDATE_SCRIPT_URL="https://raw.githubusercontent.com/lechtung/SyncPK/main/update.sh"
 TEMP_VER_FILE="/tmp/syncpk_remote.ver"
 TEMP_UPDATE_SCRIPT="/tmp/update_syncpk.sh"
 
