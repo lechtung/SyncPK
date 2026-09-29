@@ -2,13 +2,16 @@ version: "3.8"
 
 services:
   syncpk-server:
-    build: .
+    image: ghcr.io/lechtung/syncpk:latest
     container_name: syncpk-server
     restart: unless-stopped
     ports:
       - "8000:8000"
+    environment:
+      # Tell Python where to store everything
+      - DATA_DIR=/app/data
     volumes:
-      - ./sync.db:/app/sync.db
-      - ./plex_settings.json:/app/plex_settings.json
+      # All persistence (db, json, env and cache) will live in ./data
+      - ./data:/app/data
     env_file:
-      - .env
+      - ./data/.env
