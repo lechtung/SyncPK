@@ -46,7 +46,18 @@ sys.stderr = sys.stdout
 # more statistics options
 # maybe a small mark in the dashboard to see what items are not in the plex library anymore (need to see how we can detect when the user delete something in plex)
 # manual option to re-scan the plex library to import in our local db
+# ahora al pulsar sobre una tarjeta, se abre su enlace de themoviedatabase. Habia pensado en qeu cuando hicieramos scraping, descargaramos toda
+# la información que necesitamos, el titulo original, el director, los actores.. y lo guardamos todo en otra tabla, una de scraping (incluidos los enlaces a el arte)
+# en el registro original dejamos una fk a dicho registro. 
+# al pulsar mostramos una pantalla nuestra interna donde mostramos todo. 
 
+
+# si se cambia cualquier cosa de apariencia, se debe recargar el interfaz automaticamente al guardar. Ademas, se deben aplicar los cambios a las tarjetas... obvio
+
+#### DONE ####
+
+# implement something to check if the use has pless pass, maybe with the api to get user information?
+# Auto Update desde el repo, bueno, que pregunte al menos... o bien ponemos un parámetro. 
 # FUTURAS CONFIGURACIONES DE UI (Para añadir en .conf o UI Dashboard)
 # - TAMAÑOS: Ancho y alto de las tarjetas (Poster y Fanart) para ajustarlo al gusto.
 # - PREFERENCIA DE ARTE: Usar el Fanart/Poster propio del episodio, o forzar siempre el de la temporada/serie.
@@ -65,15 +76,7 @@ sys.stderr = sys.stdout
     # * Ocultar/Mostrar metadatos específicos (ej. ocultar duración, o subtítulo).
     # * Formato de fecha (ej. DD/MM/YYYY vs MM/DD/YYYY).
 
-# Pondria en la pantalla de configuracion arriba, como un selector de pestaña, o botones para seleccionar secciones, algo, y tendria tres
-# Servicio, UI, Scrapping (o como cojones se escriba) y cada uno con su correspondiente configuración   
-
-#### DONE ####
-
-# implement something to check if the use has pless pass, maybe with the api to get user information?
-# Auto Update desde el repo, bueno, que pregunte al menos... o bien ponemos un parámetro. 
-
-
+    
 # Manual .env fallback
 if os.path.exists(".env"):
     with open(".env", "r") as f:
