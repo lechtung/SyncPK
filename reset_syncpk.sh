@@ -2,9 +2,9 @@
 # Script de Reset para SyncPK (Proxmox)
 # Este script reinicia el entorno, borra la DB y descarga la última versión de GitHub.
 
-echo "===================================="
-echo "   RESETEANDO ENTORNO SYNCPK V12    "
-echo "===================================="
+echo "================================"
+echo "   RESETEANDO ENTORNO SYNCPK    "
+echo "================================"
 
 # 1. Parar el servicio
 echo "[1/7] Asesinando el servicio syncpk-server (SIGKILL)..."
@@ -12,24 +12,11 @@ systemctl kill --signal=SIGKILL syncpk-server 2>/dev/null
 systemctl stop syncpk-server
 
 # 2. Ir a la carpeta del servidor
-cd /root/sync_server
+cd /opt/syncpk
 
 # 3. Borrar la base de datos y el registro de la última sincronización
 echo "[2/7] Borrando base de datos, ajustes antiguos y flags..."
-rm -f sync.db plex_settings.json _DUPLICATE_FIX
-
-echo ""
-echo "[2.5/7] ¿Quieres activar el modo FIX GLOBAL de duplicados de Plex (14 y 15 sep)?"
-echo "        (Escribe 's' o 'S' para activar, pulsa INTRO para ignorar)"
-read -p "        Respuesta: " FIX_INPUT
-
-if [[ "$FIX_INPUT" == "s" || "$FIX_INPUT" == "S" ]]; then
-    echo "        -> MODO FIX: Activando purga de duplicados de Plex (_DUPLICATE_FIX)"
-    touch _DUPLICATE_FIX
-else
-    echo "        -> Modo fix ignorado."
-fi
-echo ""
+rm -f sync.db plex_settings.json
 
 # 4. Descargar los nuevos archivos desde GitHub
 echo "[3/7] Descargando última versión de los archivos desde GitHub..."
@@ -44,7 +31,13 @@ curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/
 cd locales
 curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/en.json
 curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/es.json
-cd /root/sync_server
+curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/de.json
+curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/fr.json
+curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/it.json
+curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/ja.json
+curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/pt.json
+curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/zh.json
+cd /opt/syncpk
 
 # 5. Preguntar por el limitador interactivo
 echo ""
