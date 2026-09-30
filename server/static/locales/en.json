@@ -287,5 +287,11 @@
     "setup_finish_error": "An error occurred while saving. Please try again.",
     "setup_step_of": "Step {cur} of {tot}",
     "yes": "Yes",
-    "no": "No"
+    "no": "No",
+    "setup_test_checking": "Checking...",
+    "setup_test_plex_success": "Connection successful!",
+    "setup_test_plex_fail": "Connection failed. Check URL.",
+    "setup_test_tmdb_success": "Valid API Key!",
+    "setup_test_tmdb_fail": "Invalid API Key.",
+    "setup_test_error": "Network error."
 }

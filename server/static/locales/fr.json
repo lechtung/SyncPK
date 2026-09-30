@@ -287,5 +287,11 @@
     "setup_finish_error": "Une erreur s'est produite lors de la sauvegarde. Veuillez réessayer.",
     "setup_step_of": "Étape {cur} sur {tot}",
     "yes": "Oui",
-    "no": "Non"
+    "no": "Non",
+    "setup_test_checking": "Vérification...",
+    "setup_test_plex_success": "Connexion réussie !",
+    "setup_test_plex_fail": "Échec de la connexion. Vérifiez l'URL.",
+    "setup_test_tmdb_success": "Clé API valide !",
+    "setup_test_tmdb_fail": "Clé API invalide.",
+    "setup_test_error": "Erreur réseau."
 }

@@ -287,5 +287,11 @@
     "setup_finish_error": "保存中にエラーが発生しました。もう一度お試しください。",
     "setup_step_of": "ステップ {cur} / {tot}",
     "yes": "はい",
-    "no": "いいえ"
+    "no": "いいえ",
+    "setup_test_checking": "確認中...",
+    "setup_test_plex_success": "接続成功！",
+    "setup_test_plex_fail": "接続に失敗しました。URLを確認してください。",
+    "setup_test_tmdb_success": "有効なAPIキーです！",
+    "setup_test_tmdb_fail": "無効なAPIキーです。",
+    "setup_test_error": "ネットワークエラー。"
 }

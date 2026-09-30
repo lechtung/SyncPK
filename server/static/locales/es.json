@@ -287,5 +287,11 @@
     "setup_finish_error": "Ha ocurrido un error al guardar. Por favor, inténtalo de nuevo.",
     "setup_step_of": "Paso {cur} de {tot}",
     "yes": "Sí",
-    "no": "No"
+    "no": "No",
+    "setup_test_checking": "Comprobando...",
+    "setup_test_plex_success": "¡Conexión correcta!",
+    "setup_test_plex_fail": "Fallo en la conexión. Comprueba la URL.",
+    "setup_test_tmdb_success": "¡API Key válida!",
+    "setup_test_tmdb_fail": "API Key inválida.",
+    "setup_test_error": "Error de red."
 }

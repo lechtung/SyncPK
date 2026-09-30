@@ -287,5 +287,11 @@
     "setup_finish_error": "Ocorreu um erro ao guardar. Por favor tente novamente.",
     "setup_step_of": "Passo {cur} de {tot}",
     "yes": "Sim",
-    "no": "Não"
+    "no": "Não",
+    "setup_test_checking": "Verificando...",
+    "setup_test_plex_success": "Conexão bem-sucedida!",
+    "setup_test_plex_fail": "Falha na conexão. Verifique o URL.",
+    "setup_test_tmdb_success": "Chave de API válida!",
+    "setup_test_tmdb_fail": "Chave de API inválida.",
+    "setup_test_error": "Erro de rede."
 }

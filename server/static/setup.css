@@ -671,3 +671,67 @@
     .btn-finish:hover {
         background: #2ea041 !important
     }
+
+    /* Styles for the new inline test buttons */
+    .input-with-btn {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .input-with-btn .input-wrap {
+        flex: 1;
+        margin: 0;
+    }
+
+    .btn-test-action {
+        background: rgba(255, 255, 255, 0.05);
+        color: #c9d1d9;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 0 15px;
+        height: 42px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: 0.2s;
+        white-space: nowrap;
+        font-family: inherit;
+        font-size: 0.9rem;
+    }
+
+    .btn-test-action:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+    }
+
+    .test-feedback {
+        margin-top: 20px;
+        font-size: 0.85rem;
+        display: none;
+        padding: 8px 12px;
+        border-radius: 6px;
+    }
+
+    .test-feedback.success {
+        background: rgba(46, 160, 67, 0.15);
+        color: #3fb950;
+        border: 1px solid rgba(46, 160, 67, 0.4);
+    }
+
+    .test-feedback.error {
+        background: rgba(248, 81, 73, 0.15);
+        color: #f85149;
+        border: 1px solid rgba(248, 81, 73, 0.4);
+    }
+
+    .test-feedback.checking {
+        background: rgba(88, 166, 255, 0.15);
+        color: #58a6ff;
+        border: 1px solid rgba(88, 166, 255, 0.4);
+    }
+
+    .test-button-container {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin-top: 20px;
+    }

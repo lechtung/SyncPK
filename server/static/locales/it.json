@@ -287,5 +287,11 @@
     "setup_finish_error": "Si è verificato un errore durante il salvataggio. Per favore riprova.",
     "setup_step_of": "Passo {cur} di {tot}",
     "yes": "Sì",
-    "no": "No"
+    "no": "No",
+    "setup_test_checking": "Controllo in corso...",
+    "setup_test_plex_success": "Connessione riuscita!",
+    "setup_test_plex_fail": "Connessione fallita. Controlla l'URL.",
+    "setup_test_tmdb_success": "Chiave API valida!",
+    "setup_test_tmdb_fail": "Chiave API non valida.",
+    "setup_test_error": "Errore di rete."
 }

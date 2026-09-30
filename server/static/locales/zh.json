@@ -287,5 +287,11 @@
     "setup_finish_error": "保存时发生错误。请重试。",
     "setup_step_of": "第 {cur} 步，共 {tot} 步",
     "yes": "是",
-    "no": "否"
+    "no": "否",
+    "setup_test_checking": "正在检查...",
+    "setup_test_plex_success": "连接成功！",
+    "setup_test_plex_fail": "连接失败。请检查URL。",
+    "setup_test_tmdb_success": "有效的API密钥！",
+    "setup_test_tmdb_fail": "无效的API密钥。",
+    "setup_test_error": "网络错误。"
 }

@@ -10,6 +10,36 @@ let currentFilters = { type: 'all', year: 'all', month: 'all', search: '' };
 let statsCache = { movies: 0, moviesHours: 0, episodes: 0, episodesHours: 0 };
 let logInterval = null;
 let activeLang = navigator.language;
+let syncPollInterval = null;
+
+// Call this function when you first detect that sync_state === 1
+function startSyncPolling() {
+    // Prevent multiple simultaneous polling loops
+    if (syncPollInterval) return;
+
+    // Poll the server every 5 seconds (5000 ms)
+    syncPollInterval = setInterval(async () => {
+        try {
+            // Adjust the route and headers according to your app's fetch setup
+            const response = await fetch('/api/stats');
+            const data = await response.json();
+
+            // If the state changes to 2 (Finished)
+            if (data.sync_state === 2) {
+                // 1. Stop the polling loop
+                clearInterval(syncPollInterval);
+                syncPollInterval = null;
+
+                // 2. Refresh the entire UI (dates, images, messages)
+                // reloadHistory calls loadStats() internally, which will handle the green banner
+                // and the dismiss-sync safely.
+                reloadHistory();
+            }
+        } catch (error) {
+            console.error("Error polling sync state:", error);
+        }
+    }, 5000);
+}
 
 // --- TOAST NOTIFICATION SYSTEM ---
 function showToast(message, type = 'info', duration = 4000) {
@@ -182,19 +212,19 @@ async function loadUIConfig() {
             if (data.ui_fanart_h) document.documentElement.style.setProperty('--fanart-h', data.ui_fanart_h + 'px');
             if (data.ui_grid_gap) document.documentElement.style.setProperty('--grid-gap', data.ui_grid_gap + 'px');
             if (data.ui_card_radius) document.documentElement.style.setProperty('--card-radius', data.ui_card_radius + 'px');
-            if (data.ui_bg_color)       document.documentElement.style.setProperty('--bg-color',       data.ui_bg_color);
-            if (data.ui_glass_bg)       document.documentElement.style.setProperty('--glass-bg',       data.ui_glass_bg);
-            if (data.ui_glass_border)   document.documentElement.style.setProperty('--glass-border',   data.ui_glass_border);
-            if (data.ui_edit_bg)        document.documentElement.style.setProperty('--edit-bg',        data.ui_edit_bg);
-            if (data.ui_combo_bg)       document.documentElement.style.setProperty('--combo-bg',       data.ui_combo_bg);
-            if (data.ui_panel_bg)       document.documentElement.style.setProperty('--panel-bg',       data.ui_panel_bg);
-            if (data.ui_accent_primary) document.documentElement.style.setProperty('--accent',         data.ui_accent_primary);
-            if (data.ui_accent_hover)   document.documentElement.style.setProperty('--accent-hover',   data.ui_accent_hover);
-            if (data.ui_accent_dark)    document.documentElement.style.setProperty('--accent-dark',    data.ui_accent_dark);
-            if (data.ui_danger)         document.documentElement.style.setProperty('--danger',         data.ui_danger);
-            if (data.ui_text_primary)   document.documentElement.style.setProperty('--text-primary',   data.ui_text_primary);
+            if (data.ui_bg_color) document.documentElement.style.setProperty('--bg-color', data.ui_bg_color);
+            if (data.ui_glass_bg) document.documentElement.style.setProperty('--glass-bg', data.ui_glass_bg);
+            if (data.ui_glass_border) document.documentElement.style.setProperty('--glass-border', data.ui_glass_border);
+            if (data.ui_edit_bg) document.documentElement.style.setProperty('--edit-bg', data.ui_edit_bg);
+            if (data.ui_combo_bg) document.documentElement.style.setProperty('--combo-bg', data.ui_combo_bg);
+            if (data.ui_panel_bg) document.documentElement.style.setProperty('--panel-bg', data.ui_panel_bg);
+            if (data.ui_accent_primary) document.documentElement.style.setProperty('--accent', data.ui_accent_primary);
+            if (data.ui_accent_hover) document.documentElement.style.setProperty('--accent-hover', data.ui_accent_hover);
+            if (data.ui_accent_dark) document.documentElement.style.setProperty('--accent-dark', data.ui_accent_dark);
+            if (data.ui_danger) document.documentElement.style.setProperty('--danger', data.ui_danger);
+            if (data.ui_text_primary) document.documentElement.style.setProperty('--text-primary', data.ui_text_primary);
             if (data.ui_text_secondary) document.documentElement.style.setProperty('--text-secondary', data.ui_text_secondary);
-            if (data.ui_glass_blur)     document.documentElement.style.setProperty('--glass-blur', `blur(${data.ui_glass_blur}px)`);
+            if (data.ui_glass_blur) document.documentElement.style.setProperty('--glass-blur', `blur(${data.ui_glass_blur}px)`);
         }
     } catch (e) {
         console.warn("Could not load UI config", e);
@@ -642,6 +672,9 @@ async function loadStats() {
                     banner.innerHTML = `<span>${msg}</span><button id="btn-view-logs" style="padding: 6px 12px; background: #ffb74d; color: #000; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; font-family: 'Inter', sans-serif;">Ver Terminal</button>`;
 
                     document.getElementById('btn-view-logs').addEventListener('click', openLogViewer);
+
+                    // Start the polling loop while in state 1
+                    startSyncPolling();
                 } else if (data.sync_state === 2) {
                     banner.style.cssText = "background-color: rgba(76, 175, 80, 0.2); color: #81c784; border: 1px solid #81c784; padding: 15px 20px; text-align: center; font-weight: bold; margin-bottom: 20px; border-radius: 8px;";
                     banner.textContent = currentLangData.sync_done_msg || 'Initial load complete! You can now configure webhooks.';
@@ -1811,17 +1844,17 @@ function initPickers() {
         return pickr;
     };
 
-    window.pickrBgColor       = createPickr('pickr-bg-color',       'config-bg-color',       '#0d1117');
-    window.pickrGlassBg       = createPickr('pickr-glass-bg',       'config-glass-bg',       'rgba(22,27,34,0.7)');
-    window.pickrGlassBorder   = createPickr('pickr-glass-border',   'config-glass-border',   'rgba(255,255,255,0.1)');
-    window.pickrEditBg        = createPickr('pickr-edit-bg',        'config-edit-bg',        'rgba(22,27,34,0.85)');
-    window.pickrComboBg       = createPickr('pickr-combo-bg',       'config-combo-bg',       'rgba(13,17,23,0.95)');
-    window.pickrPanelBg       = createPickr('pickr-panel-bg',       'config-panel-bg',       'rgba(255,255,255,0.03)');
+    window.pickrBgColor = createPickr('pickr-bg-color', 'config-bg-color', '#0d1117');
+    window.pickrGlassBg = createPickr('pickr-glass-bg', 'config-glass-bg', 'rgba(22,27,34,0.7)');
+    window.pickrGlassBorder = createPickr('pickr-glass-border', 'config-glass-border', 'rgba(255,255,255,0.1)');
+    window.pickrEditBg = createPickr('pickr-edit-bg', 'config-edit-bg', 'rgba(22,27,34,0.85)');
+    window.pickrComboBg = createPickr('pickr-combo-bg', 'config-combo-bg', 'rgba(13,17,23,0.95)');
+    window.pickrPanelBg = createPickr('pickr-panel-bg', 'config-panel-bg', 'rgba(255,255,255,0.03)');
     window.pickrAccentPrimary = createPickr('pickr-accent-primary', 'config-accent-primary', '#58a6ff');
-    window.pickrAccentHover   = createPickr('pickr-accent-hover',   'config-accent-hover',   '#3182ce');
-    window.pickrAccentDark    = createPickr('pickr-accent-dark',    'config-accent-dark',    '#2568a8');
-    window.pickrDanger        = createPickr('pickr-danger',         'config-danger',         '#f85149');
-    window.pickrTextPrimary   = createPickr('pickr-text-primary',   'config-text-primary',   '#c9d1d9');
+    window.pickrAccentHover = createPickr('pickr-accent-hover', 'config-accent-hover', '#3182ce');
+    window.pickrAccentDark = createPickr('pickr-accent-dark', 'config-accent-dark', '#2568a8');
+    window.pickrDanger = createPickr('pickr-danger', 'config-danger', '#f85149');
+    window.pickrTextPrimary = createPickr('pickr-text-primary', 'config-text-primary', '#c9d1d9');
     window.pickrTextSecondary = createPickr('pickr-text-secondary', 'config-text-secondary', '#8b949e');
 }
 

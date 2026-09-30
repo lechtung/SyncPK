@@ -260,7 +260,8 @@
     <!-- GENERIC CONFIRM MODAL -->
     <div id="generic-confirm-modal" class="overlay hidden" style="z-index: 9999;">
         <div class="login-box glass-panel" style="min-width:340px; max-width:550px; text-align:center;">
-            <p id="generic-confirm-message" style="margin-bottom:24px; color:#fff; font-size:1rem; line-height: 1.4;"></p>
+            <p id="generic-confirm-message" style="margin-bottom:24px; color:#fff; font-size:1rem; line-height: 1.4;">
+            </p>
             <div class="modal-separator"></div>
             <div class="modal-buttons" style="justify-content: center;">
                 <button id="generic-confirm-yes" data-i18n="btn_yes">Sí</button>
@@ -408,7 +409,8 @@
 
             <div id="final-sys" class="tab-content active">
                 <div class="inner-panel">
-                    <div class="inner-panel-title"><i class="fas fa-network-wired"></i> <span data-i18n="config_panel_plex">Credenciales de Plex</span></div>
+                    <div class="inner-panel-title"><i class="fas fa-network-wired"></i> <span
+                            data-i18n="config_panel_plex">Credenciales de Plex</span></div>
                     <div class="input-group">
                         <h4 style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;">Plex URL:</h4>
                         <input type="text" id="config-plex-url" class="config-input"
@@ -450,8 +452,9 @@
                                     <input type="text" id="webhook-url-plex" class="config-input" readonly
                                         style="font-size:0.75rem; padding: 6px; color:#888; margin-bottom:0; flex: 1; background: rgba(0,0,0,0.2);">
                                     <button
-                                        onclick="navigator.clipboard.writeText(document.getElementById('webhook-url-plex').value); showToast(currentLangData.config_copied || 'Copiado al portapapeles', 'success')"
-                                        class="icon-action-btn" data-i18n-title="config_tooltip_copy_url" title="Copiar URL"><i class="fas fa-copy"></i></button>
+                                        onclick="navigator.clipboard.writeText(document.getElementById('webhook-url-plex').value); showToast(currentLangData.config_copied || 'Copied to clipboard', 'success')"
+                                        class="icon-action-btn" data-i18n-title="config_tooltip_copy_url"
+                                        title="Copy URL"><i class="fas fa-copy"></i></button>
                                 </div>
                             </div>
                             <div>
@@ -460,8 +463,9 @@
                                     <input type="text" id="webhook-url-kodi" class="config-input" readonly
                                         style="font-size:0.75rem; padding: 6px; color:#888; margin-bottom:0; flex: 1; background: rgba(0,0,0,0.2);">
                                     <button
-                                        onclick="navigator.clipboard.writeText(document.getElementById('webhook-url-kodi').value); showToast(currentLangData.config_copied || 'Copiado al portapapeles', 'success')"
-                                        class="icon-action-btn" data-i18n-title="config_tooltip_copy_url" title="Copiar URL"><i class="fas fa-copy"></i></button>
+                                        onclick="navigator.clipboard.writeText(document.getElementById('webhook-url-kodi').value); showToast(currentLangData.config_copied || 'Copied to clipboard', 'success')"
+                                        class="icon-action-btn" data-i18n-title="config_tooltip_copy_url"
+                                        title="Copy URL"><i class="fas fa-copy"></i></button>
                                 </div>
                             </div>
                         </div>
@@ -469,16 +473,19 @@
                 </div>
 
                 <div class="inner-panel">
-                    <div class="inner-panel-title"><i class="fas fa-lock"></i> <span data-i18n="config_panel_security">Seguridad</span></div>
+                    <div class="inner-panel-title"><i class="fas fa-lock"></i> <span
+                            data-i18n="config_panel_security">Seguridad</span></div>
                     <div class="input-group" style="margin-bottom: 0;">
-                        <h4 style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;" data-i18n="config_master_password">Master Password:</h4>
+                        <h4 style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;"
+                            data-i18n="config_master_password">Master Password:</h4>
                         <input type="text" id="config-password" class="config-input"
                             data-i18n-placeholder="config_password_ph" placeholder="New password (optional)"
                             style="margin-bottom: 0;">
                     </div>
                     <div class="input-group hidden" id="config-repeat-password-container"
                         style="animation: dropdownFadeIn 0.2s ease; margin-top: 20px; margin-bottom: 0;">
-                        <h4 style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;" data-i18n="config_repeat_password">Repetir Password:</h4>
+                        <h4 style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;"
+                            data-i18n="config_repeat_password">Repetir Password:</h4>
                         <input type="text" id="config-repeat-password" class="config-input"
                             data-i18n-placeholder="config_repeat_password_ph" placeholder="Confirm new password">
                         <div id="config-password-error" class="error-text hidden" data-i18n="config_password_mismatch"
@@ -487,7 +494,8 @@
                 </div>
 
                 <div class="inner-panel">
-                    <div class="inner-panel-title"><i class="fas fa-tools"></i> <span data-i18n="config_panel_maintenance">Mantenimiento</span></div>
+                    <div class="inner-panel-title"><i class="fas fa-tools"></i> <span
+                            data-i18n="config_panel_maintenance">Mantenimiento</span></div>
                     <label class="check-group" for="config-debug">
                         <input type="checkbox" id="config-debug">
                         <span data-i18n="config_debug_mode">Enable Debug Logs (Backend)</span>
@@ -514,7 +522,8 @@
 
             <div id="final-scrap" class="tab-content">
                 <div class="inner-panel">
-                    <div class="inner-panel-title"><i class="fas fa-key"></i> <span data-i18n="config_panel_apis">APIs Externas</span></div>
+                    <div class="inner-panel-title"><i class="fas fa-key"></i> <span data-i18n="config_panel_apis">APIs
+                            Externas</span></div>
                     <div class="input-group">
                         <h4 style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;">TMDB API Key:</h4>
                         <input type="text" id="config-tmdb-api" class="config-input" placeholder="TMDB v3 API Key">
@@ -522,7 +531,8 @@
                 </div>
 
                 <div class="inner-panel">
-                    <div class="inner-panel-title"><i class="fas fa-language"></i> <span data-i18n="config_panel_languages">Idiomas</span></div>
+                    <div class="inner-panel-title"><i class="fas fa-language"></i> <span
+                            data-i18n="config_panel_languages">Idiomas</span></div>
                     <div class="input-group">
                         <h4 style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;"
                             data-i18n="config_dashboard_lang_title">Dashboard Language:</h4>
@@ -572,9 +582,10 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="inner-panel">
-                    <div class="inner-panel-title"><i class="fas fa-image"></i> <span data-i18n="config_panel_metadata">Comportamiento de Metadatos</span></div>
+                    <div class="inner-panel-title"><i class="fas fa-image"></i> <span
+                            data-i18n="config_panel_metadata">Comportamiento de Metadatos</span></div>
                     <div class="input-group">
                         <h4 style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;"
                             data-i18n="config_fanart_pref_title">Preferencia de Fanart (Series):</h4>
@@ -587,9 +598,12 @@
                                 </div>
                             </div>
                             <div class="c-dropdown-menu glass-panel" id="configFanartPref-menu">
-                                <div class="c-dropdown-item" data-value="show" data-i18n="fanart_pref_show">Fanart de la serie</div>
-                                <div class="c-dropdown-item" data-value="season" data-i18n="fanart_pref_season">Fanart de la temporada</div>
-                                <div class="c-dropdown-item selected" data-value="episode" data-i18n="fanart_pref_episode">Fanart del episodio</div>
+                                <div class="c-dropdown-item" data-value="show" data-i18n="fanart_pref_show">Fanart de la
+                                    serie</div>
+                                <div class="c-dropdown-item" data-value="season" data-i18n="fanart_pref_season">Fanart
+                                    de la temporada</div>
+                                <div class="c-dropdown-item selected" data-value="episode"
+                                    data-i18n="fanart_pref_episode">Fanart del episodio</div>
                             </div>
                         </div>
                     </div>
@@ -605,8 +619,10 @@
                                 </div>
                             </div>
                             <div class="c-dropdown-menu glass-panel" id="configPosterPref-menu">
-                                <div class="c-dropdown-item selected" data-value="show" data-i18n="poster_pref_show">Poster de la serie</div>
-                                <div class="c-dropdown-item" data-value="season" data-i18n="poster_pref_season">Poster de la temporada</div>
+                                <div class="c-dropdown-item selected" data-value="show" data-i18n="poster_pref_show">
+                                    Poster de la serie</div>
+                                <div class="c-dropdown-item" data-value="season" data-i18n="poster_pref_season">Poster
+                                    de la temporada</div>
                             </div>
                         </div>
                     </div>
@@ -616,53 +632,62 @@
             <div id="final-ui" class="tab-content">
                 <div class="accordion">
                     <div class="accordion-header" onclick="toggleAcc(this.parentElement)"><i
-                            class="fas fa-th-large"></i> <span data-i18n="acc_layout">Layout &amp; Sizes</span> <i class="fas fa-chevron-down"
-                            style="margin-left:auto;"></i></div>
+                            class="fas fa-th-large"></i> <span data-i18n="acc_layout">Layout &amp; Sizes</span> <i
+                            class="fas fa-chevron-down" style="margin-left:auto;"></i></div>
                     <div class="accordion-body">
                         <div class="input-group" style="margin-top:10px;">
                             <div
                                 style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
-                                <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_poster_w">Poster Width:</h4>
+                                <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_poster_w">
+                                    Poster Width:</h4>
                                 <span id="val-poster-w"
                                     style="color:var(--accent); font-size:0.85rem; font-weight:bold;">150px</span>
                             </div>
-                            <input type="range" class="config-input" id="config-poster-w" min="100" max="1920" value="150"
+                            <input type="range" class="config-input" id="config-poster-w" min="100" max="1920"
+                                value="150"
                                 oninput="document.getElementById('val-poster-w').innerText = this.value + 'px'">
                         </div>
                         <div class="input-group">
                             <div
                                 style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
-                                <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_poster_h">Poster Height:</h4>
+                                <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_poster_h">
+                                    Poster Height:</h4>
                                 <span id="val-poster-h"
                                     style="color:var(--accent); font-size:0.85rem; font-weight:bold;">225px</span>
                             </div>
-                            <input type="range" class="config-input" id="config-poster-h" min="150" max="1920" value="225"
+                            <input type="range" class="config-input" id="config-poster-h" min="150" max="1920"
+                                value="225"
                                 oninput="document.getElementById('val-poster-h').innerText = this.value + 'px'">
                         </div>
                         <div class="input-group">
                             <div
                                 style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
-                                <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_fanart_w">Fanart Width:</h4>
+                                <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_fanart_w">
+                                    Fanart Width:</h4>
                                 <span id="val-fanart-w"
                                     style="color:var(--accent); font-size:0.85rem; font-weight:bold;">300px</span>
                             </div>
-                            <input type="range" class="config-input" id="config-fanart-w" min="200" max="1920" value="300"
+                            <input type="range" class="config-input" id="config-fanart-w" min="200" max="1920"
+                                value="300"
                                 oninput="document.getElementById('val-fanart-w').innerText = this.value + 'px'">
                         </div>
                         <div class="input-group">
                             <div
                                 style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
-                                <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_fanart_h">Fanart Height:</h4>
+                                <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_fanart_h">
+                                    Fanart Height:</h4>
                                 <span id="val-fanart-h"
                                     style="color:var(--accent); font-size:0.85rem; font-weight:bold;">168px</span>
                             </div>
-                            <input type="range" class="config-input" id="config-fanart-h" min="100" max="1920" value="168"
+                            <input type="range" class="config-input" id="config-fanart-h" min="100" max="1920"
+                                value="168"
                                 oninput="document.getElementById('val-fanart-h').innerText = this.value + 'px'">
                         </div>
                         <div class="input-group">
                             <div
                                 style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
-                                <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_grid_gap">Grid Spacing (Gap):</h4>
+                                <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_grid_gap">
+                                    Grid Spacing (Gap):</h4>
                                 <span id="val-gap"
                                     style="color:var(--accent); font-size:0.85rem; font-weight:bold;">15px</span>
                             </div>
@@ -672,7 +697,8 @@
                         <div class="input-group">
                             <div
                                 style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
-                                <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_card_radius">Card Border Radius:</h4>
+                                <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;"
+                                    data-i18n="ui_card_radius">Card Border Radius:</h4>
                                 <span id="val-radius"
                                     style="color:var(--accent); font-size:0.85rem; font-weight:bold;">8px</span>
                             </div>
@@ -684,55 +710,77 @@
 
                 <div class="accordion">
                     <div class="accordion-header" onclick="toggleAcc(this.parentElement)"><i class="fas fa-palette"></i>
-                        <span data-i18n="acc_colors">Colors</span> <i class="fas fa-chevron-down" style="margin-left:auto;"></i></div>
+                        <span data-i18n="acc_colors">Colors</span> <i class="fas fa-chevron-down"
+                            style="margin-left:auto;"></i>
+                    </div>
                     <div class="accordion-body">
-                        <div class="input-group" style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
-                            <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_color_bg">Background Color</h4>
+                        <div class="input-group"
+                            style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+                            <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_color_bg">
+                                Background Color</h4>
                             <div id="pickr-bg-color"></div>
                             <input type="hidden" id="config-bg-color" value="#0d1117">
                         </div>
-                        <div class="input-group" style="display:flex; justify-content:space-between; align-items:center;">
-                            <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_color_glass_bg">Panel &amp; Modal Background</h4>
+                        <div class="input-group"
+                            style="display:flex; justify-content:space-between; align-items:center;">
+                            <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;"
+                                data-i18n="ui_color_glass_bg">Panel &amp; Modal Background</h4>
                             <div id="pickr-glass-bg"></div>
                             <input type="hidden" id="config-glass-bg" value="rgba(22,27,34,0.7)">
                         </div>
-                        <div class="input-group" style="display:flex; justify-content:space-between; align-items:center;">
-                            <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_color_glass_border">Border Color</h4>
+                        <div class="input-group"
+                            style="display:flex; justify-content:space-between; align-items:center;">
+                            <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;"
+                                data-i18n="ui_color_glass_border">Border Color</h4>
                             <div id="pickr-glass-border"></div>
                             <input type="hidden" id="config-glass-border" value="rgba(255,255,255,0.1)">
                         </div>
-                        <div class="input-group" style="display:flex; justify-content:space-between; align-items:center;">
-                            <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_color_edit_bg">Input &amp; Edit Background</h4>
+                        <div class="input-group"
+                            style="display:flex; justify-content:space-between; align-items:center;">
+                            <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_color_edit_bg">
+                                Input &amp; Edit Background</h4>
                             <div id="pickr-edit-bg"></div>
                             <input type="hidden" id="config-edit-bg" value="rgba(22,27,34,0.85)">
                         </div>
-                        <div class="input-group" style="display:flex; justify-content:space-between; align-items:center;">
-                            <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_color_combo_bg">Dropdown Menu Background</h4>
+                        <div class="input-group"
+                            style="display:flex; justify-content:space-between; align-items:center;">
+                            <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;"
+                                data-i18n="ui_color_combo_bg">Dropdown Menu Background</h4>
                             <div id="pickr-combo-bg"></div>
                             <input type="hidden" id="config-combo-bg" value="rgba(13,17,23,0.95)">
                         </div>
-                        <div class="input-group" style="display:flex; justify-content:space-between; align-items:center;">
-                            <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_color_panel_bg">Tab Panel Background</h4>
+                        <div class="input-group"
+                            style="display:flex; justify-content:space-between; align-items:center;">
+                            <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;"
+                                data-i18n="ui_color_panel_bg">Tab Panel Background</h4>
                             <div id="pickr-panel-bg"></div>
                             <input type="hidden" id="config-panel-bg" value="rgba(255,255,255,0.03)">
                         </div>
-                        <div class="input-group" style="display:flex; justify-content:space-between; align-items:center;">
-                            <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_color_accent">Primary Accent Color</h4>
+                        <div class="input-group"
+                            style="display:flex; justify-content:space-between; align-items:center;">
+                            <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_color_accent">
+                                Primary Accent Color</h4>
                             <div id="pickr-accent-primary"></div>
                             <input type="hidden" id="config-accent-primary" value="#58a6ff">
                         </div>
-                        <div class="input-group" style="display:flex; justify-content:space-between; align-items:center;">
-                            <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_color_accent_hover">Accent Hover Color</h4>
+                        <div class="input-group"
+                            style="display:flex; justify-content:space-between; align-items:center;">
+                            <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;"
+                                data-i18n="ui_color_accent_hover">Accent Hover Color</h4>
                             <div id="pickr-accent-hover"></div>
                             <input type="hidden" id="config-accent-hover" value="#3182ce">
                         </div>
-                        <div class="input-group" style="display:flex; justify-content:space-between; align-items:center;">
-                            <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_color_accent_dark">Dark Accent Color (Checkboxes)</h4>
+                        <div class="input-group"
+                            style="display:flex; justify-content:space-between; align-items:center;">
+                            <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;"
+                                data-i18n="ui_color_accent_dark">Dark Accent Color (Checkboxes)</h4>
                             <div id="pickr-accent-dark"></div>
                             <input type="hidden" id="config-accent-dark" value="#2568a8">
                         </div>
-                        <div class="input-group" style="display:flex; justify-content:space-between; align-items:center;">
-                            <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_color_danger">Danger / Alert Color</h4>
+                        <div class="input-group"
+                            style="display:flex; justify-content:space-between; align-items:center;">
+                            <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_color_danger">
+                                Danger / Alert Color</h4>
                             <div id="pickr-danger"></div>
                             <input type="hidden" id="config-danger" value="#f85149">
                         </div>
@@ -740,13 +788,17 @@
                 </div>
 
                 <div class="accordion">
-                    <div class="accordion-header" onclick="toggleAcc(this.parentElement)"><i class="fas fa-paint-brush"></i>
-                        <span data-i18n="acc_styles">Styles</span> <i class="fas fa-chevron-down" style="margin-left:auto;"></i></div>
+                    <div class="accordion-header" onclick="toggleAcc(this.parentElement)"><i
+                            class="fas fa-paint-brush"></i>
+                        <span data-i18n="acc_styles">Styles</span> <i class="fas fa-chevron-down"
+                            style="margin-left:auto;"></i>
+                    </div>
                     <div class="accordion-body">
                         <div class="input-group" style="margin-top:10px;">
                             <div
                                 style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
-                                <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_glass_blur">Glassmorphism Blur:</h4>
+                                <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;"
+                                    data-i18n="ui_glass_blur">Glassmorphism Blur:</h4>
                                 <span id="val-blur"
                                     style="color:var(--accent); font-size:0.85rem; font-weight:bold;">10px</span>
                             </div>
@@ -756,11 +808,13 @@
                         <div class="input-group">
                             <div
                                 style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
-                                <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_fanart_opacity">Fanart Mask Opacity:</h4>
+                                <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;"
+                                    data-i18n="ui_fanart_opacity">Fanart Mask Opacity:</h4>
                                 <span id="val-mask-opacity"
                                     style="color:var(--accent); font-size:0.85rem; font-weight:bold;">0.3</span>
                             </div>
-                            <input type="range" class="config-input" id="config-fanart-opacity" min="0" max="1" step="0.1" value="0.3"
+                            <input type="range" class="config-input" id="config-fanart-opacity" min="0" max="1"
+                                step="0.1" value="0.3"
                                 oninput="document.getElementById('val-mask-opacity').innerText = this.value">
                         </div>
                     </div>
@@ -768,10 +822,13 @@
 
                 <div class="accordion">
                     <div class="accordion-header" onclick="toggleAcc(this.parentElement)"><i class="fas fa-font"></i>
-                        <span data-i18n="acc_typography">Typography &amp; Formats</span> <i class="fas fa-chevron-down" style="margin-left:auto;"></i></div>
+                        <span data-i18n="acc_typography">Typography &amp; Formats</span> <i class="fas fa-chevron-down"
+                            style="margin-left:auto;"></i>
+                    </div>
                     <div class="accordion-body">
                         <div class="input-group" style="margin-top:10px;">
-                            <h4 style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;" data-i18n="ui_font">Main Font</h4>
+                            <h4 style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;" data-i18n="ui_font">Main
+                                Font</h4>
                             <div class="c-dropdown config-input" id="configFont-dd">
                                 <div class="c-dropdown-trigger" id="configFont-trigger">
                                     <div class="c-dropdown-bottom">
@@ -786,13 +843,17 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="input-group" style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
-                            <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_color_text_primary">Primary Text Color</h4>
+                        <div class="input-group"
+                            style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+                            <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;"
+                                data-i18n="ui_color_text_primary">Primary Text Color</h4>
                             <div id="pickr-text-primary"></div>
                             <input type="hidden" id="config-text-primary" value="#c9d1d9">
                         </div>
-                        <div class="input-group" style="display:flex; justify-content:space-between; align-items:center;">
-                            <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_color_text_secondary">Secondary Text Color</h4>
+                        <div class="input-group"
+                            style="display:flex; justify-content:space-between; align-items:center;">
+                            <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;"
+                                data-i18n="ui_color_text_secondary">Secondary Text Color</h4>
                             <div id="pickr-text-secondary"></div>
                             <input type="hidden" id="config-text-secondary" value="#8b949e">
                         </div>
@@ -801,11 +862,15 @@
 
                 <div class="accordion">
                     <div class="accordion-header" onclick="toggleAcc(this.parentElement)"><i class="fas fa-eye"></i>
-                        <span data-i18n="acc_visibility">Element Visibility</span> <i class="fas fa-chevron-down" style="margin-left:auto;"></i></div>
+                        <span data-i18n="acc_visibility">Element Visibility</span> <i class="fas fa-chevron-down"
+                            style="margin-left:auto;"></i>
+                    </div>
                     <div class="accordion-body">
                         <div style="margin-top:10px;">
-                            <label class="check-group"><input type="checkbox" id="config-show-duration" checked> <span data-i18n="config_show_duration">Show duration</span></label>
-                            <label class="check-group"><input type="checkbox" id="config-show-title" checked> <span data-i18n="config_show_title">Show episode title</span></label>
+                            <label class="check-group"><input type="checkbox" id="config-show-duration" checked> <span
+                                    data-i18n="config_show_duration">Show duration</span></label>
+                            <label class="check-group"><input type="checkbox" id="config-show-title" checked> <span
+                                    data-i18n="config_show_title">Show episode title</span></label>
                         </div>
                     </div>
                 </div>
@@ -853,7 +918,7 @@
             </div>
         </div>
         <button class="fab-main">
-            <!-- Puntos suspensivos verticales -->
+            <!-- Menu icon -->
             <svg class="fab-icon-main" viewBox="0 0 24 24" fill="currentColor" style="width:28px;height:28px;">
                 <circle cx="12" cy="5" r="2" />
                 <circle cx="12" cy="12" r="2" />
@@ -895,7 +960,7 @@
         </div>
     </div>
 
-    <!-- MOCKUP: OVERLAY DE CARGA (NUEVO DISEÑO) -->
+    <!-- LOAD OVERLAY -->
     <div id="loading-overlay" class="overlay hidden" style="z-index: 9999;">
         <div class="login-box loading-box">
             <div id="loading-overlay-icon">

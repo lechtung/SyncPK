@@ -21,7 +21,9 @@
   </div>
   <div id="setup-step-indicator"></div>
   <div id="finish-overlay">
-    <div id="finish-status-icon">&#x23F3;</div>
+    <div id="finish-status-icon">
+      <div class="spinner-premium" style="width:40px;height:40px;border-width:3px;margin:0;"></div>
+    </div>
     <div id="finish-title">Finishing setup...</div>
     <div id="finish-msg">Writing configuration...</div>
   </div>
@@ -89,12 +91,27 @@
         <div class="info-note"><i class="fa-solid fa-circle-info"></i><span data-i18n="setup_plex_url_note">Example:
             <code>http://192.168.1.100:32400</code>. Find it in Plex &rarr; Settings &rarr; Remote Access.</span></div>
         <label class="setup-label" data-i18n="setup_plex_url_label">PLEX SERVER URL</label>
-        <div class="input-wrap">
-          <i class="input-icon fa-solid fa-link"></i>
-          <input type="text" id="plex-url-input" placeholder="http://192.168.1.x:32400" autocomplete="off" />
+
+        <div class="input-with-btn">
+          <div class="input-wrap">
+            <i class="input-icon fa-solid fa-link"></i>
+            <input type="text" id="plex-url-input" placeholder="http://192.168.1.x:32400" autocomplete="off" />
+          </div>
         </div>
+
+        <div class="test-button-container">
+          <button class="btn-test-action" onclick="testPlexUrl()" type="button">
+            <i class="fa-solid fa-plug"></i> <span data-i18n="setup_btn_test">Test</span>
+          </button>
+        </div>
+
+        <div id="plex-test-msg" class="test-feedback"></div>
+
+        <!-- 
         <div class="field-error" id="plex-url-error" data-i18n="setup_plex_url_err">Please enter a valid Plex URL (must
           start with http:// or https://).</div>
+        -->
+
         <div class="step-nav">
           <button class="btn-back" onclick="goBack()"><i class="fa-solid fa-arrow-left"></i></button>
           <button class="btn-next" onclick="validatePlexUrl()" data-i18n="setup_btn_continue">Continue</button>
@@ -176,11 +193,24 @@
             API key at <a href="https://www.themoviedb.org/settings/api" target="_blank">themoviedb.org</a>. It is free
             and instant.</span></div>
         <label class="setup-label" data-i18n="setup_tmdb_label">TMDB API KEY</label>
-        <div class="input-wrap">
-          <i class="input-icon fa-solid fa-key"></i>
-          <input type="text" id="tmdb-input" placeholder="eyJhbGciOi..." autocomplete="off" />
+
+        <div class="input-with-btn">
+          <div class="input-wrap">
+            <i class="input-icon fa-solid fa-key"></i>
+            <input type="text" id="tmdb-input" placeholder="eyJhbGciOi..." autocomplete="off" />
+          </div>
         </div>
-        <div class="field-error" id="tmdb-error" data-i18n="setup_tmdb_err">Please enter a valid TMDB API key.</div>
+
+        <div class="test-button-container">
+          <button class="btn-test-action" onclick="testTmdbKey()" type="button">
+            <i class="fa-solid fa-plug"></i> <span data-i18n="setup_btn_test">Test</span>
+          </button>
+        </div>
+
+        <div id="tmdb-test-msg" class="test-feedback"></div>
+
+        <!-- <div class="field-error" id="tmdb-error" data-i18n="setup_tmdb_err">Please enter a valid TMDB API key.</div> -->
+
         <div class="step-nav">
           <button class="btn-back" onclick="goBack()"><i class="fa-solid fa-arrow-left"></i></button>
           <button class="btn-next" onclick="validateTmdb()" data-i18n="setup_btn_continue">Continue</button>
@@ -270,7 +300,7 @@
     let i18n = {}, _pinPollTimer = null, _pinId = null, _authUrl = null, _clientId = null;
     const FB = {
       setup_lang_title: 'Choose your language', setup_lang_sub: 'Select the language for this wizard.',
-      setup_btn_continue: 'Continue', setup_btn_finish: 'Finish Setup',
+      setup_btn_continue: 'Continue', setup_btn_finish: 'Finish Setup', setup_btn_test: 'Test',
       setup_plex_url_title: 'Plex Server URL', setup_plex_url_sub: 'Enter the local address of your Plex Media Server.',
       setup_plex_url_note: 'Example: http://192.168.1.100:32400', setup_plex_url_label: 'PLEX SERVER URL',
       setup_plex_url_err: 'Please enter a valid Plex URL.',
@@ -292,6 +322,8 @@
       setup_summary_title: 'Review & Complete', setup_summary_sub: 'Review your configuration before finishing.',
       setup_finish_title: 'Setup Complete!', setup_finish_msg: 'Redirecting to your dashboard...',
       setup_finish_error: 'An error occurred. Please try again.',
+      setup_test_checking: 'Checking...', setup_test_plex_success: 'Connection successful!', setup_test_plex_fail: 'Connection failed. Check URL.',
+      setup_test_tmdb_success: 'Valid API Key!', setup_test_tmdb_fail: 'Invalid API Key.', setup_test_error: 'Network error.',
       lang_auto: 'Browser Default', lang_en: 'English', lang_es: 'Spanish', lang_de: 'German',
       lang_fr: 'French', lang_it: 'Italian', lang_pt: 'Portuguese', lang_zh: 'Chinese', lang_ja: 'Japanese',
       setup_summary_plex_url: 'Plex URL', setup_summary_plex_pass: 'Plex Pass',
@@ -333,12 +365,102 @@
     function goBack() { if (state._step > 1) showStep(state._step - 1); }
     function updateProgress(s) { document.getElementById('setup-progress-bar').style.width = Math.round(((s - 1) / (TOTAL_STEPS - 1)) * 100) + '%'; }
     function updateStepIndicator() { document.getElementById('setup-step-indicator').textContent = t('setup_step_of', { cur: state._step, tot: TOTAL_STEPS }); }
+
+    // --- TEST PLEX URL ---
+    async function testPlexUrl() {
+      const input = document.getElementById('plex-url-input').value.trim();
+      const msgBox = document.getElementById('plex-test-msg');
+      msgBox.style.display = 'block';
+      msgBox.className = 'test-feedback checking';
+      msgBox.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ' + t('setup_test_checking');
+
+      if (!input || (!input.startsWith('http://') && !input.startsWith('https://'))) {
+        msgBox.className = 'test-feedback error';
+        msgBox.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + t('setup_plex_url_err');
+        return;
+      }
+      try {
+        const cleanUrl = input.replace(/\/+$/, "");
+        const res = await fetch(cleanUrl + '/identity', { method: 'GET' });
+        if (res.ok) {
+          msgBox.className = 'test-feedback success';
+          msgBox.innerHTML = '<i class="fa-solid fa-circle-check"></i> ' + t('setup_test_plex_success');
+        } else {
+          msgBox.className = 'test-feedback error';
+          msgBox.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + t('setup_test_plex_fail') + ' (HTTP ' + res.status + ')';
+        }
+      } catch (e) {
+        msgBox.className = 'test-feedback error';
+        msgBox.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + t('setup_test_error');
+      }
+    }
+
     function validatePlexUrl() {
+
+      const input = document.getElementById('plex-url-input').value.trim();
+      const msgBox = document.getElementById('plex-test-msg');
+      msgBox.style.display = 'block';
+      msgBox.className = 'test-feedback checking';
+      msgBox.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ' + t('setup_test_checking');
+
+      if (!input || (!input.startsWith('http://') && !input.startsWith('https://'))) {
+        msgBox.className = 'test-feedback error';
+        msgBox.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + t('setup_plex_url_err');
+        return;
+      }
+
+      /*
+        
       const v = document.getElementById('plex-url-input').value.trim();
       const e = document.getElementById('plex-url-error');
-      if (!v || (!v.startsWith('http://') && !v.startsWith('https://'))) { e.classList.add('visible'); return; }
-      e.classList.remove('visible'); state.plexUrl = v; goNext();
+      if (!v || (!v.startsWith('http://') && !v.startsWith('https://'))) { 
+        e.classList.add('visible'); 
+        return; 
+      }
+      e.classList.remove('visible'); 
+      state.plexUrl = v; 
+      */
+      state.plexUrl = input;
+      goNext();
     }
+
+    // --- TEST TMDB KEY ---
+    async function testTmdbKey() {
+      const key = document.getElementById('tmdb-input').value.trim();
+      const msgBox = document.getElementById('tmdb-test-msg');
+      msgBox.style.display = 'block';
+      msgBox.className = 'test-feedback checking';
+      msgBox.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ' + t('setup_test_checking');
+
+      if (!key) {
+        msgBox.className = 'test-feedback error';
+        msgBox.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + t('setup_tmdb_err');
+        return;
+      }
+      try {
+        let url = 'https://api.themoviedb.org/3/authentication';
+        let options = { headers: { accept: 'application/json' } };
+        // TMDB supports v4 Bearer or v3 query param
+        if (key.length > 40) {
+          options.headers['Authorization'] = 'Bearer ' + key;
+        } else {
+          url += '?api_key=' + key;
+        }
+
+        const res = await fetch(url, options);
+        if (res.ok) {
+          msgBox.className = 'test-feedback success';
+          msgBox.innerHTML = '<i class="fa-solid fa-circle-check"></i> ' + t('setup_test_tmdb_success');
+        } else {
+          msgBox.className = 'test-feedback error';
+          msgBox.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + t('setup_test_tmdb_fail');
+        }
+      } catch (e) {
+        msgBox.className = 'test-feedback error';
+        msgBox.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + t('setup_test_error');
+      }
+    }
+
     function validatePassword() {
       const p1 = document.getElementById('pwd-input').value;
       const p2 = document.getElementById('pwd-confirm-input').value;
@@ -346,11 +468,30 @@
       if (!p1 || p1 !== p2) { e.classList.add('visible'); return; }
       e.classList.remove('visible'); state.password = p1; goNext();
     }
+
     function validateTmdb() {
-      const v = document.getElementById('tmdb-input').value.trim();
+      const key = document.getElementById('tmdb-input').value.trim();
+      const msgBox = document.getElementById('tmdb-test-msg');
+      msgBox.style.display = 'block';
+      msgBox.className = 'test-feedback checking';
+      msgBox.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ' + t('setup_test_checking');
+
+      if (!key) {
+        msgBox.className = 'test-feedback error';
+        msgBox.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + t('setup_tmdb_err');
+        return;
+      }
+
+      /*const v = document.getElementById('tmdb-input').value.trim();
       const e = document.getElementById('tmdb-error');
-      if (!v || v.length < 10) { e.classList.add('visible'); return; }
-      e.classList.remove('visible'); state.tmdbKey = v; goNext();
+      if (!v || v.length < 10) { 
+        e.classList.add('visible'); 
+        return; 
+      }
+      e.classList.remove('visible'); 
+      state.tmdbKey = v; */
+      state.tmdbKey = key
+      goNext();
     }
     function togglePw(id, btn) {
       const inp = document.getElementById(id), ico = btn.querySelector('i');
@@ -432,18 +573,18 @@
     async function finishSetup() {
       const ov = document.getElementById('finish-overlay');
       ov.classList.add('active');
-      document.getElementById('finish-status-icon').textContent = '\u23F3';
+      document.getElementById('finish-status-icon').innerHTML = '<div class="spinner-premium" style="width:40px;height:40px;border-width:3px;margin:0;"></div>';
       document.getElementById('finish-title').textContent = 'Finishing setup...';
       document.getElementById('finish-msg').textContent = 'Writing configuration...';
       try {
         const res = await fetch('/api/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plex_url: state.plexUrl, plex_token: state.plexToken, plex_client_id: state.plexClientId, has_plex_pass: state.hasPlexPass, password: state.password, tmdb_api_key: state.tmdbKey, dashboard_language: state.dashLang, sync_language: state.syncLang, auto_update: state.autoUpdate, debug: state.debug }) });
         if (!res.ok) throw new Error('HTTP ' + res.status);
-        document.getElementById('finish-status-icon').textContent = '\u2705';
+        document.getElementById('finish-status-icon').innerHTML = '<svg class="svg-anim" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52"><circle class="circle" cx="26" cy="26" r="25" stroke="#3fb950"/><path class="check" stroke="#3fb950" d="M14.1 27.2l7.1 7.2 16.7-16.8"/></svg>';
         document.getElementById('finish-title').textContent = t('setup_finish_title');
         document.getElementById('finish-msg').textContent = t('setup_finish_msg');
         setTimeout(() => window.location.href = '/', 2500);
       } catch {
-        document.getElementById('finish-status-icon').textContent = '\u274C';
+        document.getElementById('finish-status-icon').innerHTML = '<svg class="svg-anim" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52"><circle class="circle" cx="26" cy="26" r="25" stroke="#f85149"/><path class="cross" stroke="#f85149" d="M16 16 36 36 M36 16 16 36"/></svg>';
         document.getElementById('finish-title').textContent = 'Error';
         document.getElementById('finish-msg').textContent = t('setup_finish_error');
         setTimeout(() => ov.classList.remove('active'), 3500);

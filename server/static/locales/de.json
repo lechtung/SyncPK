@@ -287,5 +287,11 @@
     "setup_finish_error": "Beim Speichern ist ein Fehler aufgetreten. Bitte versuche es erneut.",
     "setup_step_of": "Schritt {cur} von {tot}",
     "yes": "Ja",
-    "no": "Nein"
+    "no": "Nein",
+    "setup_test_checking": "Wird überprüft...",
+    "setup_test_plex_success": "Verbindung erfolgreich!",
+    "setup_test_plex_fail": "Verbindung fehlgeschlagen. URL prüfen.",
+    "setup_test_tmdb_success": "Gültiger API-Schlüssel!",
+    "setup_test_tmdb_fail": "Ungültiger API-Schlüssel.",
+    "setup_test_error": "Netzwerkfehler."
 }
