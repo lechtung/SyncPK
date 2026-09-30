@@ -25,7 +25,7 @@ Everything is secured by **SHA-256 salted hashes** and **Plex PIN OAuth** for a 
 Before installing, you will need two things:
 
 ### 1. Plex Account (OAuth)
-The installation script uses a secure OAuth flow to connect with your Plex server. During the installation, the script will automatically generate a secure PIN and provide you with a short link (e.g., `https://plex.tv/link`). You simply visit that link, authorize SyncPK, and the installer will securely configure your server automatically.
+The setup uses a secure OAuth flow to connect with your Plex server. During the web setup, you will be prompted to log in to Plex via a secure PIN link (e.g., `https://plex.tv/link`). You simply visit that link, authorize SyncPK, and the setup will securely configure your server automatically.
 
 ### 2. TMDB API Key
 This is required to fetch movie/show posters and durations for your dashboard.
@@ -33,7 +33,7 @@ This is required to fetch movie/show posters and durations for your dashboard.
 2. Go to your Account Settings -> API.
 3. Request an API Key (Developer). It's instant and free. You'll get a 32-character string.
 
-We provide two automated installation scripts. You don't need to manually download or configure the files.
+We provide multiple installation options. The initial installation is very quick, and once it finishes, you will complete the configuration (Plex Auth, TMDB, passwords) through a beautiful Web UI.
 
 ### Option A: Proxmox Automatic LXC
 If you are running a Proxmox server, you can use our interactive script to automatically create a brand-new LXC container, install all dependencies, and set up the services.
@@ -44,6 +44,8 @@ Run this command directly in your **Proxmox Host Shell**:
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/lechtung/SyncPK/main/install_proxmox.sh)"
 ```
 
+**Next step:** Open your browser and go to `http://<YOUR_LXC_IP>:8000` to start the Web Setup.
+
 ### Option B: Baremetal / Existing Linux Machine
 If you want to install SyncPK on a Raspberry Pi, an existing Debian/Ubuntu server, or inside a container you already created, use this script.
 
@@ -53,21 +55,23 @@ Run this command as **root** inside your Linux machine:
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/lechtung/SyncPK/main/install.sh)"
 ```
 
+**Next step:** Open your browser and go to `http://<YOUR_SERVER_IP>:8000` to start the Web Setup.
+
 ### Option C: Docker Compose (r/selfhosted)
 For the standard self-hosted stack, SyncPK can be deployed seamlessly using Docker. We provide a pre-built image hosted on GitHub Container Registry (GHCR).
 
-1. Create a `data` directory to store your persistent files and download the required configurations:
+1. Create a `data` directory to store your persistent files and download the `docker-compose.yml`:
    ```bash
    mkdir data
-   curl -O [https://raw.githubusercontent.com/lechtung/SyncPK/main/docker-compose.yml](https://raw.githubusercontent.com/lechtung/SyncPK/main/docker-compose.yml)
-   curl -o data/.env [https://raw.githubusercontent.com/lechtung/SyncPK/main/server/.env.example](https://raw.githubusercontent.com/lechtung/SyncPK/main/server/.env.example)
+   curl -O https://raw.githubusercontent.com/lechtung/SyncPK/main/docker-compose.yml
    ```
-2. Edit the data/.env file and fill in your variables (Plex Token, TMDB API Key, Master Password, etc.).
-3. Start the container:
+2. Start the container:
    ```bash
    docker compose up -d
    ```
-*(Note for Docker users: Unlike the automated Proxmox/Linux scripts, you must manually generate your Plex Token and enter it in the .env file. If you do not have an active Plex Pass subscription, set HAS_PLEX_PASS=false and the server will automatically enable background polling to compensate for the lack of native Plex Webhooks).*
+3. **Next step:** Open your browser and go to `http://<YOUR_SERVER_IP>:8000` to start the Web Setup.
+
+*(Note: If you do not have an active Plex Pass subscription, the server will automatically enable background polling to compensate for the lack of native Plex Webhooks).*
 ---
 
 ## 🎬 Plex Webhook Setup
