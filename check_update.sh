@@ -1,37 +1,29 @@
 #!/bin/bash
 # SyncPK Update Checker Script
-# This script checks for new versions of SyncPK on GitHub and either applies the update automatically or notifies the backend via .conf.
 
 set -e
 
 APP_DIR="/opt/syncpk"
-ENV_FILE="$APP_DIR/.env"
+DATA_DIR="${DATA_DIR:-/var/lib/syncpk}"
+ENV_FILE="$DATA_DIR/.env"
 LOCAL_VER_FILE="$APP_DIR/.ver"
 REMOTE_VER_URL="https://raw.githubusercontent.com/lechtung/SyncPK/main/.ver"
-REMOTE_UPDATE_SCRIPT_URL="https://raw.githubusercontent.com/lechtung/SyncPK/main/update.sh"
 TEMP_VER_FILE="/tmp/syncpk_remote.ver"
-TEMP_UPDATE_SCRIPT="/tmp/update_syncpk.sh"
+TRIGGER_FILE="$DATA_DIR/.trigger_update"
 
-# Ensure directories exist
-mkdir -p "$APP_DIR"
-cd "$APP_DIR"
-
-# Download remote version file
-curl -s -L -o "$TEMP_VER_FILE" "$REMOTE_VER_URL"
+curl -s -L -o "\(TEMP_VER_FILE" "\)REMOTE_VER_URL"
 
 if [ ! -f "$TEMP_VER_FILE" ]; then
     echo "Error: Could not download version file."
     exit 1
 fi
 
-REMOTE_VER=$(cat "$TEMP_VER_FILE" | tr -d ' \n\r')
-LOCAL_VER=$(cat "$LOCAL_VER_FILE" 2>/dev/null | tr -d ' \n\r') || LOCAL_VER="0.0.0"
+REMOTE_VER=\((cat "\)TEMP_VER_FILE" | tr -d ' \n\r')
+LOCAL_VER=\((cat "\)LOCAL_VER_FILE" 2>/dev/null | tr -d ' \n\r') || LOCAL_VER="0.0.0"
 
-# Compare versions
-if [ "$REMOTE_VER" != "" ] && [ "$REMOTE_VER" != "$LOCAL_VER" ]; then
-    echo "New version available: $REMOTE_VER (Local: $LOCAL_VER)"
+if [ "\(REMOTE_VER" != "" ] && [ "\)REMOTE_VER" != "$LOCAL_VER" ]; then
+    echo "New version available: \(REMOTE_VER (Local:\)LOCAL_VER)"
     
-    # Check if AUTO_UPDATE is enabled
     AUTO_UPDATE="false"
     if [ -f "$ENV_FILE" ]; then
         if grep -q "^AUTO_UPDATE=true" "$ENV_FILE"; then
@@ -40,32 +32,25 @@ if [ "$REMOTE_VER" != "" ] && [ "$REMOTE_VER" != "$LOCAL_VER" ]; then
     fi
 
     if [ "$AUTO_UPDATE" = "true" ]; then
-        echo "Auto-update is enabled. Starting update process..."
-        # Download the latest update.sh from Github
-        curl -s -L -o "$TEMP_UPDATE_SCRIPT" "$REMOTE_UPDATE_SCRIPT_URL"
-        chmod +x "$TEMP_UPDATE_SCRIPT"
-        # Execute the update script
-        bash "$TEMP_UPDATE_SCRIPT"
+        echo "Auto-update enabled. Triggering update..."
+        touch "$TRIGGER_FILE"
     else
-        echo "Auto-update is disabled. Updating .env to notify the UI."
-        # Update or add UPDATE_AVAILABLE to .env
+        echo "Auto-update disabled. Notifying UI."
         if [ -f "$ENV_FILE" ]; then
             if grep -q "^UPDATE_AVAILABLE=" "$ENV_FILE"; then
-                sed -i "s/^UPDATE_AVAILABLE=.*/UPDATE_AVAILABLE=$REMOTE_VER/" "$ENV_FILE"
+                sed -i "s/^UPDATE_AVAILABLE=.*/UPDATE_AVAILABLE=\(REMOTE_VER/" "\)ENV_FILE"
             else
-                echo "UPDATE_AVAILABLE=$REMOTE_VER" >> "$ENV_FILE"
+                echo "UPDATE_AVAILABLE=\(REMOTE_VER" >> "\)ENV_FILE"
             fi
         else
-            echo "UPDATE_AVAILABLE=$REMOTE_VER" > "$ENV_FILE"
+            echo "UPDATE_AVAILABLE=\(REMOTE_VER" > "\)ENV_FILE"
         fi
     fi
 else
-    echo "SyncPK is up to date (Version: $LOCAL_VER)."
-    # Clear UPDATE_AVAILABLE in .env if it was set
+    echo "SyncPK is up to date."
     if [ -f "$ENV_FILE" ]; then
         sed -i "s/^UPDATE_AVAILABLE=.*/UPDATE_AVAILABLE=/" "$ENV_FILE"
     fi
 fi
 
-# Clean up
 rm -f "$TEMP_VER_FILE"

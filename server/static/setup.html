@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SyncPK Setup</title>
+  <meta name="description" content="SyncPK initial configuration wizard." />
+  <link rel="icon" href="/favicon.ico" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/setup.css" />
+</head>
+
+<body>
+  <div id="setup-progress-wrap">
+    <div id="setup-progress-bar" style="width:0%"></div>
+  </div>
+  <div id="setup-step-indicator"></div>
+  <div id="finish-overlay">
+    <div id="finish-status-icon">&#x23F3;</div>
+    <div id="finish-title">Finishing setup...</div>
+    <div id="finish-msg">Writing configuration...</div>
+  </div>
+  <div id="setup-shell">
+    <div id="setup-logo">
+      <img src="/logo.png" alt="SyncPK" onerror="this.style.display='none'" />
+      <span>Sync<em>PK</em></span>
+    </div>
+    <div class="wizard-card glass-panel">
+      <!-- STEP 1: LANGUAGE -->
+      <div class="wizard-step active" id="step-lang">
+        <div class="step-icon"><i class="fa-solid fa-language"></i></div>
+        <div class="step-title" data-i18n="setup_lang_title">Choose your language</div>
+        <div class="step-subtitle" data-i18n="setup_lang_sub">Select the language for the installation wizard. You can
+          change it later from Settings.</div>
+        <div class="lang-grid">
+          <div class="lang-card" data-lang="en" onclick="selectLang('en')"><span
+              class="lang-flag">&#x1F1EC;&#x1F1E7;</span>
+            <div class="lang-info"><span class="lang-name">English</span><span class="lang-native">English</span></div>
+          </div>
+          <div class="lang-card" data-lang="es" onclick="selectLang('es')"><span
+              class="lang-flag">&#x1F1EA;&#x1F1F8;</span>
+            <div class="lang-info"><span class="lang-name">Espa&#xF1;ol</span><span class="lang-native">Spanish</span>
+            </div>
+          </div>
+          <div class="lang-card" data-lang="de" onclick="selectLang('de')"><span
+              class="lang-flag">&#x1F1E9;&#x1F1EA;</span>
+            <div class="lang-info"><span class="lang-name">Deutsch</span><span class="lang-native">German</span></div>
+          </div>
+          <div class="lang-card" data-lang="fr" onclick="selectLang('fr')"><span
+              class="lang-flag">&#x1F1EB;&#x1F1F7;</span>
+            <div class="lang-info"><span class="lang-name">Fran&#xE7;ais</span><span class="lang-native">French</span>
+            </div>
+          </div>
+          <div class="lang-card" data-lang="it" onclick="selectLang('it')"><span
+              class="lang-flag">&#x1F1EE;&#x1F1F9;</span>
+            <div class="lang-info"><span class="lang-name">Italiano</span><span class="lang-native">Italian</span></div>
+          </div>
+          <div class="lang-card" data-lang="pt" onclick="selectLang('pt')"><span
+              class="lang-flag">&#x1F1F5;&#x1F1F9;</span>
+            <div class="lang-info"><span class="lang-name">Portugu&#xEA;s</span><span
+                class="lang-native">Portuguese</span></div>
+          </div>
+          <div class="lang-card" data-lang="zh" onclick="selectLang('zh')"><span
+              class="lang-flag">&#x1F1E8;&#x1F1F3;</span>
+            <div class="lang-info"><span class="lang-name">&#x4E2D;&#x6587;</span><span class="lang-native">Chinese
+                (Simplified)</span></div>
+          </div>
+          <div class="lang-card" data-lang="ja" onclick="selectLang('ja')"><span
+              class="lang-flag">&#x1F1EF;&#x1F1F5;</span>
+            <div class="lang-info"><span class="lang-name">&#x65E5;&#x672C;&#x8A9E;</span><span
+                class="lang-native">Japanese</span></div>
+          </div>
+        </div>
+        <div class="step-nav">
+          <button class="btn-next" onclick="goNext()" data-i18n="setup_btn_continue">Continue</button>
+        </div>
+      </div>
+      <!-- STEP 2: PLEX URL -->
+      <div class="wizard-step" id="step-plex-url">
+        <div class="step-icon"><i class="fa-solid fa-server"></i></div>
+        <div class="step-title" data-i18n="setup_plex_url_title">Plex Server URL</div>
+        <div class="step-subtitle" data-i18n="setup_plex_url_sub">Enter the local address of your Plex Media Server.
+          This is needed for webhook communication.</div>
+        <div class="info-note"><i class="fa-solid fa-circle-info"></i><span data-i18n="setup_plex_url_note">Example:
+            <code>http://192.168.1.100:32400</code>. Find it in Plex &rarr; Settings &rarr; Remote Access.</span></div>
+        <label class="setup-label" data-i18n="setup_plex_url_label">PLEX SERVER URL</label>
+        <div class="input-wrap">
+          <i class="input-icon fa-solid fa-link"></i>
+          <input type="text" id="plex-url-input" placeholder="http://192.168.1.x:32400" autocomplete="off" />
+        </div>
+        <div class="field-error" id="plex-url-error" data-i18n="setup_plex_url_err">Please enter a valid Plex URL (must
+          start with http:// or https://).</div>
+        <div class="step-nav">
+          <button class="btn-back" onclick="goBack()"><i class="fa-solid fa-arrow-left"></i></button>
+          <button class="btn-next" onclick="validatePlexUrl()" data-i18n="setup_btn_continue">Continue</button>
+        </div>
+      </div>
+      <!-- STEP 3: PLEX AUTH -->
+      <div class="wizard-step" id="step-plex-auth">
+        <div class="step-icon plex"><i class="fa-solid fa-key"></i></div>
+        <div class="step-title" data-i18n="setup_plex_auth_title">Plex Authentication</div>
+        <div class="step-subtitle" data-i18n="setup_plex_auth_sub">Click the button to open Plex login in a new tab.
+          Once you authorize, this page will continue automatically.</div>
+        <div class="plex-auth-box" id="plex-auth-box">
+          <div class="plex-logo"><i class="fa-solid fa-circle-play"></i></div>
+          <p data-i18n="setup_plex_auth_desc">We use Plex's secure PIN system &mdash; no password is stored, only the
+            access token.</p>
+          <button id="btn-plex-login" onclick="startPlexAuth()" data-i18n="setup_plex_auth_btn"><i
+              class="fa-solid fa-arrow-up-right-from-square"></i>&nbsp; Open Plex Login</button>
+        </div>
+        <div id="plex-auth-state">
+          <div class="spinner-premium" style="width:40px;height:40px;border-width:3px;margin:0;"></div>
+          <span class="plex-auth-waiting" data-i18n="setup_plex_auth_waiting">Waiting for you to authorize in
+            Plex...</span>
+          <div class="plex-auth-link" id="plex-auth-link-display" onclick="copyAuthLink()" title="Click to copy"></div>
+          <span class="plex-auth-copy" data-i18n="setup_plex_auth_copy">&#8593; Click to copy the link if the tab did
+            not open</span>
+        </div>
+        <div class="step-nav">
+          <button class="btn-back" onclick="goBack();cancelPlexAuth();"><i class="fa-solid fa-arrow-left"></i></button>
+          <button class="btn-next" id="btn-plex-auth-next" disabled onclick="goNext()"
+            data-i18n="setup_btn_continue">Continue</button>
+        </div>
+      </div>
+      <!-- STEP 4: PLEX PASS -->
+      <div class="wizard-step" id="step-plex-pass">
+        <div class="step-icon"><i class="fa-solid fa-shield-halved"></i></div>
+        <div class="step-title" data-i18n="setup_pass_title">Plex Pass Status</div>
+        <div class="step-subtitle" data-i18n="setup_pass_sub">This determines how SyncPK will monitor your Plex
+          activity.</div>
+        <div id="plex-pass-badge"></div>
+        <div class="step-nav">
+          <button class="btn-back" onclick="goBack()"><i class="fa-solid fa-arrow-left"></i></button>
+          <button class="btn-next" onclick="goNext()" data-i18n="setup_btn_continue">Continue</button>
+        </div>
+      </div>
+      <!-- STEP 5: PASSWORD -->
+      <div class="wizard-step" id="step-password">
+        <div class="step-icon"><i class="fa-solid fa-lock"></i></div>
+        <div class="step-title" data-i18n="setup_pwd_title">Create Master Password</div>
+        <div class="step-subtitle" data-i18n="setup_pwd_sub">This password protects access to the SyncPK dashboard.
+          Choose something strong.</div>
+        <label class="setup-label" data-i18n="setup_pwd_label">MASTER PASSWORD</label>
+        <div class="input-wrap">
+          <i class="input-icon fa-solid fa-lock"></i>
+          <input type="password" id="pwd-input" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" />
+          <button class="toggle-pw" onclick="togglePw('pwd-input',this)" tabindex="-1"><i
+              class="fa-solid fa-eye"></i></button>
+        </div>
+        <label class="setup-label" data-i18n="setup_pwd_confirm_label">CONFIRM PASSWORD</label>
+        <div class="input-wrap">
+          <i class="input-icon fa-solid fa-lock-open"></i>
+          <input type="password" id="pwd-confirm-input"
+            placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" />
+          <button class="toggle-pw" onclick="togglePw('pwd-confirm-input',this)" tabindex="-1"><i
+              class="fa-solid fa-eye"></i></button>
+        </div>
+        <div class="field-error" id="pwd-error" data-i18n="setup_pwd_err">Passwords do not match.</div>
+        <div class="step-nav">
+          <button class="btn-back" onclick="goBack()"><i class="fa-solid fa-arrow-left"></i></button>
+          <button class="btn-next" onclick="validatePassword()" data-i18n="setup_btn_continue">Continue</button>
+        </div>
+      </div>
+      <!-- STEP 6: TMDB -->
+      <div class="wizard-step" id="step-tmdb">
+        <div class="step-icon tmdb"><i class="fa-solid fa-film"></i></div>
+        <div class="step-title" data-i18n="setup_tmdb_title">TMDB API Key</div>
+        <div class="step-subtitle" data-i18n="setup_tmdb_sub">Used to fetch movie and TV show posters, titles and
+          metadata. Required for full functionality.</div>
+        <div class="tmdb-hint"><i class="fa-solid fa-circle-info"></i><span data-i18n="setup_tmdb_hint">Get your free
+            API key at <a href="https://www.themoviedb.org/settings/api" target="_blank">themoviedb.org</a>. It is free
+            and instant.</span></div>
+        <label class="setup-label" data-i18n="setup_tmdb_label">TMDB API KEY</label>
+        <div class="input-wrap">
+          <i class="input-icon fa-solid fa-key"></i>
+          <input type="text" id="tmdb-input" placeholder="eyJhbGciOi..." autocomplete="off" />
+        </div>
+        <div class="field-error" id="tmdb-error" data-i18n="setup_tmdb_err">Please enter a valid TMDB API key.</div>
+        <div class="step-nav">
+          <button class="btn-back" onclick="goBack()"><i class="fa-solid fa-arrow-left"></i></button>
+          <button class="btn-next" onclick="validateTmdb()" data-i18n="setup_btn_continue">Continue</button>
+        </div>
+      </div>
+      <!-- STEP 7: PREFERENCES -->
+      <div class="wizard-step" id="step-prefs">
+        <div class="step-icon"><i class="fa-solid fa-sliders"></i></div>
+        <div class="step-title" data-i18n="setup_prefs_title">Language Preferences</div>
+        <div class="step-subtitle" data-i18n="setup_prefs_sub">Choose the language for the dashboard UI and for metadata
+          scraping (titles, posters).</div>
+        <label class="setup-label" data-i18n="setup_prefs_dash_label">DASHBOARD LANGUAGE</label>
+        <select id="dash-lang-select" class="setup-select">
+          <option value="auto" data-i18n="lang_auto">Browser Default</option>
+          <option value="en" data-i18n="lang_en">English</option>
+          <option value="es" data-i18n="lang_es">Spanish</option>
+          <option value="de" data-i18n="lang_de">German</option>
+          <option value="fr" data-i18n="lang_fr">French</option>
+          <option value="it" data-i18n="lang_it">Italian</option>
+          <option value="pt" data-i18n="lang_pt">Portuguese</option>
+          <option value="zh" data-i18n="lang_zh">Chinese</option>
+          <option value="ja" data-i18n="lang_ja">Japanese</option>
+        </select>
+        <label class="setup-label" data-i18n="setup_prefs_sync_label">SCRAPING LANGUAGE (TMDB / PLEX)</label>
+        <select id="sync-lang-select" class="setup-select">
+          <option value="en" data-i18n="lang_en">English</option>
+          <option value="es" data-i18n="lang_es">Spanish</option>
+          <option value="de" data-i18n="lang_de">German</option>
+          <option value="fr" data-i18n="lang_fr">French</option>
+          <option value="it" data-i18n="lang_it">Italian</option>
+          <option value="pt" data-i18n="lang_pt">Portuguese</option>
+          <option value="zh" data-i18n="lang_zh">Chinese</option>
+          <option value="ja" data-i18n="lang_ja">Japanese</option>
+        </select>
+        <div class="step-nav">
+          <button class="btn-back" onclick="goBack()"><i class="fa-solid fa-arrow-left"></i></button>
+          <button class="btn-next" onclick="goNext()" data-i18n="setup_btn_continue">Continue</button>
+        </div>
+      </div>
+      <!-- STEP 8: SYSTEM -->
+      <div class="wizard-step" id="step-system">
+        <div class="step-icon"><i class="fa-solid fa-gear"></i></div>
+        <div class="step-title" data-i18n="setup_sys_title">System Settings</div>
+        <div class="step-subtitle" data-i18n="setup_sys_sub">Fine-tune update and debug behaviour. Both can be changed
+          later from Settings.</div>
+        <div class="toggle-row">
+          <div class="toggle-row-info">
+            <span class="toggle-row-title" data-i18n="setup_sys_autoupdate">Automatic Updates</span>
+            <span class="toggle-row-desc" data-i18n="setup_sys_autoupdate_desc">SyncPK will download and apply updates
+              automatically when a new version is available.</span>
+          </div>
+          <label class="switch"><input type="checkbox" id="auto-update-toggle" checked /><span
+              class="switch-slider"></span></label>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-row-info">
+            <span class="toggle-row-title" data-i18n="setup_sys_debug">Debug Logging</span>
+            <span class="toggle-row-desc" data-i18n="setup_sys_debug_desc">Enable verbose backend logs. Only recommended
+              for troubleshooting issues.</span>
+          </div>
+          <label class="switch"><input type="checkbox" id="debug-toggle" /><span class="switch-slider"></span></label>
+        </div>
+        <div class="step-nav">
+          <button class="btn-back" onclick="goBack()"><i class="fa-solid fa-arrow-left"></i></button>
+          <button class="btn-next" onclick="goNext()" data-i18n="setup_btn_continue">Continue</button>
+        </div>
+      </div>
+      <!-- STEP 9: SUMMARY -->
+      <div class="wizard-step" id="step-summary">
+        <div class="step-icon done"><i class="fa-solid fa-circle-check"></i></div>
+        <div class="step-title" data-i18n="setup_summary_title">Review &amp; Complete</div>
+        <div class="step-subtitle" data-i18n="setup_summary_sub">Everything looks good. Review your configuration and
+          click Finish to save.</div>
+        <div class="summary-grid" id="summary-grid"></div>
+        <div class="step-nav">
+          <button class="btn-back" onclick="goBack()"><i class="fa-solid fa-arrow-left"></i></button>
+          <button class="btn-next btn-finish" onclick="finishSetup()" data-i18n="setup_btn_finish"><i
+              class="fa-solid fa-check"></i>&nbsp; Finish Setup</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const TOTAL_STEPS = 9;
+    const STEP_IDS = ['step-lang', 'step-plex-url', 'step-plex-auth', 'step-plex-pass', 'step-password', 'step-tmdb', 'step-prefs', 'step-system', 'step-summary'];
+    const state = { lang: 'en', plexUrl: '', plexToken: '', plexClientId: '', hasPlexPass: false, password: '', tmdbKey: '', dashLang: 'auto', syncLang: 'en', autoUpdate: true, debug: false, _step: 1 };
+    let i18n = {}, _pinPollTimer = null, _pinId = null, _authUrl = null, _clientId = null;
+    const FB = {
+      setup_lang_title: 'Choose your language', setup_lang_sub: 'Select the language for this wizard.',
+      setup_btn_continue: 'Continue', setup_btn_finish: 'Finish Setup',
+      setup_plex_url_title: 'Plex Server URL', setup_plex_url_sub: 'Enter the local address of your Plex Media Server.',
+      setup_plex_url_note: 'Example: http://192.168.1.100:32400', setup_plex_url_label: 'PLEX SERVER URL',
+      setup_plex_url_err: 'Please enter a valid Plex URL.',
+      setup_plex_auth_title: 'Plex Authentication', setup_plex_auth_sub: 'Click the button to open Plex login. This page will continue automatically.',
+      setup_plex_auth_desc: "We use Plex's secure PIN. No password is stored.", setup_plex_auth_btn: 'Open Plex Login',
+      setup_plex_auth_waiting: 'Waiting for authorization...', setup_plex_auth_copy: 'Click to copy the link if the tab did not open',
+      setup_pass_title: 'Plex Pass Status', setup_pass_sub: 'This determines how SyncPK monitors your Plex activity.',
+      install_pass_detected_title: 'Plex Pass Detected', install_pass_detected_msg: 'Active Plex Pass detected. You can use webhooks for real-time sync.',
+      install_pass_missing_title: 'Plex Pass Not Detected', install_pass_missing_msg: 'No Plex Pass found. SyncPK will periodically poll Plex for new watched items.',
+      setup_pwd_title: 'Create Master Password', setup_pwd_sub: 'This password protects access to the SyncPK dashboard.',
+      setup_pwd_label: 'MASTER PASSWORD', setup_pwd_confirm_label: 'CONFIRM PASSWORD', setup_pwd_err: 'Passwords do not match.',
+      setup_tmdb_title: 'TMDB API Key', setup_tmdb_sub: 'Needed to fetch posters and metadata.',
+      setup_tmdb_hint: 'Get your free API key at themoviedb.org.', setup_tmdb_label: 'TMDB API KEY', setup_tmdb_err: 'Please enter a valid TMDB API key.',
+      setup_prefs_title: 'Language Preferences', setup_prefs_sub: 'Choose languages for dashboard and metadata scraping.',
+      setup_prefs_dash_label: 'DASHBOARD LANGUAGE', setup_prefs_sync_label: 'SCRAPING LANGUAGE (TMDB / PLEX)',
+      setup_sys_title: 'System Settings', setup_sys_sub: 'Configure update and debug behaviour.',
+      setup_sys_autoupdate: 'Automatic Updates', setup_sys_autoupdate_desc: 'Apply updates automatically when available.',
+      setup_sys_debug: 'Debug Logging', setup_sys_debug_desc: 'Enable verbose backend logs.',
+      setup_summary_title: 'Review & Complete', setup_summary_sub: 'Review your configuration before finishing.',
+      setup_finish_title: 'Setup Complete!', setup_finish_msg: 'Redirecting to your dashboard...',
+      setup_finish_error: 'An error occurred. Please try again.',
+      lang_auto: 'Browser Default', lang_en: 'English', lang_es: 'Spanish', lang_de: 'German',
+      lang_fr: 'French', lang_it: 'Italian', lang_pt: 'Portuguese', lang_zh: 'Chinese', lang_ja: 'Japanese',
+      setup_summary_plex_url: 'Plex URL', setup_summary_plex_pass: 'Plex Pass',
+      setup_summary_dashboard_lang: 'Dashboard Lang', setup_summary_sync_lang: 'Scraping Lang',
+      setup_summary_autoupdate: 'Auto Updates', setup_summary_debug: 'Debug Mode',
+      setup_summary_password: 'Password', setup_summary_tmdb: 'TMDB Key',
+      yes: 'Yes', no: 'No', 'setup_step_of': 'Step {cur} of {tot}'
+    };
+    function t(k, r) { let s = i18n[k] || FB[k] || k; if (r) for (const [a, b] of Object.entries(r)) s = s.replace('{' + a + '}', b); return s; }
+    async function loadLocale(lang) {
+      try { const r = await fetch('/locales/' + lang + '.json'); i18n = r.ok ? await r.json() : {}; } catch { i18n = {}; }
+      applyI18n();
+    }
+    function applyI18n() {
+      document.querySelectorAll('[data-i18n]').forEach(el => { const k = el.getAttribute('data-i18n'), v = t(k); if (v !== k) el.textContent = v; });
+      document.querySelectorAll('select option[data-i18n]').forEach(opt => { const k = opt.getAttribute('data-i18n'), v = t(k); if (v !== k) opt.textContent = v; });
+      updateStepIndicator();
+    }
+    function detectBrowserLang() { const sup = ['en', 'es', 'de', 'fr', 'it', 'pt', 'zh', 'ja']; const n = (navigator.language || 'en').split('-')[0].toLowerCase(); return sup.includes(n) ? n : 'en'; }
+    function selectLang(lang) {
+      state.lang = lang;
+      document.querySelectorAll('.lang-card').forEach(c => c.classList.toggle('selected', c.dataset.lang === lang));
+      loadLocale(lang);
+      const sup = ['en', 'es', 'de', 'fr', 'it', 'pt', 'zh', 'ja'];
+      document.getElementById('sync-lang-select').value = sup.includes(lang) ? lang : 'en';
+      document.getElementById('dash-lang-select').value = lang;
+    }
+    function showStep(n) {
+      const prev = document.querySelector('.wizard-step.active');
+      const next = document.getElementById(STEP_IDS[n - 1]);
+      if (!next) return;
+      if (prev) { prev.classList.add('step-out'); setTimeout(() => prev.classList.remove('active', 'step-out'), 250); }
+      setTimeout(() => next.classList.add('active'), prev ? 200 : 0);
+      state._step = n; updateProgress(n); updateStepIndicator();
+      if (n === 4) renderPlexPassBadge();
+      if (n === 9) renderSummary();
+    }
+    function goNext() { if (state._step < TOTAL_STEPS) showStep(state._step + 1); }
+    function goBack() { if (state._step > 1) showStep(state._step - 1); }
+    function updateProgress(s) { document.getElementById('setup-progress-bar').style.width = Math.round(((s - 1) / (TOTAL_STEPS - 1)) * 100) + '%'; }
+    function updateStepIndicator() { document.getElementById('setup-step-indicator').textContent = t('setup_step_of', { cur: state._step, tot: TOTAL_STEPS }); }
+    function validatePlexUrl() {
+      const v = document.getElementById('plex-url-input').value.trim();
+      const e = document.getElementById('plex-url-error');
+      if (!v || (!v.startsWith('http://') && !v.startsWith('https://'))) { e.classList.add('visible'); return; }
+      e.classList.remove('visible'); state.plexUrl = v; goNext();
+    }
+    function validatePassword() {
+      const p1 = document.getElementById('pwd-input').value;
+      const p2 = document.getElementById('pwd-confirm-input').value;
+      const e = document.getElementById('pwd-error');
+      if (!p1 || p1 !== p2) { e.classList.add('visible'); return; }
+      e.classList.remove('visible'); state.password = p1; goNext();
+    }
+    function validateTmdb() {
+      const v = document.getElementById('tmdb-input').value.trim();
+      const e = document.getElementById('tmdb-error');
+      if (!v || v.length < 10) { e.classList.add('visible'); return; }
+      e.classList.remove('visible'); state.tmdbKey = v; goNext();
+    }
+    function togglePw(id, btn) {
+      const inp = document.getElementById(id), ico = btn.querySelector('i');
+      if (inp.type === 'password') { inp.type = 'text'; ico.className = 'fa-solid fa-eye-slash'; }
+      else { inp.type = 'password'; ico.className = 'fa-solid fa-eye'; }
+    }
+    async function startPlexAuth() {
+      document.getElementById('plex-auth-box').style.display = 'none';
+      document.getElementById('plex-auth-state').classList.add('active');
+      try {
+        _clientId = 'SPK-' + ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
+        const res = await fetch('https://plex.tv/api/v2/pins?strong=true', { method: 'POST', headers: { 'Accept': 'application/json', 'X-Plex-Product': 'SyncPK', 'X-Plex-Client-Identifier': _clientId } });
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        _pinId = data.id;
+        _authUrl = 'https://app.plex.tv/auth#?clientID=' + _clientId + '&code=' + data.code + '&context[device][product]=SyncPK';
+        document.getElementById('plex-auth-link-display').textContent = _authUrl;
+        window.open(_authUrl, '_blank');
+        _pinPollTimer = setInterval(pollPlexPin, 3000);
+      } catch {
+        document.getElementById('plex-auth-state').classList.remove('active');
+        document.getElementById('plex-auth-box').style.display = 'block';
+        alert('Could not connect to Plex. Please check your internet connection.');
+      }
+    }
+    async function pollPlexPin() {
+      try {
+        const res = await fetch('https://plex.tv/api/v2/pins/' + _pinId, { headers: { 'Accept': 'application/json', 'X-Plex-Client-Identifier': _clientId } });
+        const data = await res.json();
+        if (data.authToken) {
+          clearInterval(_pinPollTimer);
+          state.plexToken = data.authToken; state.plexClientId = _clientId;
+          await fetchPlexPassStatus();
+          document.getElementById('btn-plex-auth-next').disabled = false;
+          document.getElementById('btn-plex-auth-next').click();
+        }
+      } catch { }
+    }
+    function copyAuthLink() { if (_authUrl) navigator.clipboard.writeText(_authUrl).catch(() => { }); }
+    function cancelPlexAuth() {
+      if (_pinPollTimer) { clearInterval(_pinPollTimer); _pinPollTimer = null; }
+      document.getElementById('plex-auth-box').style.display = 'block';
+      document.getElementById('plex-auth-state').classList.remove('active');
+      document.getElementById('btn-plex-auth-next').disabled = true;
+    }
+    async function fetchPlexPassStatus() {
+      try {
+        const res = await fetch('https://plex.tv/api/v2/user', { headers: { 'Accept': 'application/json', 'X-Plex-Client-Identifier': state.plexClientId, 'X-Plex-Token': state.plexToken } });
+        const d = await res.json();
+        state.hasPlexPass = d?.subscription?.active === true;
+      } catch { state.hasPlexPass = false; }
+    }
+    function renderPlexPassBadge() {
+      const c = document.getElementById('plex-pass-badge');
+      if (state.hasPlexPass) {
+        c.innerHTML = '<div class="info-badge success"><div class="badge-icon"><i class="fa-solid fa-circle-check"></i></div><div class="badge-title">' + t('install_pass_detected_title') + '</div><div class="badge-msg">' + t('install_pass_detected_msg') + '</div></div>';
+      } else {
+        c.innerHTML = '<div class="info-badge warning"><div class="badge-icon"><i class="fa-solid fa-triangle-exclamation"></i></div><div class="badge-title">' + t('install_pass_missing_title') + '</div><div class="badge-msg">' + t('install_pass_missing_msg') + '</div></div>';
+      }
+    }
+    function renderSummary() {
+      state.dashLang = document.getElementById('dash-lang-select').value;
+      state.syncLang = document.getElementById('sync-lang-select').value;
+      state.autoUpdate = document.getElementById('auto-update-toggle').checked;
+      state.debug = document.getElementById('debug-toggle').checked;
+      const dLbl = state.dashLang === 'auto' ? t('lang_auto') : t('lang_' + state.dashLang);
+      const rows = [
+        { icon: 'fa-server', key: t('setup_summary_plex_url'), val: state.plexUrl },
+        { icon: 'fa-star', key: t('setup_summary_plex_pass'), val: state.hasPlexPass ? t('yes') : t('no') },
+        { icon: 'fa-lock', key: t('setup_summary_password'), val: '&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;', cls: 'masked' },
+        { icon: 'fa-film', key: t('setup_summary_tmdb'), val: state.tmdbKey.slice(0, 8) + '...' },
+        { icon: 'fa-earth-europe', key: t('setup_summary_dashboard_lang'), val: dLbl },
+        { icon: 'fa-magnifying-glass', key: t('setup_summary_sync_lang'), val: t('lang_' + state.syncLang) },
+        { icon: 'fa-arrows-rotate', key: t('setup_summary_autoupdate'), val: state.autoUpdate ? t('yes') : t('no') },
+        { icon: 'fa-bug', key: t('setup_summary_debug'), val: state.debug ? t('yes') : t('no') },
+      ];
+      document.getElementById('summary-grid').innerHTML = rows.map(r => '<div class="summary-row"><span class="summary-key"><i class="fa-solid ' + r.icon + '"></i>' + r.key + '</span><span class="summary-val ' + (r.cls || '') + '">' + r.val + '</span></div>').join('');
+    }
+    async function finishSetup() {
+      const ov = document.getElementById('finish-overlay');
+      ov.classList.add('active');
+      document.getElementById('finish-status-icon').textContent = '\u23F3';
+      document.getElementById('finish-title').textContent = 'Finishing setup...';
+      document.getElementById('finish-msg').textContent = 'Writing configuration...';
+      try {
+        const res = await fetch('/api/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plex_url: state.plexUrl, plex_token: state.plexToken, plex_client_id: state.plexClientId, has_plex_pass: state.hasPlexPass, password: state.password, tmdb_api_key: state.tmdbKey, dashboard_language: state.dashLang, sync_language: state.syncLang, auto_update: state.autoUpdate, debug: state.debug }) });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        document.getElementById('finish-status-icon').textContent = '\u2705';
+        document.getElementById('finish-title').textContent = t('setup_finish_title');
+        document.getElementById('finish-msg').textContent = t('setup_finish_msg');
+        setTimeout(() => window.location.href = '/', 2500);
+      } catch {
+        document.getElementById('finish-status-icon').textContent = '\u274C';
+        document.getElementById('finish-title').textContent = 'Error';
+        document.getElementById('finish-msg').textContent = t('setup_finish_error');
+        setTimeout(() => ov.classList.remove('active'), 3500);
+      }
+    }
+    (function () { selectLang(detectBrowserLang()); updateProgress(1); updateStepIndicator(); })();
+  </script>
+</body>
+
+</html>

@@ -17,6 +17,7 @@ sync.db-journal
 # Environment variables and secrets
 server/.env
 *.pem
+server/plex_settings.json
 
 # Kodi or Python log files
 *.log
@@ -27,4 +28,5 @@ server/.env
 server/static/cache/
 server/.conf
 AGENTS.md
+
 

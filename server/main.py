@@ -1,5 +1,5 @@
 #v8
-from fastapi import FastAPI, Request, Query, Depends, HTTPException, Header
+from fastapi import FastAPI, Request, Query, Depends, HTTPException, Header, Cookie
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
@@ -19,9 +19,19 @@ import time
 import threading
 import queue
 import sys
+import string
+import secrets
+import re
+
+DATA_DIR = os.getenv("DATA_DIR", ".")
+ENV_PATH = os.path.join(DATA_DIR, ".env")
+DB_PATH = os.path.join(DATA_DIR, "sync.db")
+SETTINGS_FILE = os.path.join(DATA_DIR, "plex_settings.json")
+LOG_FILE = os.path.join(DATA_DIR, "syncpk.log")
+CACHE_PATH = os.path.join(DATA_DIR, "static/cache") 
 
 class DualLogger(object):
-    def __init__(self, filename="syncpk.log"):
+    def __init__(self, filename=LOG_FILE):
         self.terminal = sys.stdout
         self.log = open(filename, "a", encoding="utf-8")
         
@@ -34,13 +44,8 @@ class DualLogger(object):
         self.terminal.flush()
         self.log.flush()
 
-sys.stdout = DualLogger("syncpk.log")
+sys.stdout = DualLogger(LOG_FILE)
 sys.stderr = sys.stdout
-
-DATA_DIR = os.getenv("DATA_DIR", ".")
-ENV_PATH = os.path.join(DATA_DIR, ".env")
-DB_PATH = os.path.join(DATA_DIR, "sync.db")
-SETTINGS_FILE = os.path.join(DATA_DIR, "plex_settings.json")
 
 #### TODOLIST ####
 
@@ -95,6 +100,21 @@ if os.path.exists(ENV_PATH):
 
 app = FastAPI()
 
+# --- SETUP GUARD MIDDLEWARE ---
+# Blocks all /api/* calls (except /api/setup) when the .env has not been created yet.
+@app.middleware("http")
+async def setup_guard(request, call_next):
+    path = request.url.path
+    if not os.path.exists(ENV_PATH):
+        # Allow: setup endpoint, static assets, and the root HTML route
+        if path.startswith("/api/") and path != "/api/setup":
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=403,
+                content={"error": "SyncPK is not configured yet. Complete the setup wizard first."}
+            )
+    return await call_next(request)
+
 # --- PLEX & SECURITY CONFIGURATION ---
 PLEX_URL = os.getenv("PLEX_URL", "")
 PLEX_TOKEN = os.getenv("PLEX_TOKEN", "")
@@ -108,20 +128,58 @@ FANART_MASK_OPACITY = os.getenv("FANART_MASK_OPACITY", "0.3")
 
 plex_headers = {"Accept": "application/json", "X-Plex-Token": PLEX_TOKEN}
 
-def verify_api_key(authorization: str = Header(None)):
+def reload_settings():
+    """Re-read all global security/config variables from the .env file.
+    Call this any time the .env is written (setup wizard, save config, restore)."""
+    global PLEX_URL, PLEX_TOKEN, TMDB_API_KEY, SALT, WEB_HASH, \
+           API_HASH, HAS_PLEX_PASS, PLEX_CLIENT_ID, FANART_MASK_OPACITY, plex_headers
+    # Re-parse .env into os.environ first
+    if os.path.exists(ENV_PATH):
+        with open(ENV_PATH, "r", encoding="utf-8") as _f:
+            for _line in _f:
+                _line = _line.strip()
+                if _line and not _line.startswith("#") and "=" in _line:
+                    _k, _v = _line.split("=", 1)
+                    os.environ[_k.strip()] = _v.strip().strip('"').strip("'")
+    # Reassign all globals
+    PLEX_URL           = os.getenv("PLEX_URL", "")
+    PLEX_TOKEN         = os.getenv("PLEX_TOKEN", "")
+    TMDB_API_KEY       = os.getenv("TMDB_API_KEY", "")
+    SALT               = os.getenv("SALT", "")
+    WEB_HASH           = os.getenv("WEB_HASH", "")
+    API_HASH           = os.getenv("API_HASH", "")
+    HAS_PLEX_PASS      = os.getenv("HAS_PLEX_PASS", "false").lower() == "true"
+    PLEX_CLIENT_ID     = os.getenv("PLEX_CLIENT_ID", "syncpk-default")
+    FANART_MASK_OPACITY = os.getenv("FANART_MASK_OPACITY", "0.3")
+    plex_headers       = {"Accept": "application/json", "X-Plex-Token": PLEX_TOKEN}
+
+def verify_api_key(
+    authorization: str = Header(None),
+    syncpk_session: str = Cookie(None)
+):
     if not WEB_HASH:
         return True
     
-    if not authorization or not authorization.startswith("Basic "):
-        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+    token = None
     
-    # Strip any "Basic " strings to handle frontend cache bugs where it sends "Basic Basic password"
-    token = authorization.replace("Basic ", "").strip()
-    token_hash = hashlib.sha256((token + SALT).encode()).hexdigest()
+    # 1. Intentar leer del Header (para clientes API externos o KODI)
+    if authorization and authorization.startswith("Basic "):
+        token = authorization.replace("Basic ", "").strip()
+        
+    # 2. Intentar leer de la Cookie (para el dashboard web)
+    elif syncpk_session:
+        # La cookie ya contiene el hash directo (web_hash), podemos compararlo
+        if hmac.compare_digest(syncpk_session, WEB_HASH):
+            return True
+        raise HTTPException(status_code=401, detail="Invalid Session Cookie")
     
-    if not hmac.compare_digest(token_hash, WEB_HASH):
-        raise HTTPException(status_code=401, detail="Invalid Web Password")
-    return True
+    # Si viene por Header, calculamos el hash y comprobamos
+    if token:
+        token_hash = hashlib.sha256((token + SALT).encode()).hexdigest()
+        if hmac.compare_digest(token_hash, WEB_HASH):
+            return True
+            
+    raise HTTPException(status_code=401, detail="Missing or invalid authentication")
 
 def verify_webhook_token(token: Optional[str] = Query(None)):
     if not API_HASH:
@@ -257,7 +315,7 @@ async def download_tmdb_images(db_id, tmdb_id, media_type):
                 img_url = f"https://image.tmdb.org/t/p/w185{poster}"
                 img_resp = await client.get(img_url, timeout=15)
                 if img_resp.status_code == 200:
-                    local_path = f"static/cache/posters/{tmdb_id}.jpg"
+                    local_path = os.path.join(CACHE_PATH, f"posters/{tmdb_id}.jpg")
                     with open(local_path, "wb") as f:
                         f.write(img_resp.content)
                     poster_local = f"/cache/posters/{tmdb_id}.jpg"
@@ -266,7 +324,7 @@ async def download_tmdb_images(db_id, tmdb_id, media_type):
                 img_url = f"https://image.tmdb.org/t/p/w300{backdrop}"
                 img_resp = await client.get(img_url, timeout=15)
                 if img_resp.status_code == 200:
-                    local_path = f"static/cache/fanarts/{tmdb_id}.jpg"
+                    local_path = os.path.join(CACHE_PATH, f"fanarts/{tmdb_id}.jpg")
                     with open(local_path, "wb") as f:
                         f.write(img_resp.content)
                     fanart_local = f"/cache/fanarts/{tmdb_id}.jpg"
@@ -277,12 +335,12 @@ def download_tmdb_images_sync(tmdb_id, media_type):
     if not TMDB_API_KEY or not tmdb_id:
         return None, None
         
-    poster_local_path = f"static/cache/posters/{tmdb_id}.jpg"
-    fanart_local_path = f"static/cache/fanarts/{tmdb_id}.jpg"
+    poster_local_path = os.path.join(CACHE_PATH, f"posters/{tmdb_id}.jpg")
+    fanart_local_path = os.path.join(CACHE_PATH, f"fanarts/{tmdb_id}.jpg")
     
     poster_local = f"/cache/posters/{tmdb_id}.jpg" if os.path.exists(poster_local_path) else None
     fanart_local = f"/cache/fanarts/{tmdb_id}.jpg" if os.path.exists(fanart_local_path) else None
-    
+
     if poster_local and fanart_local:
         return poster_local, fanart_local
 
@@ -325,7 +383,7 @@ def download_tmdb_images_sync(tmdb_id, media_type):
 def download_episode_fanart_sync(thumb_url, metadata_id):
     if not thumb_url or not metadata_id: return None
     
-    fanart_local_path = f"static/cache/fanarts/ep_{metadata_id}.jpg"
+    fanart_local_path = os.path.join(CACHE_PATH, f"fanarts/ep_{metadata_id}.jpg")
     fanart_local = f"/cache/fanarts/ep_{metadata_id}.jpg" if os.path.exists(fanart_local_path) else None
     
     if fanart_local:
@@ -361,7 +419,7 @@ def download_episode_fanart_tmdb_sync(show_tmdb_id, season, episode):
         return None
         
     filename = f"tmdb_ep_{show_tmdb_id}_s{season}e{episode}.jpg"
-    local_path = f"static/cache/fanarts/{filename}"
+    local_path = os.path.join(CACHE_PATH, f"fanarts/{filename}")
     
     if os.path.exists(local_path):
         return f"/cache/fanarts/{filename}"
@@ -376,7 +434,7 @@ def download_episode_fanart_tmdb_sync(show_tmdb_id, season, episode):
                 img_url = f"https://image.tmdb.org/t/p/w300{still}"
                 img_resp = requests.get(img_url, timeout=15)
                 if img_resp.status_code == 200:
-                    os.makedirs("static/cache/fanarts", exist_ok=True)
+                    os.makedirs(os.path.join(CACHE_PATH, "fanarts"), exist_ok=True)
                     with open(local_path, "wb") as f:
                         f.write(img_resp.content)
                     return f"/cache/fanarts/{filename}"
@@ -961,37 +1019,24 @@ import subprocess
 @app.get("/api/logs")
 def get_logs(authorization: str = Depends(verify_api_key)):
     try:
-        import shutil
-        if os.name == 'nt' or not shutil.which('journalctl'):
-            if os.path.exists('syncpk.log'):
-                with open('syncpk.log', 'r', encoding='utf-8') as f:
-                    lines = f.readlines()
-                return {"logs": "".join(lines[-200:])}
-            return {"logs": "No logs available."}
-        
-        # Request the last 200 lines of the service in Proxmox
-        out = subprocess.check_output(['journalctl', '-u', 'syncpk-server', '-n', '200', '--no-pager']).decode('utf-8')
-        return {"logs": out}
+        if os.path.exists(LOG_FILE):
+            with open(LOG_FILE, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+            return {"logs": "".join(lines[-200:])}
+        return {"logs": "No logs available."}
     except Exception as e:
         return {"logs": f"Error leyendo logs: {e}"}
+
+from fastapi.responses import FileResponse, Response
 
 @app.get("/api/download_logs")
 def download_logs():
     try:
-        from fastapi.responses import Response
-        import shutil
+        if os.path.exists(LOG_FILE):
+            # FileResponse se encarga automáticamente de los headers de descarga (Content-Disposition)
+            return FileResponse(path=LOG_FILE, filename="syncpk_logs.txt", media_type="text/plain")
         
-        if os.name == 'nt' or not shutil.which('journalctl'):
-            if os.path.exists('syncpk.log'):
-                with open('syncpk.log', 'r', encoding='utf-8') as f:
-                    out = f.read()
-            else:
-                out = "No logs available."
-        else:
-            # Request FULL text history of the service without pagination
-            out = subprocess.check_output(['journalctl', '-u', 'syncpk-server', '--no-pager']).decode('utf-8')
-            
-        return Response(content=out, media_type="text/plain", headers={"Content-Disposition": "attachment; filename=syncpk_journal.txt"})
+        return Response(content="No logs available.", media_type="text/plain")
     except Exception as e:
         return {"error": f"Error descargando logs: {e}"}
 
@@ -1651,7 +1696,6 @@ def dismiss_sync(authorization: str = Depends(verify_api_key)):
 import requests
 import time
 
-SETTINGS_FILE = "plex_settings.json"
 SYNC_INTERVAL = 900
 
 def load_settings():
@@ -1804,16 +1848,6 @@ def build_payload_from_plex(item, media_type, show_map=None):
 def push_all_to_db():
     print("Starting FULL PUSH from Plex to local DB (Library Scan)...")
     
-    # Check for test limit
-    test_limit = 0
-    if os.path.exists("sync_limit.txt"):
-        try:
-            with open("sync_limit.txt", "r") as f:
-                test_limit = int(f.read().strip())
-            print(f"⚠️ TEST MODE ACTIVE: Limiting to {test_limit} items.")
-        except Exception:
-            pass
-
     payloads = []
     sections = get_plex_libraries()
     
@@ -1898,9 +1932,6 @@ def push_all_to_db():
                             conn.commit()
                             
                             sec_processed += 1
-                            if test_limit > 0 and sec_processed >= test_limit:
-                                limit_reached = True
-                                break
                     start += size
                 else:
                     break
@@ -2316,10 +2347,7 @@ async def background_initial_task():
     # Once DB loading is finished, download images asynchronously
     await bulk_download_tmdb_images()
 
-@app.on_event("startup")
-async def startup_event():
-    init_db()
-    
+def start_background_tasks():
     settings = load_settings()
     last_sync = settings.get("last_sync_date")
     
@@ -2334,6 +2362,17 @@ async def startup_event():
         asyncio.create_task(sync_loop())
     else:
         print("Plex Pass detected: Incremental sync loop disabled. Relying purely on webhooks.")
+
+@app.on_event("startup")
+async def startup_event():
+    init_db()
+    
+    # We only start the loops if the application has already been configured
+    if os.path.exists(ENV_PATH):
+        start_background_tasks()
+    else:
+        print("Setup pending: Synchronization tasks paused until installation is complete.")
+
 class ManualAddRequest(BaseModel):
     tmdb_id: int
     media_type: str
@@ -2639,17 +2678,23 @@ def get_ui_config():
 # --- CONFIGURATION ---
 @app.get("/api/config", dependencies=[Depends(verify_api_key)])
 def get_config():
+    def _mask(value: str) -> str:
+        """Return a partially-masked version of a secret string."""
+        if not value or len(value) < 8:
+            return "" if not value else "***"
+        return value[:6] + "..." + value[-4:]
+
     return {
         "plex_url": PLEX_URL,
-        "plex_token": PLEX_TOKEN,
-        "tmdb_api_key": TMDB_API_KEY,
+        "plex_token": _mask(PLEX_TOKEN),
+        "tmdb_api_key": _mask(TMDB_API_KEY),
         "sync_language": os.getenv("SYNC_LANGUAGE", "es"),
         "dashboard_language": os.getenv("DASHBOARD_LANGUAGE", "auto"),
         "plex_client_id": PLEX_CLIENT_ID,
         "debug_mode": os.getenv("DEBUG", "false") == "true",
         "auto_update": os.getenv("AUTO_UPDATE", "true") == "true",
         "notify_updates": os.getenv("NOTIFY_UPDATES", "true").lower() == "true",
-        "api_token_raw": os.getenv("API_TOKEN_RAW", ""),
+        "api_token_raw": _mask(os.getenv("API_TOKEN_RAW", "")),
         "poster_pref": os.getenv("POSTER_PREF", "show"),
         "fanart_pref": os.getenv("FANART_PREF", "episode"),
         "ui_poster_w": os.getenv("UI_POSTER_W", "150"),
@@ -2730,10 +2775,12 @@ def save_config(payload: ConfigPayload):
                         k, v = line.split("=", 1)
                         env_vars[k.strip()] = v.strip().strip('"').strip("'")
         
-        # Update values
+        # Update values — skip masked sentinel values so real secrets are not overwritten
+        def _is_masked(v: str) -> bool:
+            return bool(v) and "..." in v and v.endswith(v[-4:]) and len(v) < 20
         env_vars["PLEX_URL"] = payload.plex_url
-        env_vars["PLEX_TOKEN"] = payload.plex_token
-        env_vars["TMDB_API_KEY"] = payload.tmdb_api_key
+        if not _is_masked(payload.plex_token):   env_vars["PLEX_TOKEN"]     = payload.plex_token
+        if not _is_masked(payload.tmdb_api_key): env_vars["TMDB_API_KEY"]   = payload.tmdb_api_key
         env_vars["SYNC_LANGUAGE"] = payload.sync_language
         env_vars["DASHBOARD_LANGUAGE"] = payload.dashboard_language
         env_vars["PLEX_CLIENT_ID"] = payload.plex_client_id
@@ -2777,8 +2824,8 @@ def save_config(payload: ConfigPayload):
         # Create a dict of variables we need to update in the file
         updates = {
             "PLEX_URL": payload.plex_url,
-            "PLEX_TOKEN": payload.plex_token,
-            "TMDB_API_KEY": payload.tmdb_api_key,
+            "PLEX_TOKEN": env_vars.get("PLEX_TOKEN", payload.plex_token),
+            "TMDB_API_KEY": env_vars.get("TMDB_API_KEY", payload.tmdb_api_key),
             "SYNC_LANGUAGE": payload.sync_language,
             "DASHBOARD_LANGUAGE": payload.dashboard_language,
             "PLEX_CLIENT_ID": payload.plex_client_id,
@@ -2856,15 +2903,9 @@ def save_config(payload: ConfigPayload):
             except:
                 pass
                 
-        # Update variables in memory
-        global PLEX_URL, PLEX_TOKEN, TMDB_API_KEY, WEB_HASH, PLEX_CLIENT_ID
-        PLEX_URL = payload.plex_url
-        PLEX_TOKEN = payload.plex_token
-        TMDB_API_KEY = payload.tmdb_api_key
-        PLEX_CLIENT_ID = payload.plex_client_id
-        if payload.master_password:
-            WEB_HASH = env_vars.get("WEB_HASH")
-            
+        # Reload all globals from the freshly written .env
+        reload_settings()
+
         return {"status": "success", "has_plex_pass": has_plex_pass}
     except Exception as e:
         import traceback
@@ -2899,13 +2940,7 @@ def restore_config():
                 env_vars[k.strip()] = val
                 os.environ[k.strip()] = val
                 
-    global PLEX_URL, PLEX_TOKEN, TMDB_API_KEY, WEB_HASH, PLEX_CLIENT_ID
-    PLEX_URL = env_vars.get("PLEX_URL", "")
-    PLEX_TOKEN = env_vars.get("PLEX_TOKEN", "")
-    TMDB_API_KEY = env_vars.get("TMDB_API_KEY", "")
-    PLEX_CLIENT_ID = env_vars.get("PLEX_CLIENT_ID", "syncpk-default")
-    WEB_HASH = env_vars.get("WEB_HASH", "")
-    
+    reload_settings()
     return {"status": "success"}
         
     if payload.force_rescan:
@@ -2967,6 +3002,106 @@ def restore_config():
 class UpdateIgnoreRequest(BaseModel):
     ignore_version: str = ""
     never_notify: bool = False
+
+class SetupData(BaseModel):
+    plex_url: str
+    plex_token: str
+    plex_client_id: str
+    has_plex_pass: bool
+    password: str
+    tmdb_api_key: str
+    dashboard_language: str = "auto"
+    sync_language: str = "en"
+    auto_update: bool = True
+    debug: bool = False
+
+@app.post("/api/setup")
+async def process_setup(data: SetupData):
+    # For security, if the .env file already exists, we block any attempt to overwrite it.
+    if os.path.exists(ENV_PATH):
+        return {"error": "La instalación ya ha sido completada previamente."}
+
+    # 1. Generate tokens and hashes (exact replica of the logic in your setup_config.sh)
+    alphabet = string.ascii_letters + string.digits
+    salt = ''.join(secrets.choice(alphabet) for _ in range(16))
+    
+    web_hash = hashlib.sha256((data.password + salt).encode('utf-8')).hexdigest()
+    
+    api_token_raw = ''.join(secrets.choice(alphabet) for _ in range(32))
+    api_token = f"sk_{api_token_raw}"
+    api_hash = hashlib.sha256((api_token + salt).encode('utf-8')).hexdigest()
+
+    # 2. Read the immutable template (always from the codebase folder)
+    example_path = ".env.example" 
+    if not os.path.exists(example_path):
+        return {"error": "Plantilla .env.example no encontrada en el directorio base."}
+
+    with open(example_path, "r", encoding="utf-8") as f:
+        env_content = f.read()
+
+    # 3. Prepare the replacement dictionary
+    replacements = {
+        "PLEX_URL=": f"PLEX_URL={data.plex_url}",
+        "PLEX_TOKEN=": f"PLEX_TOKEN={data.plex_token}",
+        "HAS_PLEX_PASS=": f"HAS_PLEX_PASS={str(data.has_plex_pass).lower()}",
+        "SALT=": f"SALT={salt}",
+        "WEB_HASH=": f"WEB_HASH={web_hash}",
+        "API_HASH=": f"API_HASH={api_hash}",
+        "TMDB_API_KEY=": f"TMDB_API_KEY={data.tmdb_api_key}",
+        "SYNC_LANGUAGE=": f'SYNC_LANGUAGE="{data.sync_language}"',
+        "DASHBOARD_LANGUAGE=": f'DASHBOARD_LANGUAGE="{data.dashboard_language}"',
+        "AUTO_UPDATE=": f"AUTO_UPDATE={str(data.auto_update).lower()}",
+        "DEBUG=": f"DEBUG={str(data.debug).lower()}",
+        "API_TOKEN_RAW=": f"API_TOKEN_RAW={api_token}",
+        "PLEX_CLIENT_ID=": f"PLEX_CLIENT_ID={data.plex_client_id}"
+    }
+
+    # Replace each line (acts exactly the same as the 'sed' command in your Bash)
+    for key, value in replacements.items():
+        env_content = re.sub(rf"^{key}.*", value, env_content, flags=re.MULTILINE)
+
+    # 4. Write the final file to the persistent data folder (ESCRITURA ATÓMICA)
+    try:
+        tmp_path = ENV_PATH + ".tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            f.write(env_content)
+        
+        # Atomic replacement
+        os.replace(tmp_path, ENV_PATH)
+        
+        # Restrictive permissions if we are on Linux/Mac
+        if os.name != 'nt':
+            os.chmod(ENV_PATH, 0o600)
+    except Exception as e:
+        return {"error": f"Error al escribir en disco: {str(e)}"}
+
+    # Hot reload configuration
+    reload_settings()        
+
+    # Now that we have Plex data and the configuration is in memory, we start the tasks.
+    start_background_tasks()    
+
+    # Creating the response with HTTPONLY cookie
+    from fastapi.responses import JSONResponse
+    
+    response_data = {
+        "status": "success", 
+        "message": "Configuración guardada correctamente.",
+        "api_token": api_token
+    }
+    
+    response = JSONResponse(content=response_data)
+    
+    # We assign the HttpOnly cookie using the web_hash generated above
+    response.set_cookie(
+        key="syncpk_session", 
+        value=web_hash,
+        httponly=True,       # The JS frontend will not be able to read it (XSS protection)
+        samesite="lax",      # Basic CSRF Protection
+        max_age=60*60*24*30  # Expires in 30 days (adjust it to your liking)
+    )
+    
+    return response
 
 @app.get("/api/update/status", dependencies=[Depends(verify_api_key)])
 def update_status():
@@ -3035,22 +3170,48 @@ def update_trigger():
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+
+@app.post("/api/update/trigger", dependencies=[Depends(verify_api_key)])
+def update_trigger():
+    import os
+    
+    # Check if we are in Docker (where we don't use systemd)
+    if os.path.exists("/.dockerenv"):
+        return {
+            "status": "info", 
+            "message": "In Docker, updates are performed by downloading the new image (e.g., Watchtower or manual pull)."
+        }
+
+    # In Proxmox/Baremetal, we simply create the "snitch" file
+    trigger_file = os.path.join(DATA_DIR, ".trigger_update")
+    try:
+        with open(trigger_file, 'w') as f:
+            f.write("update_requested")
+        return {"status": "success", "message": "Update process started in the background."}
+    except Exception as e:
+        return {"status": "error", "message": f"Error requesting update: {e}"}
+
 # --- SERVE FRONTEND ---
 # Mount the static folder at the end to avoid overwriting routes /api/
 os.makedirs("static", exist_ok=True)
 @app.get("/")
 def serve_index():
-    index_path = os.path.join("static", "index.html")
-    if not os.path.exists(index_path):
-        return HTMLResponse("index.html not found", status_code=404)
+    # We select the file based on whether the .env file exists.
+    target_html = "dashboard.html" if os.path.exists(ENV_PATH) else "setup.html"
+    file_path = os.path.join("static", target_html)
+    
+    if not os.path.exists(file_path):
+        return HTMLResponse(f"{target_html} not found", status_code=404)
         
-    with open(index_path, "r", encoding="utf-8") as f:
+    with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
     
+    # We inject the language into the chosen file.
     dashboard_lang = os.getenv("DASHBOARD_LANGUAGE", "auto")
     inject_script = f"<script>window.DASHBOARD_LANG = '{dashboard_lang}';</script>"
     content = content.replace("<head>", f"<head>\n    {inject_script}", 1)
     
     return HTMLResponse(content=content)
 
+# Assemble the static files last for the rest of the resources (CSS, JS, images...)
 app.mount("/", StaticFiles(directory="static"), name="static")

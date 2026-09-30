@@ -17,6 +17,7 @@ cd static
 curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/index.html
 curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/app.js
 curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/style.css
+curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/setup.css
 curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/favicon.ico
 cd locales
 curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/en.json

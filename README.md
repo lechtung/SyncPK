@@ -54,19 +54,20 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/lechtung/SyncPK/main/ins
 ```
 
 ### Option C: Docker Compose (r/selfhosted)
-For the standard self-hosted stack, SyncPK can be deployed seamlessly using Docker.
+For the standard self-hosted stack, SyncPK can be deployed seamlessly using Docker. We provide a pre-built image hosted on GitHub Container Registry (GHCR).
 
-1. Download the setup script and run it to interactively generate your `.env` configuration file:
+1. Create a `data` directory to store your persistent files and download the required configurations:
    ```bash
-   bash -c "$(curl -fsSL https://raw.githubusercontent.com/lechtung/SyncPK/main/setup_config.sh)"
+   mkdir data
+   curl -O [https://raw.githubusercontent.com/lechtung/SyncPK/main/docker-compose.yml](https://raw.githubusercontent.com/lechtung/SyncPK/main/docker-compose.yml)
+   curl -o data/.env [https://raw.githubusercontent.com/lechtung/SyncPK/main/server/.env.example](https://raw.githubusercontent.com/lechtung/SyncPK/main/server/.env.example)
    ```
-2. Download the `docker-compose.yml` file and start the container:
+2. Edit the data/.env file and fill in your variables (Plex Token, TMDB API Key, Master Password, etc.).
+3. Start the container:
    ```bash
-   curl -O https://raw.githubusercontent.com/lechtung/SyncPK/main/docker-compose.yml
    docker compose up -d
    ```
-
-*During any of the automated installations, you will be prompted to enter your Plex IP, your TMDB API Key, and a Master Password. The script will handle the Plex Token securely via the OAuth PIN link. It will also ask if you have an active **Plex Pass** subscription; if you don't, it will automatically enable background polling to compensate for the lack of native Plex Webhooks.*
+*(Note for Docker users: Unlike the automated Proxmox/Linux scripts, you must manually generate your Plex Token and enter it in the .env file. If you do not have an active Plex Pass subscription, set HAS_PLEX_PASS=false and the server will automatically enable background polling to compensate for the lack of native Plex Webhooks).*
 ---
 
 ## 🎬 Plex Webhook Setup
