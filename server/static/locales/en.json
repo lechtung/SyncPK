@@ -293,5 +293,17 @@
     "setup_test_plex_fail": "Connection failed. Check URL.",
     "setup_test_tmdb_success": "Valid API Key!",
     "setup_test_tmdb_fail": "Invalid API Key.",
-    "setup_test_error": "Network error."
+    "setup_test_error": "Network error.",
+    "rescan_reload_hint": "Click anywhere to reload.",
+    "rescan_done": "Rescan completed!",
+    "setup_bypass_hint": "Click Continue again to proceed anyway.",
+    "config_poster_quality_title": "POSTER QUALITY:",
+    "config_fanart_quality_title": "FANART QUALITY:",
+    "quality_dynamic": "Dynamic (Card Size)",
+    "quality_w92": "92px (Min)",
+    "quality_w185": "185px (Low)",
+    "quality_w300": "300px (Medium)",
+    "quality_w342": "342px (Medium-High)",
+    "quality_w500": "500px (High)",
+    "quality_original": "Original (Max)"
 }

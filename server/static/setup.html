@@ -223,28 +223,113 @@
         <div class="step-subtitle" data-i18n="setup_prefs_sub">Choose the language for the dashboard UI and for metadata
           scraping (titles, posters).</div>
         <label class="setup-label" data-i18n="setup_prefs_dash_label">DASHBOARD LANGUAGE</label>
-        <select id="dash-lang-select" class="setup-select">
-          <option value="auto" data-i18n="lang_auto">Browser Default</option>
-          <option value="en" data-i18n="lang_en">English</option>
-          <option value="es" data-i18n="lang_es">Spanish</option>
-          <option value="de" data-i18n="lang_de">German</option>
-          <option value="fr" data-i18n="lang_fr">French</option>
-          <option value="it" data-i18n="lang_it">Italian</option>
-          <option value="pt" data-i18n="lang_pt">Portuguese</option>
-          <option value="zh" data-i18n="lang_zh">Chinese</option>
-          <option value="ja" data-i18n="lang_ja">Japanese</option>
-        </select>
+        <div class="c-dropdown config-input setup-dropdown" id="dashLangPref-dd">
+          <div class="c-dropdown-trigger" id="dashLangPref-trigger">
+            <div class="c-dropdown-bottom">
+              <span class="c-dropdown-value" id="dash-lang-select-val" data-i18n="lang_auto">Browser Default</span>
+              <span class="c-dropdown-arrow">▾</span>
+            </div>
+          </div>
+          <div class="c-dropdown-menu glass-panel" id="dashLangPref-menu">
+            <div class="c-dropdown-item selected" data-value="auto" data-i18n="lang_auto">Browser Default</div>
+            <div class="c-dropdown-item" data-value="en" data-i18n="lang_en">English</div>
+            <div class="c-dropdown-item" data-value="es" data-i18n="lang_es">Spanish</div>
+            <div class="c-dropdown-item" data-value="de" data-i18n="lang_de">German</div>
+            <div class="c-dropdown-item" data-value="fr" data-i18n="lang_fr">French</div>
+            <div class="c-dropdown-item" data-value="it" data-i18n="lang_it">Italian</div>
+            <div class="c-dropdown-item" data-value="pt" data-i18n="lang_pt">Portuguese</div>
+            <div class="c-dropdown-item" data-value="zh" data-i18n="lang_zh">Chinese</div>
+            <div class="c-dropdown-item" data-value="ja" data-i18n="lang_ja">Japanese</div>
+          </div>
+          <input type="hidden" id="dash-lang-select" value="auto" />
+        </div>
         <label class="setup-label" data-i18n="setup_prefs_sync_label">SCRAPING LANGUAGE (TMDB / PLEX)</label>
-        <select id="sync-lang-select" class="setup-select">
-          <option value="en" data-i18n="lang_en">English</option>
-          <option value="es" data-i18n="lang_es">Spanish</option>
-          <option value="de" data-i18n="lang_de">German</option>
-          <option value="fr" data-i18n="lang_fr">French</option>
-          <option value="it" data-i18n="lang_it">Italian</option>
-          <option value="pt" data-i18n="lang_pt">Portuguese</option>
-          <option value="zh" data-i18n="lang_zh">Chinese</option>
-          <option value="ja" data-i18n="lang_ja">Japanese</option>
-        </select>
+        <div class="c-dropdown config-input setup-dropdown" id="syncLangPref-dd">
+          <div class="c-dropdown-trigger" id="syncLangPref-trigger">
+            <div class="c-dropdown-bottom">
+              <span class="c-dropdown-value" id="sync-lang-select-val" data-i18n="lang_en">English</span>
+              <span class="c-dropdown-arrow">▾</span>
+            </div>
+          </div>
+          <div class="c-dropdown-menu glass-panel" id="syncLangPref-menu">
+            <div class="c-dropdown-item selected" data-value="en" data-i18n="lang_en">English</div>
+            <div class="c-dropdown-item" data-value="es" data-i18n="lang_es">Spanish</div>
+            <div class="c-dropdown-item" data-value="de" data-i18n="lang_de">German</div>
+            <div class="c-dropdown-item" data-value="fr" data-i18n="lang_fr">French</div>
+            <div class="c-dropdown-item" data-value="it" data-i18n="lang_it">Italian</div>
+            <div class="c-dropdown-item" data-value="pt" data-i18n="lang_pt">Portuguese</div>
+            <div class="c-dropdown-item" data-value="zh" data-i18n="lang_zh">Chinese</div>
+            <div class="c-dropdown-item" data-value="ja" data-i18n="lang_ja">Japanese</div>
+          </div>
+          <input type="hidden" id="sync-lang-select" value="en" />
+        </div>
+        <label class="setup-label" data-i18n="config_poster_pref_title">POSTER PREFERENCE (TV SHOWS)</label>
+        <div class="c-dropdown config-input setup-dropdown" id="posterPref-dd">
+          <div class="c-dropdown-trigger" id="posterPref-trigger">
+            <div class="c-dropdown-bottom">
+              <span class="c-dropdown-value" id="poster-pref-select-val" data-i18n="poster_pref_show">Show Poster</span>
+              <span class="c-dropdown-arrow">▾</span>
+            </div>
+          </div>
+          <div class="c-dropdown-menu glass-panel" id="posterPref-menu">
+            <div class="c-dropdown-item selected" data-value="show" data-i18n="poster_pref_show">Show Poster</div>
+            <div class="c-dropdown-item" data-value="season" data-i18n="poster_pref_season">Season Poster</div>
+          </div>
+          <input type="hidden" id="poster-pref-select" value="show" />
+        </div>
+
+        <label class="setup-label" data-i18n="config_poster_quality_title">POSTER QUALITY</label>
+        <div class="c-dropdown config-input setup-dropdown" id="posterQuality-dd">
+          <div class="c-dropdown-trigger" id="posterQuality-trigger">
+            <div class="c-dropdown-bottom">
+              <span class="c-dropdown-value" id="poster-quality-select-val" data-i18n="quality_w185">185px (Low)</span>
+              <span class="c-dropdown-arrow">▼</span>
+            </div>
+          </div>
+          <div class="c-dropdown-menu glass-panel" id="posterQuality-menu">
+            <div class="c-dropdown-item" data-value="dynamic" data-i18n="quality_dynamic">Card Size (Dynamic)</div>
+            <div class="c-dropdown-item selected" data-value="w185" data-i18n="quality_w185">185px (Low)</div>
+            <div class="c-dropdown-item" data-value="w342" data-i18n="quality_w342">342px (Medium)</div>
+            <div class="c-dropdown-item" data-value="w500" data-i18n="quality_w500">500px (High)</div>
+            <div class="c-dropdown-item" data-value="original" data-i18n="quality_original">Original (Max)</div>
+          </div>
+          <input type="hidden" id="poster-quality-select" value="w185" />
+        </div>
+        <label class="setup-label" data-i18n="config_fanart_pref_title">FANART PREFERENCE (TV SHOWS)</label>
+        <div class="c-dropdown config-input setup-dropdown" id="fanartPref-dd">
+          <div class="c-dropdown-trigger" id="fanartPref-trigger">
+            <div class="c-dropdown-bottom">
+              <span class="c-dropdown-value" id="fanart-pref-select-val" data-i18n="fanart_pref_episode">Episode
+                Fanart</span>
+              <span class="c-dropdown-arrow">▾</span>
+            </div>
+          </div>
+          <div class="c-dropdown-menu glass-panel" id="fanartPref-menu">
+            <div class="c-dropdown-item" data-value="show" data-i18n="fanart_pref_show">Show Fanart</div>
+            <div class="c-dropdown-item selected" data-value="episode" data-i18n="fanart_pref_episode">Episode Fanart
+            </div>
+          </div>
+          <input type="hidden" id="fanart-pref-select" value="episode" />
+        </div>
+
+        <label class="setup-label" data-i18n="config_fanart_quality_title">FANART QUALITY</label>
+        <div class="c-dropdown config-input setup-dropdown" id="fanartQuality-dd">
+          <div class="c-dropdown-trigger" id="fanartQuality-trigger">
+            <div class="c-dropdown-bottom">
+              <span class="c-dropdown-value" id="fanart-quality-select-val" data-i18n="quality_w300">300px
+                (Medium)</span>
+              <span class="c-dropdown-arrow">▼</span>
+            </div>
+          </div>
+          <div class="c-dropdown-menu glass-panel" id="fanartQuality-menu">
+            <div class="c-dropdown-item" data-value="dynamic" data-i18n="quality_dynamic">Card Size (Dynamic)</div>
+            <div class="c-dropdown-item" data-value="w92" data-i18n="quality_w92">92px (Min)</div>
+            <div class="c-dropdown-item" data-value="w185" data-i18n="quality_w185">185px (Low)</div>
+            <div class="c-dropdown-item selected" data-value="w300" data-i18n="quality_w300">300px (Medium)</div>
+            <div class="c-dropdown-item" data-value="original" data-i18n="quality_original">Original (Max)</div>
+          </div>
+          <input type="hidden" id="fanart-quality-select" value="w300" />
+        </div>
         <div class="step-nav">
           <button class="btn-back" onclick="goBack()"><i class="fa-solid fa-arrow-left"></i></button>
           <button class="btn-next" onclick="goNext()" data-i18n="setup_btn_continue">Continue</button>
@@ -296,7 +381,7 @@
   <script>
     const TOTAL_STEPS = 9;
     const STEP_IDS = ['step-lang', 'step-plex-url', 'step-plex-auth', 'step-plex-pass', 'step-password', 'step-tmdb', 'step-prefs', 'step-system', 'step-summary'];
-    const state = { lang: 'en', plexUrl: '', plexToken: '', plexClientId: '', hasPlexPass: false, password: '', tmdbKey: '', dashLang: 'auto', syncLang: 'en', autoUpdate: true, debug: false, _step: 1 };
+    const state = { lang: 'en', plexUrl: '', plexToken: '', plexClientId: '', hasPlexPass: false, password: '', tmdbKey: '', dashLang: 'auto', syncLang: 'en', posterPref: 'show', fanartPref: 'episode', autoUpdate: true, debug: false, _step: 1 };
     let i18n = {}, _pinPollTimer = null, _pinId = null, _authUrl = null, _clientId = null;
     const FB = {
       setup_lang_title: 'Choose your language', setup_lang_sub: 'Select the language for this wizard.',
@@ -304,6 +389,7 @@
       setup_plex_url_title: 'Plex Server URL', setup_plex_url_sub: 'Enter the local address of your Plex Media Server.',
       setup_plex_url_note: 'Example: http://192.168.1.100:32400', setup_plex_url_label: 'PLEX SERVER URL',
       setup_plex_url_err: 'Please enter a valid Plex URL.',
+      setup_bypass_hint: 'Click Continue again to proceed anyway.',
       setup_plex_auth_title: 'Plex Authentication', setup_plex_auth_sub: 'Click the button to open Plex login. This page will continue automatically.',
       setup_plex_auth_desc: "We use Plex's secure PIN. No password is stored.", setup_plex_auth_btn: 'Open Plex Login',
       setup_plex_auth_waiting: 'Waiting for authorization...', setup_plex_auth_copy: 'Click to copy the link if the tab did not open',
@@ -348,9 +434,57 @@
       document.querySelectorAll('.lang-card').forEach(c => c.classList.toggle('selected', c.dataset.lang === lang));
       loadLocale(lang);
       const sup = ['en', 'es', 'de', 'fr', 'it', 'pt', 'zh', 'ja'];
-      document.getElementById('sync-lang-select').value = sup.includes(lang) ? lang : 'en';
-      document.getElementById('dash-lang-select').value = lang;
+      let chosenLang = sup.includes(lang) ? lang : 'en';
+
+      // Update custom dropdowns for dashLang and syncLang
+      let syncInput = document.getElementById('sync-lang-select');
+      if (syncInput) syncInput.value = chosenLang;
+      let dashInput = document.getElementById('dash-lang-select');
+      if (dashInput) dashInput.value = lang;
+
+      // Update displayed text
+      let syncVal = document.getElementById('sync-lang-select-val');
+      if (syncVal) {
+        syncVal.setAttribute('data-i18n', 'lang_' + chosenLang);
+        syncVal.textContent = t('lang_' + chosenLang);
+      }
+      let dashVal = document.getElementById('dash-lang-select-val');
+      if (dashVal) {
+        dashVal.setAttribute('data-i18n', 'lang_' + lang);
+        dashVal.textContent = t('lang_' + lang);
+      }
     }
+
+    function initSetupDropdowns() {
+      document.querySelectorAll('.c-dropdown').forEach(dd => {
+        let trigger = dd.querySelector('.c-dropdown-trigger');
+        if (!trigger) return;
+        trigger.addEventListener('click', (e) => {
+          e.stopPropagation();
+          let wasOpen = dd.classList.contains('open');
+          document.querySelectorAll('.c-dropdown').forEach(other => other.classList.remove('open'));
+          if (!wasOpen) dd.classList.add('open');
+        });
+        let items = dd.querySelectorAll('.c-dropdown-item');
+        let valSpan = dd.querySelector('.c-dropdown-value');
+        let hiddenInput = dd.querySelector('input[type="hidden"]');
+        items.forEach(item => {
+          item.addEventListener('click', (e) => {
+            e.stopPropagation();
+            items.forEach(i => i.classList.remove('selected'));
+            item.classList.add('selected');
+            valSpan.textContent = item.textContent;
+            valSpan.setAttribute('data-i18n', item.getAttribute('data-i18n'));
+            if (hiddenInput) hiddenInput.value = item.getAttribute('data-value');
+            dd.classList.remove('open');
+          });
+        });
+      });
+      document.addEventListener('click', () => {
+        document.querySelectorAll('.c-dropdown').forEach(dd => dd.classList.remove('open'));
+      });
+    }
+
     function showStep(n) {
       const prev = document.querySelector('.wizard-step.active');
       const next = document.getElementById(STEP_IDS[n - 1]);
@@ -395,33 +529,50 @@
       }
     }
 
-    function validatePlexUrl() {
-
+    let _plexWarnedVal = null;
+    async function validatePlexUrl() {
       const input = document.getElementById('plex-url-input').value.trim();
+      if (_plexWarnedVal === input) {
+        state.plexUrl = input;
+        goNext();
+        return;
+      }
+
       const msgBox = document.getElementById('plex-test-msg');
+      if (!input || (!input.startsWith('http://') && !input.startsWith('https://'))) {
+        msgBox.style.display = 'block';
+        msgBox.className = 'test-feedback error';
+        msgBox.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + t('setup_plex_url_err') + '<br><small data-i18n="setup_bypass_hint">Click Continue again to proceed anyway.</small>';
+        _plexWarnedVal = input;
+        applyI18n();
+        return;
+      }
+
       msgBox.style.display = 'block';
       msgBox.className = 'test-feedback checking';
       msgBox.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ' + t('setup_test_checking');
 
-      if (!input || (!input.startsWith('http://') && !input.startsWith('https://'))) {
+      try {
+        const cleanUrl = input.replace(/\/+$/, "");
+        const res = await fetch(cleanUrl + '/identity', { method: 'GET' });
+        if (res.ok) {
+          state.plexUrl = cleanUrl;
+          _plexWarnedVal = null;
+          msgBox.className = 'test-feedback success';
+          msgBox.innerHTML = '<i class="fa-solid fa-circle-check"></i> ' + t('setup_test_plex_success');
+          setTimeout(goNext, 400);
+        } else {
+          msgBox.className = 'test-feedback error';
+          msgBox.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + t('setup_test_plex_fail') + ' (HTTP ' + res.status + ')<br><small data-i18n="setup_bypass_hint">Click Continue again to proceed anyway.</small>';
+          _plexWarnedVal = input;
+          applyI18n();
+        }
+      } catch (e) {
         msgBox.className = 'test-feedback error';
-        msgBox.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + t('setup_plex_url_err');
-        return;
+        msgBox.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + t('setup_test_error') + '<br><small data-i18n="setup_bypass_hint">Click Continue again to proceed anyway.</small>';
+        _plexWarnedVal = input;
+        applyI18n();
       }
-
-      /*
-        
-      const v = document.getElementById('plex-url-input').value.trim();
-      const e = document.getElementById('plex-url-error');
-      if (!v || (!v.startsWith('http://') && !v.startsWith('https://'))) { 
-        e.classList.add('visible'); 
-        return; 
-      }
-      e.classList.remove('visible'); 
-      state.plexUrl = v; 
-      */
-      state.plexUrl = input;
-      goNext();
     }
 
     // --- TEST TMDB KEY ---
@@ -469,29 +620,54 @@
       e.classList.remove('visible'); state.password = p1; goNext();
     }
 
-    function validateTmdb() {
+    let _tmdbWarnedVal = null;
+    async function validateTmdb() {
       const key = document.getElementById('tmdb-input').value.trim();
+      if (_tmdbWarnedVal === key) {
+        state.tmdbKey = key;
+        goNext();
+        return;
+      }
+
       const msgBox = document.getElementById('tmdb-test-msg');
+      if (!key) {
+        msgBox.style.display = 'block';
+        msgBox.className = 'test-feedback error';
+        msgBox.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + t('setup_tmdb_err') + '<br><small data-i18n="setup_bypass_hint">Click Continue again to proceed anyway.</small>';
+        _tmdbWarnedVal = key;
+        applyI18n();
+        return;
+      }
+
       msgBox.style.display = 'block';
       msgBox.className = 'test-feedback checking';
       msgBox.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ' + t('setup_test_checking');
 
-      if (!key) {
-        msgBox.className = 'test-feedback error';
-        msgBox.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + t('setup_tmdb_err');
-        return;
-      }
+      try {
+        let url = 'https://api.themoviedb.org/3/authentication';
+        let options = { headers: { accept: 'application/json' } };
+        if (key.length > 40) options.headers['Authorization'] = 'Bearer ' + key;
+        else url += '?api_key=' + key;
 
-      /*const v = document.getElementById('tmdb-input').value.trim();
-      const e = document.getElementById('tmdb-error');
-      if (!v || v.length < 10) { 
-        e.classList.add('visible'); 
-        return; 
+        const res = await fetch(url, options);
+        if (res.ok) {
+          state.tmdbKey = key;
+          _tmdbWarnedVal = null;
+          msgBox.className = 'test-feedback success';
+          msgBox.innerHTML = '<i class="fa-solid fa-circle-check"></i> ' + t('setup_test_tmdb_success');
+          setTimeout(goNext, 400);
+        } else {
+          msgBox.className = 'test-feedback error';
+          msgBox.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + t('setup_test_tmdb_fail') + '<br><small data-i18n="setup_bypass_hint">Click Continue again to proceed anyway.</small>';
+          _tmdbWarnedVal = key;
+          applyI18n();
+        }
+      } catch (e) {
+        msgBox.className = 'test-feedback error';
+        msgBox.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + t('setup_test_error') + '<br><small data-i18n="setup_bypass_hint">Click Continue again to proceed anyway.</small>';
+        _tmdbWarnedVal = key;
+        applyI18n();
       }
-      e.classList.remove('visible'); 
-      state.tmdbKey = v; */
-      state.tmdbKey = key
-      goNext();
     }
     function togglePw(id, btn) {
       const inp = document.getElementById(id), ico = btn.querySelector('i');
@@ -555,6 +731,10 @@
     function renderSummary() {
       state.dashLang = document.getElementById('dash-lang-select').value;
       state.syncLang = document.getElementById('sync-lang-select').value;
+      state.posterPref = document.getElementById('poster-pref-select').value;
+      state.fanartPref = document.getElementById('fanart-pref-select').value;
+      state.posterQuality = document.getElementById('poster-quality-select').value;
+      state.fanartQuality = document.getElementById('fanart-quality-select').value;
       state.autoUpdate = document.getElementById('auto-update-toggle').checked;
       state.debug = document.getElementById('debug-toggle').checked;
       const dLbl = state.dashLang === 'auto' ? t('lang_auto') : t('lang_' + state.dashLang);
@@ -577,7 +757,7 @@
       document.getElementById('finish-title').textContent = 'Finishing setup...';
       document.getElementById('finish-msg').textContent = 'Writing configuration...';
       try {
-        const res = await fetch('/api/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plex_url: state.plexUrl, plex_token: state.plexToken, plex_client_id: state.plexClientId, has_plex_pass: state.hasPlexPass, password: state.password, tmdb_api_key: state.tmdbKey, dashboard_language: state.dashLang, sync_language: state.syncLang, auto_update: state.autoUpdate, debug: state.debug }) });
+        const res = await fetch('/api/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plex_url: state.plexUrl, plex_token: state.plexToken, plex_client_id: state.plexClientId, has_plex_pass: state.hasPlexPass, password: state.password, tmdb_api_key: state.tmdbKey, dashboard_language: state.dashLang, sync_language: state.syncLang, poster_pref: state.posterPref, fanart_pref: state.fanartPref, poster_quality: state.posterQuality, fanart_quality: state.fanartQuality, auto_update: state.autoUpdate, debug: state.debug }) });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         document.getElementById('finish-status-icon').innerHTML = '<svg class="svg-anim" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52"><circle class="circle" cx="26" cy="26" r="25" stroke="#3fb950"/><path class="check" stroke="#3fb950" d="M14.1 27.2l7.1 7.2 16.7-16.8"/></svg>';
         document.getElementById('finish-title').textContent = t('setup_finish_title');
@@ -590,7 +770,7 @@
         setTimeout(() => ov.classList.remove('active'), 3500);
       }
     }
-    (function () { selectLang(detectBrowserLang()); updateProgress(1); updateStepIndicator(); })();
+    (function () { selectLang(detectBrowserLang()); updateProgress(1); updateStepIndicator(); initSetupDropdowns(); })();
   </script>
 </body>
 

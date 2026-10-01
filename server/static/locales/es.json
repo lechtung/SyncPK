@@ -293,5 +293,17 @@
     "setup_test_plex_fail": "Fallo en la conexión. Comprueba la URL.",
     "setup_test_tmdb_success": "¡API Key válida!",
     "setup_test_tmdb_fail": "API Key inválida.",
-    "setup_test_error": "Error de red."
+    "setup_test_error": "Error de red.",
+    "rescan_reload_hint": "Haz clic en cualquier lugar para recargar.",
+    "rescan_done": "¡Rescan completado!",
+    "setup_bypass_hint": "Pulse Continuar de nuevo si desea avanzar de todas formas.",
+    "config_poster_quality_title": "CALIDAD DE PÓSTER:",
+    "config_fanart_quality_title": "CALIDAD DE FANART:",
+    "quality_dynamic": "Tamaño Dinámico (Tarjeta)",
+    "quality_w92": "92px (Mínimo)",
+    "quality_w185": "185px (Bajo)",
+    "quality_w300": "300px (Medio)",
+    "quality_w342": "342px (Medio-Alto)",
+    "quality_w500": "500px (Alto)",
+    "quality_original": "Original (Máximo)"
 }

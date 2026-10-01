@@ -1,5 +1,5 @@
 #v8
-from fastapi import FastAPI, Request, Query, Depends, HTTPException, Header, Cookie
+from fastapi import FastAPI, Request, Query, Depends, HTTPException, Header, Cookie, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
@@ -23,12 +23,38 @@ import string
 import secrets
 import re
 
+# WebSocket Manager para eventos en tiempo real
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: str):
+        for connection in self.active_connections:
+            try:
+                await connection.send_text(message)
+            except Exception:
+                pass
+
+manager = ConnectionManager()
+
 DATA_DIR = os.getenv("DATA_DIR", ".")
 ENV_PATH = os.path.join(DATA_DIR, ".env")
 DB_PATH = os.path.join(DATA_DIR, "sync.db")
 SETTINGS_FILE = os.path.join(DATA_DIR, "plex_settings.json")
 LOG_FILE = os.path.join(DATA_DIR, "syncpk.log")
 CACHE_PATH = os.path.join(DATA_DIR, "static/cache") 
+
+# Shared state for background rescan task
+rescan_status = {"running": False, "done": False}
+
 
 class DualLogger(object):
     def __init__(self, filename=LOG_FILE):
@@ -100,6 +126,16 @@ if os.path.exists(ENV_PATH):
 
 app = FastAPI()
 
+@app.websocket("/ws/updates")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            # We don't expect messages from client, just keep connection open
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+
 # --- SETUP GUARD MIDDLEWARE ---
 # Blocks all /api/* calls (except /api/setup) when the .env has not been created yet.
 @app.middleware("http")
@@ -160,7 +196,7 @@ def verify_api_key(
     syncpk_session: str = Cookie(None)
 ):
     if not WEB_HASH:
-        return True
+        raise HTTPException(status_code=401, detail="Setup incomplete: Password not configured")
     
     token = None
     
@@ -334,7 +370,8 @@ async def download_tmdb_images(db_id, tmdb_id, media_type):
         print(f"Error asíncrono en TMDB para {tmdb_id}: {e}", flush=True)
 
 def download_tmdb_images_sync(tmdb_id, media_type):
-    if not TMDB_API_KEY or not tmdb_id:
+    import re
+    if not TMDB_API_KEY or not tmdb_id or not re.match(r'^[0-9]+$', str(tmdb_id)):
         return None, None
         
     poster_local_path = os.path.join(CACHE_PATH, f"posters/{tmdb_id}.jpg")
@@ -383,8 +420,14 @@ def download_tmdb_images_sync(tmdb_id, media_type):
     return poster_local, fanart_local
 
 def download_episode_fanart_sync(thumb_url, metadata_id):
-    if not thumb_url or not metadata_id: return None
+    import re
+    if not thumb_url or not metadata_id or not re.match(r'^[0-9]+$', str(metadata_id)): return None
     
+    # Prefix validation
+    valid_prefixes = ("http://localhost", "https://localhost", "http://127.0.0.1", "https://127.0.0.1", PLEX_URL)
+    if thumb_url.startswith("http") and not thumb_url.startswith(valid_prefixes):
+        return None
+        
     fanart_local_path = os.path.join(CACHE_PATH, f"fanarts/ep_{metadata_id}.jpg")
     fanart_local = f"/cache/fanarts/ep_{metadata_id}.jpg" if os.path.exists(fanart_local_path) else None
     
@@ -444,26 +487,195 @@ def download_episode_fanart_tmdb_sync(show_tmdb_id, season, episode):
         print(f"Error fetching TMDB episode fanart: {e}", flush=True)
     return None
 
+def execute_full_rescan(sync_lang, tmdb_key, poster_pref, fanart_pref, is_debug=False, main_loop=None):
+    print(f"[rescan] Starting full library rescan for language: {sync_lang}")
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, tmdb_id, show_tmdb_id, media_type, season, episode, title, show_title, poster_path, fanart_path FROM watch_history")
+        rows = cursor.fetchall()
+        total = len(rows)
+        print(f"[rescan] {total} items to process.")
+
+        lang_param = f"&language={sync_lang}"
+        
+        # Leemos variables de calidad del entorno (con fallbacks estables)
+        poster_q = os.getenv("POSTER_QUALITY", "w185")
+        fanart_q = os.getenv("FANART_QUALITY", "w300")
+        ui_poster_w = int(os.getenv("UI_POSTER_W", "150"))
+        ui_fanart_w = int(os.getenv("UI_FANART_W", "300"))
+
+        def _get_tmdb_size(desired_px, valid_sizes, default):
+            for size in valid_sizes:
+                if size == 'original': return size
+                try:
+                    px = int(size[1:])
+                    if px >= desired_px:
+                        return size
+                except:
+                    pass
+            return 'original'
+            
+        def _get_poster_size():
+            if poster_q != "dynamic": return poster_q
+            return _get_tmdb_size(ui_poster_w, ['w92', 'w154', 'w185', 'w342', 'w500', 'w780', 'original'], 'w185')
+
+        def _get_fanart_size(is_episode):
+            if fanart_q != "dynamic": return fanart_q
+            if is_episode:
+                return _get_tmdb_size(ui_fanart_w, ['w92', 'w185', 'w300', 'original'], 'w300')
+            else:
+                return _get_tmdb_size(ui_fanart_w, ['w300', 'w780', 'w1280', 'original'], 'w300')
+
+        def _download_image(url_suffix, local_filename, folder, target_size):
+            if not url_suffix: return False
+            local_path = os.path.join(CACHE_PATH, folder, local_filename)
+            # CACHE CHECK: Si existe, no descargamos de nuevo
+            if os.path.exists(local_path):
+                return True
+                
+            img_url = f"https://image.tmdb.org/t/p/{target_size}{url_suffix}"
+            try:
+                import requests
+                r = requests.get(img_url, timeout=15)
+                if r.status_code == 200:
+                    os.makedirs(os.path.join(CACHE_PATH, folder), exist_ok=True)
+                    with open(local_path, "wb") as f:
+                        f.write(r.content)
+                    return True
+            except Exception as e:
+                print(f"[rescan] ❌ Error downloading {img_url}: {e}")
+            return False
+
+        def _extract_filename(tmdb_id, is_poster, media_type, show_tmdb_id, season, episode):
+            # Formato de nombre que incorpora las preferencias para evitar solapamientos en caché
+            pref_tag = poster_pref if is_poster else fanart_pref
+            if media_type == "movie": return f"movie_{tmdb_id}_{sync_lang}.jpg"
+            if is_poster:
+                return f"show_{show_tmdb_id}_s{season}_poster_{pref_tag}_{sync_lang}.jpg" if pref_tag == "season" else f"show_{show_tmdb_id}_poster_{pref_tag}_{sync_lang}.jpg"
+            if fanart_pref == "episode": return f"show_{show_tmdb_id}_s{season}e{episode}_fanart_{pref_tag}.jpg"
+            return f"show_{show_tmdb_id}_fanart_{pref_tag}_{sync_lang}.jpg"
+            
+        def _notify_frontend(batch_data):
+            if not main_loop or not batch_data: return
+            import asyncio
+            try:
+                msg = json.dumps({"type": "batch_update", "items": batch_data})
+                asyncio.run_coroutine_threadsafe(manager.broadcast(msg), main_loop)
+            except Exception as e:
+                pass
+
+        batch_updates = []
+        for idx, row in enumerate(rows, 1):
+            h_id, m_tmdb_id, s_tmdb_id, m_type, s_season, s_ep, db_title, db_show_title, db_poster, db_fanart = row
+            log_name = db_title if m_type == "movie" else f"{db_show_title} T{s_season}E{s_ep}"
+            
+            p_size = _get_poster_size()
+            f_size = _get_fanart_size(is_episode=(m_type == "episode" and fanart_pref == "episode"))
+            
+            p_filename = _extract_filename(m_tmdb_id, True, m_type, s_tmdb_id, s_season, s_ep)
+            f_filename = _extract_filename(m_tmdb_id, False, m_type, s_tmdb_id, s_season, s_ep)
+            
+            updated_info = {"id": h_id, "title": db_title, "show_title": db_show_title, "poster_path": db_poster, "fanart_path": db_fanart}
+            
+            if m_type == "movie" and m_tmdb_id:
+                # Comprobamos si las fotos ya están cacheadas antes de hacer HTTP a TMDB
+                has_poster = os.path.exists(os.path.join(CACHE_PATH, "posters", p_filename))
+                has_fanart = os.path.exists(os.path.join(CACHE_PATH, "fanarts", f_filename))
+                
+                if not (has_poster and has_fanart):
+                    tmdb_url = f"https://api.themoviedb.org/3/movie/{m_tmdb_id}?api_key={tmdb_key}{lang_param}"
+                    import requests
+                    res = requests.get(tmdb_url, timeout=10)
+                    if is_debug: print(f"[rescan][DEBUG] {idx}/{total} movie {log_name} -> HTTP {res.status_code}")
+                    if res.status_code == 200:
+                        data = res.json()
+                        updated_info["title"] = data.get("title", db_title)
+                        _download_image(data.get("poster_path"), p_filename, "posters", p_size)
+                        _download_image(data.get("backdrop_path"), f_filename, "fanarts", f_size)
+                        
+                final_poster, final_fanart = f"/cache/posters/{p_filename}", f"/cache/fanarts/{f_filename}"
+                cursor.execute("UPDATE watch_history SET title=?, poster_path=?, fanart_path=? WHERE id=?", (updated_info["title"], final_poster, final_fanart, h_id))
+                updated_info["poster_path"] = final_poster
+                updated_info["fanart_path"] = final_fanart
+
+            elif m_type == "episode" and s_tmdb_id:
+                has_poster = os.path.exists(os.path.join(CACHE_PATH, "posters", p_filename))
+                has_fanart = os.path.exists(os.path.join(CACHE_PATH, "fanarts", f_filename))
+                
+                new_ep_title = db_title
+                new_show_title = db_show_title
+                
+                if not (has_poster and has_fanart):
+                    ep_still, show_poster, show_backdrop, season_poster = None, None, None, None
+                    import requests
+                    ep_url = f"https://api.themoviedb.org/3/tv/{s_tmdb_id}/season/{s_season}/episode/{s_ep}?api_key={tmdb_key}{lang_param}"
+                    res_ep = requests.get(ep_url, timeout=10)
+                    if res_ep.status_code == 200:
+                        new_ep_title = res_ep.json().get("name", db_title)
+                        ep_still = res_ep.json().get("still_path")
+
+                    show_url = f"https://api.themoviedb.org/3/tv/{s_tmdb_id}?api_key={tmdb_key}{lang_param}"
+                    res_show = requests.get(show_url, timeout=10)
+                    if res_show.status_code == 200:
+                        new_show_title = res_show.json().get("name", db_show_title)
+                        show_poster = res_show.json().get("poster_path")
+                        show_backdrop = res_show.json().get("backdrop_path")
+                        
+                    if poster_pref == "season":
+                        season_url = f"https://api.themoviedb.org/3/tv/{s_tmdb_id}/season/{s_season}?api_key={tmdb_key}{lang_param}"
+                        res_season = requests.get(season_url, timeout=10)
+                        if res_season.status_code == 200: season_poster = res_season.json().get("poster_path")
+
+                    if is_debug: print(f"[rescan][DEBUG] {idx}/{total} processed {log_name}")
+
+                    p_suffix = season_poster if poster_pref == "season" and season_poster else show_poster
+                    f_suffix = ep_still if fanart_pref == "episode" and ep_still else show_backdrop
+                    
+                    if is_debug and p_suffix:
+                        print(f"[DEBUG POSTER] DOWNLOADING '{log_name}' POSTER FROM: https://image.tmdb.org/t/p/{p_size}{p_suffix}")
+                    
+                    _download_image(p_suffix, p_filename, "posters", p_size)
+                    _download_image(f_suffix, f_filename, "fanarts", f_size)
+                
+                final_poster, final_fanart = f"/cache/posters/{p_filename}", f"/cache/fanarts/{f_filename}"
+                cursor.execute("UPDATE watch_history SET title=?, show_title=?, poster_path=?, fanart_path=? WHERE id=?", 
+                               (new_ep_title, new_show_title, final_poster, final_fanart, h_id))
+                updated_info["title"] = new_ep_title
+                updated_info["show_title"] = new_show_title
+                updated_info["poster_path"] = final_poster
+                updated_info["fanart_path"] = final_fanart
+                
+            batch_updates.append(updated_info)
+            
+            # Batch commit and broadcast every 10 items
+            if len(batch_updates) >= 10:
+                conn.commit()
+                _notify_frontend(batch_updates)
+                batch_updates = []
+
+        if batch_updates:
+            conn.commit()
+            _notify_frontend(batch_updates)
+            
+        conn.close()
+        print("[rescan] 🚀 Full library rescan completed successfully.")
+    except Exception as e:
+        print(f"[rescan] ❌ Error during rescan: {e}")
+
 async def bulk_download_tmdb_images():
-    print("Starting bulk TMDB image download for missing posters...")
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    cursor.execute("SELECT DISTINCT tmdb_id FROM watch_history WHERE media_type='movie' AND poster_path IS NULL AND tmdb_id IS NOT NULL")
-    movie_rows = cursor.fetchall()
-    cursor.execute("SELECT DISTINCT show_tmdb_id FROM watch_history WHERE media_type='episode' AND poster_path IS NULL AND show_tmdb_id IS NOT NULL")
-    show_rows = cursor.fetchall()
-    conn.close()
-    
-    for row in movie_rows:
-        await download_tmdb_images(None, row["tmdb_id"], "movie")
-        await asyncio.sleep(0.1)
-        
-    for row in show_rows:
-        await download_tmdb_images(None, row["show_tmdb_id"], "tv")
-        await asyncio.sleep(0.1)
-        
+    print("Starting bulk TMDB image download (full rescan logic)...")
     settings = load_settings()
+    lang = os.getenv("SYNC_LANGUAGE", "en")
+    tmdb_key = os.getenv("TMDB_API_KEY", "")
+    p_pref = os.getenv("POSTER_PREF", "show")
+    f_pref = os.getenv("FANART_PREF", "episode")
+    is_debug = os.getenv("DEBUG", "false") == "true"
+    
+    import asyncio
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, execute_full_rescan, lang, tmdb_key, p_pref, f_pref, is_debug, loop)
+    
     if settings.get("sync_state") == 1:
         settings["sync_state"] = 2
         save_settings(settings)
@@ -499,6 +711,7 @@ def process_plex_payload(payload, cursor, is_bulk=False):
         
     metadata = payload.get("Metadata", {})
     media_type = metadata.get("type") 
+    if media_type not in ["movie", "episode"]: return False
     title = metadata.get("title")
     plex_guid = metadata.get("guid") 
     
@@ -592,22 +805,23 @@ def process_plex_payload(payload, cursor, is_bulk=False):
         if not target_tmdb and media_type == "episode": target_tmdb = tmdb_id # Fallback
         
         # Download show poster/fanart or movie poster/fanart
-        if target_tmdb:
-            p_path, f_path = download_tmdb_images_sync(target_tmdb, "tv" if media_type == "episode" else "movie")
-            if p_path or f_path:
-                cursor.execute("UPDATE watch_history SET poster_path=COALESCE(?, poster_path), fanart_path=COALESCE(?, fanart_path) WHERE id=?", (p_path, f_path, db_id))
-        
-        # Download specific episode fanart (try Plex thumb first, fallback to TMDB)
-        if media_type == "episode":
-            ep_fanart = None
-            if metadata.get("thumb"):
-                ep_metadata_id = plex_guid.split("/")[-1] if plex_guid else str(db_id)
-                ep_fanart = download_episode_fanart_sync(metadata.get("thumb"), ep_metadata_id)
-            if not ep_fanart and target_tmdb:
-                ep_fanart = download_episode_fanart_tmdb_sync(target_tmdb, season, episode)
-                
-            if ep_fanart:
-                cursor.execute("UPDATE watch_history SET fanart_path=? WHERE id=?", (ep_fanart, db_id))
+        if not is_bulk:
+            if target_tmdb:
+                p_path, f_path = download_tmdb_images_sync(target_tmdb, "tv" if media_type == "episode" else "movie")
+                if p_path or f_path:
+                    cursor.execute("UPDATE watch_history SET poster_path=COALESCE(?, poster_path), fanart_path=COALESCE(?, fanart_path) WHERE id=?", (p_path, f_path, db_id))
+            
+            # Download specific episode fanart (try Plex thumb first, fallback to TMDB)
+            if media_type == "episode":
+                ep_fanart = None
+                if metadata.get("thumb"):
+                    ep_metadata_id = plex_guid.split("/")[-1] if plex_guid else str(db_id)
+                    ep_fanart = download_episode_fanart_sync(metadata.get("thumb"), ep_metadata_id)
+                if not ep_fanart and target_tmdb:
+                    ep_fanart = download_episode_fanart_tmdb_sync(target_tmdb, season, episode)
+                    
+                if ep_fanart:
+                    cursor.execute("UPDATE watch_history SET fanart_path=? WHERE id=?", (ep_fanart, db_id))
                 
     except Exception as e:
         print(f"Error asignando carátulas Plex: {e}")
@@ -652,6 +866,7 @@ def process_kodi_payload(payload, cursor, is_bulk=False):
         
     metadata = payload.get("Metadata", {})
     media_type = metadata.get("type") 
+    if media_type not in ["movie", "episode"]: return False
     title = metadata.get("title")
     kodi_id = metadata.get("kodi_id")
     
@@ -810,7 +1025,7 @@ async def kodi_webhook_bulk(request: Request):
 class ConfirmSyncRequest(BaseModel):
     ids: list[int]
 
-@app.post("/sync/confirm-kodi")
+@app.post("/sync/confirm-kodi", dependencies=[Depends(verify_api_key)])
 def confirm_kodi_sync(req: ConfirmSyncRequest):
     if not req.ids:
         return {"status": "success", "deleted": 0}
@@ -829,12 +1044,15 @@ def get_all_items(client: Optional[str] = Query("kodi"), date_from: Optional[str
     cursor = conn.cursor()
     
     query = "SELECT * FROM watch_history WHERE 1=1"
+    params = []
     
     if date_from:
-        query += f" AND created_at >= '{date_from}'"
-        query += f" AND origin != '{client}'"
+        query += " AND created_at >= ?"
+        params.append(date_from)
+        query += " AND origin != ?"
+        params.append(client)
         
-    cursor.execute(query)
+    cursor.execute(query, params)
     rows = cursor.fetchall()
     
     movies = []
@@ -932,7 +1150,10 @@ def login(req: LoginRequest):
         pwd_hash = hashlib.sha256((req.password + SALT).encode()).hexdigest()
 
     if hmac.compare_digest(pwd_hash, WEB_HASH):
-        return {"success": True, "token": f"Basic {req.password}"}
+        from fastapi.responses import JSONResponse
+        res = JSONResponse(content={"success": True})
+        res.set_cookie(key="syncpk_session", value=WEB_HASH, httponly=True, samesite="lax", max_age=86400 * 30)
+        return res
     raise HTTPException(status_code=401, detail="Invalid password")
 
 @app.get("/api/history")
@@ -1041,7 +1262,7 @@ def get_logs(authorization: str = Depends(verify_api_key)):
 
 from fastapi.responses import FileResponse, Response
 
-@app.get("/api/download_logs")
+@app.get("/api/download_logs", dependencies=[Depends(verify_api_key)])
 def download_logs():
     try:
         if os.path.exists(LOG_FILE):
@@ -1050,7 +1271,10 @@ def download_logs():
         
         return Response(content="No logs available.", media_type="text/plain")
     except Exception as e:
-        return {"error": f"Error descargando logs: {e}"}
+        error_str = str(e)
+        import re
+        error_str = re.sub(r'X-Plex-Token=[a-zA-Z0-9_-]+', 'X-Plex-Token=***', error_str)
+        return {"error": f"Error descargando logs: {error_str}"}
 
 @app.delete("/api/history/{item_id}")
 def delete_history_item(item_id: int, scope: str = "episode", sync_remote: bool = False, authorization: str = Depends(verify_api_key)):
@@ -1722,7 +1946,10 @@ def get_plex_libraries():
             sections = data.get("MediaContainer", {}).get("Directory", [])
             return [{"key": s["key"], "type": s.get("type")} for s in sections if s.get("type") in ["movie", "show"]]
     except Exception as e:
-        print(f"Error getting Plex libraries: {e}")
+        error_str = str(e)
+        import re
+        error_str = re.sub(r'X-Plex-Token=[a-zA-Z0-9_-]+', 'X-Plex-Token=***', error_str)
+        print(f"Error getting Plex libraries: {error_str}")
     return []
 
 def get_real_plex_history_map():
@@ -2694,6 +2921,8 @@ def get_config():
         "api_token_raw": _mask(os.getenv("API_TOKEN_RAW", "")),
         "poster_pref": os.getenv("POSTER_PREF", "show"),
         "fanart_pref": os.getenv("FANART_PREF", "episode"),
+        "poster_quality": os.getenv("POSTER_QUALITY", "w185"),
+        "fanart_quality": os.getenv("FANART_QUALITY", "w300"),
         "ui_poster_w": os.getenv("UI_POSTER_W", "150"),
         "ui_poster_h": os.getenv("UI_POSTER_H", "225"),
         "ui_fanart_w": os.getenv("UI_FANART_W", "300"),
@@ -2731,8 +2960,11 @@ class ConfigPayload(BaseModel):
     notify_updates: Optional[bool] = True
     master_password: Optional[str] = None
     force_rescan: Optional[bool] = False
+    clear_cache: Optional[bool] = False
     poster_pref: Optional[str] = "show"
     fanart_pref: Optional[str] = "episode"
+    poster_quality: Optional[str] = "w185"
+    fanart_quality: Optional[str] = "w300"
     ui_poster_w: Optional[str] = "150"
     ui_poster_h: Optional[str] = "225"
     ui_fanart_w: Optional[str] = "300"
@@ -2772,9 +3004,10 @@ def save_config(payload: ConfigPayload):
                         k, v = line.split("=", 1)
                         env_vars[k.strip()] = v.strip().strip('"').strip("'")
         
-        # Update values — skip masked sentinel values so real secrets are not overwritten
+        # Update values - skip masked sentinel values so real secrets are not overwritten
         def _is_masked(v: str) -> bool:
             return bool(v) and "..." in v and v.endswith(v[-4:]) and len(v) < 20
+        old_plex_token = env_vars.get("PLEX_TOKEN")
         env_vars["PLEX_URL"] = payload.plex_url
         if not _is_masked(payload.plex_token):   env_vars["PLEX_TOKEN"]     = payload.plex_token
         if not _is_masked(payload.tmdb_api_key): env_vars["TMDB_API_KEY"]   = payload.tmdb_api_key
@@ -2787,8 +3020,8 @@ def save_config(payload: ConfigPayload):
         
         has_plex_pass = env_vars.get("HAS_PLEX_PASS", "false").lower() == "true"
         
-        # Only check Plex Pass if the token has changed, otherwise it hangs unnecessarily
-        if payload.plex_token and payload.plex_client_id and payload.plex_token != env_vars.get("PLEX_TOKEN"):
+        # Only check Plex Pass if the user actually provided a new real (unmasked) token
+        if payload.plex_token and payload.plex_client_id and not _is_masked(payload.plex_token) and payload.plex_token != old_plex_token:
             try:
                 req = urllib.request.Request("https://plex.tv/api/v2/user")
                 req.add_header("Accept", "application/json")
@@ -2836,6 +3069,8 @@ def save_config(payload: ConfigPayload):
             "NOTIFY_UPDATES": "true" if payload.notify_updates else "false",
             "POSTER_PREF": payload.poster_pref,
             "FANART_PREF": payload.fanart_pref,
+            "POSTER_QUALITY": payload.poster_quality,
+            "FANART_QUALITY": payload.fanart_quality,
             "UI_POSTER_W": payload.ui_poster_w,
             "UI_POSTER_H": payload.ui_poster_h,
             "UI_FANART_W": payload.ui_fanart_w,
@@ -2875,18 +3110,20 @@ def save_config(payload: ConfigPayload):
                 
             k = stripped.split("=", 1)[0].strip()
             if k in updates:
-                new_env_lines.append(f'{k}="{updates[k]}"\n')
+                safe_val = str(updates[k]).replace('\n', '').replace('\r', '')
+                new_env_lines.append(f'{k}="{safe_val}"\n')
                 updated_keys.add(k)
                 # update memory
-                os.environ[k] = str(updates[k])
+                os.environ[k] = safe_val
             else:
                 new_env_lines.append(line)
                 
         # Append any new keys that weren't in the file
         for k, v in updates.items():
             if k not in updated_keys:
-                new_env_lines.append(f'{k}="{v}"\n')
-                os.environ[k] = str(v)
+                safe_val = str(v).replace('\n', '').replace('\r', '')
+                new_env_lines.append(f'{k}="{safe_val}"\n')
+                os.environ[k] = safe_val
                 
         # Unhide file on Windows before writing
         if os.name == 'nt' and os.path.exists(env_path):
@@ -2909,12 +3146,41 @@ def save_config(payload: ConfigPayload):
         # Reload all globals from the freshly written .env
         reload_settings()
 
+        if payload.force_rescan:
+            if payload.clear_cache:
+                import shutil
+                print("[rescan] Vaciar caché solicitado. Limpiando directorios de imágenes...", flush=True)
+                for folder in ["posters", "fanarts"]:
+                    folder_path = os.path.join(CACHE_PATH, folder)
+                    if os.path.exists(folder_path):
+                        shutil.rmtree(folder_path, ignore_errors=True)
+            
+            global rescan_status
+            rescan_status = {"running": True, "done": False}
+            _sync_lang = payload.sync_language
+            _tmdb_key = TMDB_API_KEY
+            _is_debug = os.getenv("DEBUG") == "true"
+            _poster_pref = payload.poster_pref or "show"
+            _fanart_pref = payload.fanart_pref or "episode"
+
+            def rescan_task_wrapper():
+                global rescan_status
+                import asyncio
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                execute_full_rescan(_sync_lang, _tmdb_key, _poster_pref, _fanart_pref, _is_debug, loop)
+                rescan_status = {"running": False, "done": True}
+
+            threading.Thread(target=rescan_task_wrapper, daemon=True).start()
+            return {"status": "success", "has_plex_pass": has_plex_pass, "rescan_started": True}
+
         return {"status": "success", "has_plex_pass": has_plex_pass}
     except Exception as e:
-        import traceback
-        trace_str = traceback.format_exc()
-        print(f"Save config failed: {trace_str}")
-        return {"status": "error", "message": f"Server error: {str(e)}", "trace": trace_str}
+        print(f"Save config failed: {e}")
+        return {"status": "error", "message": "Server error while saving configuration."}
 
 @app.post("/api/config/restore", dependencies=[Depends(verify_api_key)])
 def restore_config():
@@ -2945,62 +3211,10 @@ def restore_config():
                 
     reload_settings()
     return {"status": "success"}
-        
-    if payload.force_rescan:
-        def rescan_task():
-            print(f"Starting rescan to adapt to language: {payload.sync_language}")
-            try:
-                conn = sqlite3.connect(DB_PATH)
-                cursor = conn.cursor()
-                cursor.execute("SELECT id, tmdb_id, show_tmdb_id, media_type, season, episode FROM watch_history")
-                rows = cursor.fetchall()
-                
-                for row in rows:
-                    h_id, m_tmdb_id, s_tmdb_id, m_type, s_season, s_ep = row
-                    
-                    # Use new language
-                    lang_param = f"&language={payload.sync_language}"
-                    
-                    if m_type == "movie" and m_tmdb_id:
-                        # Re-download metadata
-                        tmdb_url = f"https://api.themoviedb.org/3/movie/{m_tmdb_id}?api_key={payload.tmdb_api_key}{lang_param}"
-                        res = requests.get(tmdb_url)
-                        if res.status_code == 200:
-                            data = res.json()
-                            title = data.get("title", "")
-                            p_path = f"https://image.tmdb.org/t/p/w500{data.get('poster_path')}" if data.get("poster_path") else ""
-                            f_path = f"https://image.tmdb.org/t/p/original{data.get('backdrop_path')}" if data.get("backdrop_path") else ""
-                            
-                            cursor.execute("UPDATE watch_history SET title=?, poster_path=?, fanart_path=? WHERE id=?", (title, p_path, f_path, h_id))
-                    
-                    elif m_type == "episode" and s_tmdb_id:
-                        # Extract episode metadata
-                        tmdb_url = f"https://api.themoviedb.org/3/tv/{s_tmdb_id}/season/{s_season}/episode/{s_ep}?api_key={payload.tmdb_api_key}{lang_param}"
-                        res = requests.get(tmdb_url)
-                        if res.status_code == 200:
-                            data = res.json()
-                            ep_title = data.get("name", f"Episodio {s_ep}")
-                            p_path = f"https://image.tmdb.org/t/p/w500{data.get('still_path')}" if data.get("still_path") else ""
-                            
-                            # And the show title
-                            show_url = f"https://api.themoviedb.org/3/tv/{s_tmdb_id}?api_key={payload.tmdb_api_key}{lang_param}"
-                            s_res = requests.get(show_url)
-                            if s_res.status_code == 200:
-                                show_data = s_res.json()
-                                s_title = show_data.get("name", "")
-                                f_path = f"https://image.tmdb.org/t/p/original{show_data.get('backdrop_path')}" if show_data.get("backdrop_path") else ""
-                                
-                                cursor.execute("UPDATE watch_history SET title=?, show_title=?, poster_path=?, fanart_path=? WHERE id=?", (ep_title, s_title, p_path, f_path, h_id))
-                                
-                conn.commit()
-                conn.close()
-                print("Massive rescan completed successfully.")
-            except Exception as e:
-                print(f"Error in rescan_task: {e}")
-                
-        threading.Thread(target=rescan_task, daemon=True).start()
-        
-    return {"status": "success"}
+
+@app.get("/api/rescan/status", dependencies=[Depends(verify_api_key)])
+def get_rescan_status():
+    return rescan_status
 
 class UpdateIgnoreRequest(BaseModel):
     ignore_version: str = ""
@@ -3015,6 +3229,10 @@ class SetupData(BaseModel):
     tmdb_api_key: str
     dashboard_language: str = "auto"
     sync_language: str = "en"
+    poster_pref: str = "show"
+    fanart_pref: str = "episode"
+    poster_quality: str = "w185"
+    fanart_quality: str = "w300"
     auto_update: bool = True
     debug: bool = False
 
@@ -3062,6 +3280,10 @@ async def process_setup(data: SetupData):
         "TMDB_API_KEY=": f"TMDB_API_KEY={data.tmdb_api_key}",
         "SYNC_LANGUAGE=": f'SYNC_LANGUAGE="{data.sync_language}"',
         "DASHBOARD_LANGUAGE=": f'DASHBOARD_LANGUAGE="{data.dashboard_language}"',
+        "POSTER_PREF=": f'POSTER_PREF="{data.poster_pref}"',
+        "FANART_PREF=": f'FANART_PREF="{data.fanart_pref}"',
+        "POSTER_QUALITY=": f'POSTER_QUALITY="{data.poster_quality}"',
+        "FANART_QUALITY=": f'FANART_QUALITY="{data.fanart_quality}"',
         "AUTO_UPDATE=": f"AUTO_UPDATE={str(data.auto_update).lower()}",
         "DEBUG=": f"DEBUG={str(data.debug).lower()}",
         "API_TOKEN_RAW=": f"API_TOKEN_RAW={api_token}",
@@ -3071,6 +3293,13 @@ async def process_setup(data: SetupData):
     # Replace each line (acts exactly the same as the 'sed' command in your Bash)
     for key, value in replacements.items():
         env_content = re.sub(rf"^{key}.*", value, env_content, flags=re.MULTILINE)
+
+    print(f"[DEBUG SETUP] ---------------------------------------------", flush=True)
+    print(f"[DEBUG SETUP] VALORES EXTRAIDOS DEL FRONTEND PARA .ENV:", flush=True)
+    print(f"[DEBUG SETUP] POSTER_PREF = {data.poster_pref}", flush=True)
+    print(f"[DEBUG SETUP] FANART_PREF = {data.fanart_pref}", flush=True)
+    print(f"[DEBUG SETUP] TMDB_API_KEY = {data.tmdb_api_key}", flush=True)
+    print(f"[DEBUG SETUP] ---------------------------------------------", flush=True)
 
     # 4. Write the final file to the persistent data folder (ESCRITURA ATÓMICA)
     try:
@@ -3237,4 +3466,6 @@ def serve_index():
     return HTMLResponse(content=content)
 
 # Assemble the static files last for the rest of the resources (CSS, JS, images...)
+os.makedirs(CACHE_PATH, exist_ok=True)
+app.mount("/cache", StaticFiles(directory=CACHE_PATH), name="cache")
 app.mount("/", StaticFiles(directory="static"), name="static")

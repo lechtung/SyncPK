@@ -625,8 +625,8 @@
         text-decoration: underline
     }
 
-    .setup-select {
-        margin-bottom: 20px
+    .setup-select, .setup-dropdown {
+        margin-bottom: 20px;
     }
 
     #finish-overlay {

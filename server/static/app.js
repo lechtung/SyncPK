@@ -83,6 +83,29 @@ window.customConfirm = function (message) {
     });
 }
 
+// Alert-style dialog: reuses the confirm modal but hides the No button
+window.customAlert = function (message) {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('generic-confirm-modal');
+        const msgEl = document.getElementById('generic-confirm-message');
+        const btnYes = document.getElementById('generic-confirm-yes');
+        const btnNo = document.getElementById('generic-confirm-no');
+
+        msgEl.textContent = message;
+        btnNo.style.display = 'none';
+        modal.classList.remove('hidden');
+
+        const handleOk = () => {
+            modal.classList.add('hidden');
+            btnNo.style.display = '';
+            btnYes.removeEventListener('click', handleOk);
+            resolve();
+        };
+
+        btnYes.addEventListener('click', handleOk);
+    });
+}
+
 // --- FULLSCREEN OVERLAY SYSTEM ---
 function showProcessingOverlay(title, subtitle) {
     const overlay = document.getElementById('loading-overlay');
@@ -155,7 +178,17 @@ function hideOverlay(delay = 2000) {
 
 // Helper to get token value
 function getAuthToken() {
-    return localStorage.getItem('syncpk_token') || "";
+    return ""; // Token is now securely handled via HttpOnly cookies
+}
+
+function escapeHTML(str) {
+    if (!str) return "";
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
 
 // Wrapper for fetch to ensure auth is always sent
@@ -182,10 +215,15 @@ async function init() {
     // Check for updates
     checkUpdates();
 
-    // Check if token exists
-    if (getAuthToken()) {
-        showDashboard();
-    } else {
+    // Check if session is valid via HttpOnly cookie
+    try {
+        const res = await apiFetch('/api/config');
+        if (res.ok) {
+            showDashboard();
+        } else {
+            document.getElementById('login-overlay').classList.remove('hidden');
+        }
+    } catch (e) {
         document.getElementById('login-overlay').classList.remove('hidden');
     }
 
@@ -494,7 +532,6 @@ async function doLogin() {
         });
         if (res.ok) {
             const data = await res.json();
-            localStorage.setItem('syncpk_token', data.token);
             document.getElementById('login-overlay').classList.add('hidden');
             showDashboard();
         } else {
@@ -690,7 +727,8 @@ async function loadStats() {
 }
 
 function logout() {
-    localStorage.removeItem('syncpk_token');
+    // Session is handled via HttpOnly cookie. True logout would require a backend call.
+    // For now, we clear the UI.
     document.getElementById('dashboard').classList.add('hidden');
     document.getElementById('login-overlay').classList.remove('hidden');
 }
@@ -770,17 +808,23 @@ async function renderHistory(items) {
                     <div class="c-fanart-mask"></div>
                     <div class="c-fanart-overlay"></div>
                     <div class="card-content">
-                        <div class="card-title">${title}</div>
-                        <div class="card-subtitle">${subtitle}</div>
+                        <div class="card-title">${escapeHTML(title)}</div>
+                        <div class="card-subtitle">${escapeHTML(subtitle)}</div>
                         <div class="card-time">${timeStr}</div>
                     </div>
-                    <button class="kebab-menu-btn" onclick="toggleDropdown(${item.id}, event)">⋮</button>
+                    <button class="kebab-menu-btn">⋮</button>
                     <div class="kebab-dropdown glass-panel" id="dropdown-${item.id}">
-                        <div class="dropdown-item danger" onclick="deleteItem(${item.id}, '${item.media_type}')" data-i18n="action_delete">${currentLangData.action_delete || 'Delete'}</div>
-                        <div class="dropdown-item" onclick="openEditModal(${item.id}, '${item.watched_at}', '${item.media_type}')" data-i18n="action_edit">${currentLangData.action_edit || 'Edit'}</div>
+                        <div class="dropdown-item danger btn-del" data-i18n="action_delete">${currentLangData.action_delete || 'Delete'}</div>
+                        <div class="dropdown-item btn-edit" data-i18n="action_edit">${currentLangData.action_edit || 'Edit'}</div>
                     </div>
                 </div>
             `;
+
+            // Event Listeners instead of inline onclicks
+            card.querySelector('.kebab-menu-btn').addEventListener('click', (e) => toggleDropdown(item.id, e));
+            card.querySelector('.btn-del').addEventListener('click', () => deleteItem(item.id, item.media_type));
+            card.querySelector('.btn-edit').addEventListener('click', () => openEditModal(item.id, item.watched_at, item.media_type));
+
             cardsGrid.appendChild(card);
         }
     }
@@ -1217,6 +1261,8 @@ function setupConfigModal() {
                     document.getElementById('config-auto-update').checked = !!data.auto_update;
                     document.getElementById('config-notify-updates').checked = !!data.notify_updates;
 
+                    let pqDd = document.getElementById('configPosterQuality-dd'); if (pqDd) { let val = data.poster_quality || 'w185'; pqDd.dataset.currentValue = val; pqDd.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected')); let match = Array.from(pqDd.querySelectorAll('.c-dropdown-item')).find(i => i.dataset.value === val); if (match) { match.classList.add('selected'); document.getElementById('configPosterQuality-val').innerText = match.innerText; } }
+                    let fqDd = document.getElementById('configFanartQuality-dd'); if (fqDd) { let val = data.fanart_quality || 'w300'; fqDd.dataset.currentValue = val; fqDd.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected')); let match = Array.from(fqDd.querySelectorAll('.c-dropdown-item')).find(i => i.dataset.value === val); if (match) { match.classList.add('selected'); document.getElementById('configFanartQuality-val').innerText = match.innerText; } }
                     let posterDd = document.getElementById('configPosterPref-dd');
                     if (posterDd) {
                         let val = data.poster_pref || 'show';
@@ -1444,6 +1490,8 @@ function setupConfigModal() {
         const newDashLang = document.getElementById('configDashboardLang-dd').dataset.currentValue || 'auto';
         const newPoster = document.getElementById('configPosterPref-dd').dataset.currentValue || 'show';
         const newFanart = document.getElementById('configFanartPref-dd').dataset.currentValue || 'episode';
+        const newPosterQ = document.getElementById('configPosterQuality-dd').dataset.currentValue || 'w185';
+        const newFanartQ = document.getElementById('configFanartQuality-dd').dataset.currentValue || 'w300';
         const pwd = pwdInput.value;
 
         const payload = {
@@ -1457,7 +1505,7 @@ function setupConfigModal() {
             sync_language: newLang,
             dashboard_language: newDashLang,
             poster_pref: newPoster,
-            fanart_pref: newFanart,
+            fanart_pref: newFanart, poster_quality: newPosterQ, fanart_quality: newFanartQ,
             ui_poster_w: document.getElementById('config-poster-w').value,
             ui_poster_h: document.getElementById('config-poster-h').value,
             ui_fanart_w: document.getElementById('config-fanart-w').value,
@@ -1492,6 +1540,10 @@ function setupConfigModal() {
             let confirmed = await window.customConfirm(rescanConfirmMsg);
             if (confirmed) {
                 payload.force_rescan = true;
+                let clearConfirmed = await window.customConfirm("¿Deseas borrar la caché de imágenes para forzar la descarga con la nueva calidad?");
+                if (clearConfirmed) {
+                    payload.clear_cache = true;
+                }
             }
         }
 
@@ -1506,18 +1558,42 @@ function setupConfigModal() {
             if (res.ok) {
                 const data = await res.json();
                 if (data.status === 'success') {
-                    let successTitle = currentLangData.config_saved || 'Settings saved.';
 
                     if (data.rescan_started) {
-                        updateOverlayResult('success', currentLangData.config_saved_rescan || 'Settings saved. Rescan started in background.');
+                        // Show rescan-started feedback, then poll until done
+                        updateOverlayResult('success', currentLangData.config_saved_rescan || 'Settings saved. Rescan running in background...');
+                        hideOverlay(2500);
+
+                        const pollRescan = setInterval(async () => {
+                            try {
+                                let sr = await apiFetch('/api/rescan/status');
+                                if (sr.ok) {
+                                    let sd = await sr.json();
+                                    if (sd.done) {
+                                        clearInterval(pollRescan);
+                                        let successMsg = currentLangData.rescan_done || 'Rescan completed!';
+                                        let hintMsg = currentLangData.rescan_reload_hint || 'Click anywhere to reload.';
+                                        updateOverlayResult('success', successMsg, hintMsg);
+                                        const overlay = document.getElementById('loading-overlay');
+                                        overlay.onclick = function () {
+                                            window.location.reload(true);
+                                        };
+                                        overlay.classList.remove('hidden');
+                                    }
+                                }
+                            } catch (e) { /* network hiccup, keep polling */ }
+                        }, 10000);
+
                     } else {
+                        let successTitle = currentLangData.config_saved || 'Settings saved.';
                         updateOverlayResult('success', successTitle);
+                        if (newDashLang !== origDashLang) {
+                            setTimeout(() => window.location.reload(true), 3000);
+                        } else {
+                            hideOverlay(3000);
+                        }
                     }
-                    if (newDashLang !== origDashLang) {
-                        setTimeout(() => window.location.reload(true), 3000);
-                    } else {
-                        hideOverlay(3000);
-                    }
+
                 } else {
                     updateOverlayResult('error', currentLangData.config_save_error || 'Error saving settings.');
                     hideOverlay(3000);
@@ -1859,3 +1935,56 @@ function initPickers() {
 }
 
 initPickers();
+
+
+// WebSocket for live updates
+let ws;
+function connectWebSocket() {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(`${protocol}//${window.location.host}/ws/updates`);
+
+    ws.onmessage = function (event) {
+        try {
+            const data = JSON.parse(event.data);
+            if (data.type === 'batch_update' && data.items) {
+                data.items.forEach(item => {
+                    // Actualizar las tarjetas si existen en el DOM
+                    const card = document.querySelector(`.card[data-id="${item.id}"]`);
+                    if (card) {
+                        const img = card.querySelector('.card-poster');
+                        if (img && item.poster_path) {
+                            // Añadimos cache-buster para forzar recarga
+                            img.src = item.poster_path + '?t=' + new Date().getTime();
+                        }
+                        const title = card.querySelector('.card-title');
+                        if (title && item.title) {
+                            title.textContent = item.title;
+                        }
+                        // Actualizar data attributes para el panel derecho si está abierto
+                        card.dataset.title = item.title;
+                        card.dataset.showTitle = item.show_title;
+                        card.dataset.posterPath = item.poster_path;
+                        card.dataset.fanartPath = item.fanart_path;
+
+                        // Si es la tarjeta seleccionada, actualizar el panel derecho
+                        if (card.classList.contains('active')) {
+                            updateDetailView(card);
+                        }
+                    }
+                });
+            }
+        } catch (e) {
+            console.error("Error processing websocket message", e);
+        }
+    };
+
+    ws.onclose = function () {
+        // Reconnect after 3 seconds
+        setTimeout(connectWebSocket, 3000);
+    };
+}
+
+// Call on load
+document.addEventListener('DOMContentLoaded', () => {
+    connectWebSocket();
+});
