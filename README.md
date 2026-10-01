@@ -4,6 +4,8 @@
 
 # SyncPK: Two-Way Kodi & Plex Sync Server
 
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+
 SyncPK is a self-hosted, lightweight two-way synchronization tool designed to keep your **Kodi** and **Plex** watch history perfectly aligned. 
 
 Whether you watch a movie on your TV using Kodi or catch up on a series on your phone using Plex, SyncPK ensures both platforms instantly reflect the watched status without infinite synchronization loops.
@@ -25,7 +27,7 @@ Everything is secured by **SHA-256 salted hashes** and **Plex PIN OAuth** for a 
 Before installing, you will need two things:
 
 ### 1. Plex Account (OAuth)
-The setup uses a secure OAuth flow to connect with your Plex server. During the web setup, you will be prompted to log in to Plex via a secure PIN link (e.g., `https://plex.tv/link`). You simply visit that link, authorize SyncPK, and the setup will securely configure your server automatically.
+The setup uses a secure OAuth flow to connect with your Plex server. During the web setup, you will be prompted to log in to Plex via a secure PIN link that automatically opens (e.g., `https://app.plex.tv/auth`). You simply visit that link, authorize SyncPK, and the setup will securely configure your server automatically.
 
 ### 2. TMDB API Key
 This is required to fetch movie/show posters and durations for your dashboard.
@@ -98,10 +100,50 @@ Once the server is running, you need to install the Kodi addon on your media pla
 
 1. Zip the `kodi_addon` folder and install it in Kodi via "Install from zip file".
 2. Go to the Addon Settings.
-3. In the **Servidor SyncPK** tab, configure:
-   - **URL del Webhook**: `http://<YOUR_SERVER_IP>:8000/webhook/kodi`
-   - **Contraseña del Servidor**: The Master Password you chose during the installation script.
+3. In the **SyncPK Server** tab, configure:
+   - **Webhook URL**: `http://<YOUR_SERVER_IP>:8000/webhook/kodi`
+   - **Server Password**: The Master Password you chose during the installation script.
 4. Restart Kodi. It will automatically perform a full sync!
+
+---
+
+---
+
+## 🔒 Ports & Firewall
+
+SyncPK runs on port `8000` by default. If your server has an active firewall (like `ufw`), you must open this port to allow connections from your web browser, Plex, and Kodi:
+
+```bash
+sudo ufw allow 8000/tcp
+```
+
+---
+
+## 💾 Backup & Restore
+
+All your configuration, hashed passwords, and the synchronized watch history are securely stored in a single folder. 
+To backup your entire SyncPK instance, you only need to copy the data directory:
+- **Baremetal / Proxmox**: `/var/lib/syncpk/` (specifically the `sync.db` and `.env` files).
+- **Docker**: The `./data` folder mapped in your `docker-compose.yml`.
+
+---
+
+## 🗑️ Uninstallation
+
+If you wish to remove SyncPK completely:
+
+**For Proxmox LXC**: Simply destroy the container from your Proxmox web interface.
+
+**For Baremetal**: 
+```bash
+sudo systemctl stop syncpk-server syncpk-updater.timer syncpk-updater.path
+sudo systemctl disable syncpk-server syncpk-updater.timer syncpk-updater.path
+sudo rm -rf /opt/syncpk /var/lib/syncpk /etc/systemd/system/syncpk*
+sudo systemctl daemon-reload
+sudo userdel syncpk
+```
+
+**For Docker**: Run `docker compose down -v` and delete the folder.
 
 ---
 
@@ -110,3 +152,9 @@ Once the server is running, you need to install the Kodi addon on your media pla
 SyncPK uses the following open-source libraries:
 
 - **[Pickr](https://github.com/Simonwep/pickr)** by Simonwep: A flat, simple, and elegant color-picker used in the dashboard's appearance configuration.
+
+---
+
+## 📄 License
+
+This project is licensed under the GNU General Public License v3.0 (GPL-3.0). See the [LICENSE](LICENSE) file for details.

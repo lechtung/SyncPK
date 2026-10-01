@@ -119,7 +119,8 @@ async def setup_guard(request, call_next):
 PLEX_URL = os.getenv("PLEX_URL", "")
 PLEX_TOKEN = os.getenv("PLEX_TOKEN", "")
 TMDB_API_KEY = os.getenv("TMDB_API_KEY", "")
-SALT = os.getenv("SALT", "")
+SALT = os.getenv("SALT", "")          # Used for API token verification (SHA-256, high-entropy token)
+WEB_SALT = os.getenv("WEB_SALT", "")  # Dedicated salt for the web password (scrypt KDF)
 WEB_HASH = os.getenv("WEB_HASH", "")
 API_HASH = os.getenv("API_HASH", "")
 HAS_PLEX_PASS = os.getenv("HAS_PLEX_PASS", "false").lower() == "true"
@@ -131,7 +132,7 @@ plex_headers = {"Accept": "application/json", "X-Plex-Token": PLEX_TOKEN}
 def reload_settings():
     """Re-read all global security/config variables from the .env file.
     Call this any time the .env is written (setup wizard, save config, restore)."""
-    global PLEX_URL, PLEX_TOKEN, TMDB_API_KEY, SALT, WEB_HASH, \
+    global PLEX_URL, PLEX_TOKEN, TMDB_API_KEY, SALT, WEB_SALT, WEB_HASH, \
            API_HASH, HAS_PLEX_PASS, PLEX_CLIENT_ID, FANART_MASK_OPACITY, plex_headers
     # Re-parse .env into os.environ first
     if os.path.exists(ENV_PATH):
@@ -146,6 +147,7 @@ def reload_settings():
     PLEX_TOKEN         = os.getenv("PLEX_TOKEN", "")
     TMDB_API_KEY       = os.getenv("TMDB_API_KEY", "")
     SALT               = os.getenv("SALT", "")
+    WEB_SALT           = os.getenv("WEB_SALT", "")
     WEB_HASH           = os.getenv("WEB_HASH", "")
     API_HASH           = os.getenv("API_HASH", "")
     HAS_PLEX_PASS      = os.getenv("HAS_PLEX_PASS", "false").lower() == "true"
@@ -195,7 +197,7 @@ def verify_webhook_token(token: Optional[str] = Query(None)):
 
 
 def init_db():
-    conn = sqlite3.connect("sync.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS watch_history (
@@ -284,8 +286,8 @@ import httpx
 import asyncio
 import os
 
-os.makedirs("static/cache/posters", exist_ok=True)
-os.makedirs("static/cache/fanarts", exist_ok=True)
+os.makedirs(os.path.join(CACHE_PATH, "posters"), exist_ok=True)
+os.makedirs(os.path.join(CACHE_PATH, "fanarts"), exist_ok=True)
 
 tmdb_semaphore = asyncio.Semaphore(10)
 
@@ -444,7 +446,7 @@ def download_episode_fanart_tmdb_sync(show_tmdb_id, season, episode):
 
 async def bulk_download_tmdb_images():
     print("Starting bulk TMDB image download for missing posters...")
-    conn = sqlite3.connect("sync.db")
+    conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute("SELECT DISTINCT tmdb_id FROM watch_history WHERE media_type='movie' AND poster_path IS NULL AND tmdb_id IS NOT NULL")
@@ -620,7 +622,7 @@ async def plex_webhook(request: Request):
         
     payload = json.loads(payload_str)
     
-    conn = sqlite3.connect("sync.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     if process_plex_payload(payload, cursor):
         conn.commit()
@@ -635,7 +637,7 @@ async def kodi_webhook(request: Request):
     except Exception:
         return {"status": "error", "message": "Invalid JSON"}
         
-    conn = sqlite3.connect("sync.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     if process_kodi_payload(payload, cursor):
         conn.commit()
@@ -794,7 +796,7 @@ async def kodi_webhook_bulk(request: Request):
     if not isinstance(payloads, list):
         return {"status": "error", "message": "Expected a list"}
         
-    conn = sqlite3.connect("sync.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     count = 0
     for p in payloads:
@@ -812,7 +814,7 @@ class ConfirmSyncRequest(BaseModel):
 def confirm_kodi_sync(req: ConfirmSyncRequest):
     if not req.ids:
         return {"status": "success", "deleted": 0}
-    conn = sqlite3.connect("sync.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     placeholders = ",".join("?" for _ in req.ids)
     cursor.execute(f"DELETE FROM deleted_history WHERE id IN ({placeholders})", req.ids)
@@ -822,7 +824,7 @@ def confirm_kodi_sync(req: ConfirmSyncRequest):
 
 @app.get("/sync/all-items", dependencies=[Depends(verify_api_key)])
 def get_all_items(client: Optional[str] = Query("kodi"), date_from: Optional[str] = Query(None)):
-    conn = sqlite3.connect("sync.db")
+    conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
@@ -917,15 +919,25 @@ class LoginRequest(BaseModel):
 def login(req: LoginRequest):
     if not WEB_HASH:
         return {"success": True, "token": "Basic no-auth"}
-        
-    pwd_hash = hashlib.sha256((req.password + SALT).encode()).hexdigest()
+
+    # Use scrypt (slow KDF) to verify the password against WEB_SALT+WEB_HASH.
+    # Falls back to SHA-256 if WEB_SALT is missing (legacy installs).
+    if WEB_SALT:
+        pwd_hash = hashlib.scrypt(
+            req.password.encode(),
+            salt=WEB_SALT.encode(),
+            n=16384, r=8, p=1
+        ).hex()
+    else:
+        pwd_hash = hashlib.sha256((req.password + SALT).encode()).hexdigest()
+
     if hmac.compare_digest(pwd_hash, WEB_HASH):
         return {"success": True, "token": f"Basic {req.password}"}
     raise HTTPException(status_code=401, detail="Invalid password")
 
 @app.get("/api/history")
 def get_history(limit: int = 20, offset: int = 0, type: str = "all", year: str = "all", month: str = "all", search: str = "", authorization: str = Depends(verify_api_key)):
-    conn = sqlite3.connect("sync.db")
+    conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
@@ -962,7 +974,7 @@ def get_history(limit: int = 20, offset: int = 0, type: str = "all", year: str =
 
 @app.get("/api/stats")
 def get_stats(type: str = "all", year: str = "all", month: str = "all", search: str = "", authorization: str = Depends(verify_api_key)):
-    conn = sqlite3.connect("sync.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
     base_query = " FROM watch_history WHERE 1=1"
@@ -1044,7 +1056,7 @@ def download_logs():
 def delete_history_item(item_id: int, scope: str = "episode", sync_remote: bool = False, authorization: str = Depends(verify_api_key)):
     if os.getenv("DEBUG") == "true":
         print(f"[DEBUG] delete_history_item: Deleting item_id {item_id}, scope={scope}, sync_remote={sync_remote}")
-    conn = sqlite3.connect("sync.db")
+    conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
@@ -1176,7 +1188,6 @@ def mutate_plex_activity(node_id, action, watched_at_graphql=None, title="", max
             r = requests.post(url, headers=headers, json=payload, timeout=10)
             if r.status_code == 200:
                 resp_json = r.json()
-                import os
                 if os.getenv("DEBUG") == "true":
                     print(f"[DEBUG] mutate_plex_activity response for '{title}': {resp_json}", flush=True)
                     
@@ -1200,10 +1211,6 @@ def mutate_plex_activity(node_id, action, watched_at_graphql=None, title="", max
 # -------------------------------------------
 
 def unscrobble_plex(item):
-    import requests
-    import datetime
-    import os
-    
     is_debug = os.getenv("DEBUG") == "true"
     
     plex_guid = item.get("plex_guid")
@@ -1292,7 +1299,7 @@ def unscrobble_plex(item):
         else:
             matched = match_show({"show": {"title": show_title}}, plex_shows, show_tmdb_id)
             if matched:
-                parent_key = matched.get("ratingKey")
+                parent_key = matched  # match_show returns ratingKey string directly
                 ep_url = f"{PLEX_URL}/library/metadata/{parent_key}/allLeaves"
                 try:
                     req = urllib.request.Request(ep_url, headers=plex_headers)
@@ -1455,7 +1462,6 @@ def get_cloud_episodes_for_scope(plex_show_guid, ref_season, ref_episode, scope)
 
 
 def get_items_for_scope(item: dict, scope: str, cursor) -> list:
-    import os
     items_to_modify = []
     
     if item.get("media_type") == "episode" and scope != "episode":
@@ -1503,7 +1509,7 @@ def get_items_for_scope(item: dict, scope: str, cursor) -> list:
 @app.put("/api/history/{item_id}")
 
 def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: str = Depends(verify_api_key)):
-    conn = sqlite3.connect("sync.db")
+    conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
@@ -1647,7 +1653,7 @@ def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: 
                 
         if should_update_db:
             success_count += 1
-            conn_update = sqlite3.connect("sync.db")
+            conn_update = sqlite3.connect(DB_PATH)
             conn_update.row_factory = sqlite3.Row
             c_update = conn_update.cursor()
             
@@ -1879,7 +1885,7 @@ def push_all_to_db():
                     break
 
     # Phase B: Immediate Extraction and Insertion
-    conn = sqlite3.connect("sync.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     count = 0
     seen_keys = set()
@@ -1942,13 +1948,6 @@ def push_all_to_db():
     conn.close()
     print(f"✅ Initial Sync completed! {count} items processed.")
     
-    if os.path.exists("_DUPLICATE_FIX"):
-        try:
-            os.remove("_DUPLICATE_FIX")
-            print("🗑️ Archivo _DUPLICATE_FIX borrado tras finalizar la carga inicial.")
-        except Exception as e:
-            print(f"Error borrando _DUPLICATE_FIX: {e}")
-
 def push_recent_to_db(last_sync_utc_str):
     print("Starting INCREMENTAL PUSH from Plex to local DB...")
     try:
@@ -1983,14 +1982,14 @@ def push_recent_to_db(last_sync_utc_str):
                 m_type = item_data.get("type")
                 if m_type in ["movie", "episode"]:
                     history_map = {r_key: viewed_at}
-                    payload = build_payload_from_plex(item_data, m_type, history_map, viewed_at)
+                    payload = build_payload_from_plex(item_data, m_type)
                     if payload:
                         payloads.append(payload)
         except Exception as e:
-            pass
+            print(f"[push_recent_to_db] Error processing ratingKey {r_key}: {e}")
             
     if payloads:
-        conn = sqlite3.connect("sync.db")
+        conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         for p in payloads:
             process_plex_payload(p, cursor, is_bulk=False)
@@ -2003,9 +2002,10 @@ def get_plex_items_map():
     plex_shows = []
     sections = get_plex_libraries()
     
-    for sec_id in sections:
+    for sec in sections:
         try:
-            r = requests.get(f"{PLEX_URL}/library/sections/{sec_id}/all", headers=plex_headers)
+            sec_key = sec["key"]
+            r = requests.get(f"{PLEX_URL}/library/sections/{sec_key}/all", headers=plex_headers)
             if r.status_code == 200:
                 items = r.json().get("MediaContainer", {}).get("Metadata", [])
                 for item in items:
@@ -2013,8 +2013,8 @@ def get_plex_items_map():
                         plex_movies.append(item)
                     elif item.get("type") == "show":
                         plex_shows.append(item)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[get_plex_items_map] Error on section {sec}: {e}")
     return plex_movies, plex_shows
 
 def match_movie(movie_data, plex_movies, tmdb_id=None):
@@ -2041,7 +2041,7 @@ def match_show(show_data, plex_shows, show_tmdb_id=None):
 def push_cloud_orphans_to_db():
     print("Starting SMART EXTRACTOR V2 from Plex Cloud to local DB...")
     
-    conn = sqlite3.connect("sync.db")
+    conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
@@ -2408,7 +2408,7 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
         print(f"[DEBUG] manual_add: Triggered for {req.media_type} '{req.title}', sync_remote={req.sync_remote}")
     try:
         # --- PHASE 0: Check for duplicate in local DB ---
-        conn_check = sqlite3.connect("sync.db")
+        conn_check = sqlite3.connect(DB_PATH)
         conn_check.row_factory = sqlite3.Row
         cur_check = conn_check.cursor()
         if req.media_type == "movie":
@@ -2433,9 +2433,6 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
         target_rating_key = None
         try:
             # 1. Search in Plex Cloud (discover.provider.plex.tv)
-            import urllib.parse
-            import os
-            
             search_type = "movies" if req.media_type == "movie" else "tv"
             search_lang = os.getenv("SYNC_LANGUAGE", "es")
             cloud_headers = {
@@ -2617,7 +2614,7 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
         except Exception as e:
             print(f"[manual_add] Error downloading images for '{req.title}': {e}")
 
-        conn = sqlite3.connect("sync.db")
+        conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         d_obj = datetime.datetime.fromisoformat(req.watched_at.replace('Z', '+00:00'))
         final_watched_at = d_obj.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -2810,17 +2807,22 @@ def save_config(payload: ConfigPayload):
                 print(f"Error checking plex pass: {e}")
         
         if payload.master_password:
-            salt = env_vars.get("SALT", os.getenv("SALT", ""))
-            new_hash = hashlib.sha256((payload.master_password + salt).encode()).hexdigest()
+            # Generate a fresh dedicated salt and hash with scrypt (slow KDF, not SHA-256)
+            new_web_salt = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(16))
+            new_hash = hashlib.scrypt(
+                payload.master_password.encode(),
+                salt=new_web_salt.encode(),
+                n=16384, r=8, p=1
+            ).hex()
+            env_vars["WEB_SALT"] = new_web_salt
             env_vars["WEB_HASH"] = new_hash
-            
-        
+
         # Update .env while preserving comments
         env_lines = []
         if os.path.exists(env_path):
             with open(env_path, "r", encoding="utf-8") as f:
                 env_lines = f.readlines()
-                
+
         # Create a dict of variables we need to update in the file
         updates = {
             "PLEX_URL": payload.plex_url,
@@ -2859,6 +2861,7 @@ def save_config(payload: ConfigPayload):
             "FANART_MASK_OPACITY": payload.fanart_mask_opacity
         }
         if payload.master_password:
+            updates["WEB_SALT"] = env_vars.get("WEB_SALT", "")
             updates["WEB_HASH"] = env_vars.get("WEB_HASH", "")
             
         new_env_lines = []
@@ -2947,7 +2950,7 @@ def restore_config():
         def rescan_task():
             print(f"Starting rescan to adapt to language: {payload.sync_language}")
             try:
-                conn = sqlite3.connect("sync.db")
+                conn = sqlite3.connect(DB_PATH)
                 cursor = conn.cursor()
                 cursor.execute("SELECT id, tmdb_id, show_tmdb_id, media_type, season, episode FROM watch_history")
                 rows = cursor.fetchall()
@@ -3021,18 +3024,26 @@ async def process_setup(data: SetupData):
     if os.path.exists(ENV_PATH):
         return {"error": "La instalación ya ha sido completada previamente."}
 
-    # 1. Generate tokens and hashes (exact replica of the logic in your setup_config.sh)
+    # 1. Generate tokens and hashes
     alphabet = string.ascii_letters + string.digits
+    # SALT: for API token verification (SHA-256 is fine for high-entropy random tokens)
     salt = ''.join(secrets.choice(alphabet) for _ in range(16))
-    
-    web_hash = hashlib.sha256((data.password + salt).encode('utf-8')).hexdigest()
-    
+    # WEB_SALT: dedicated salt for the web password, used with scrypt (slow KDF)
+    web_salt = ''.join(secrets.choice(alphabet) for _ in range(16))
+
+    # Web password hash: scrypt instead of SHA-256 (resistant to brute-force/dictionary attacks)
+    web_hash = hashlib.scrypt(
+        data.password.encode('utf-8'),
+        salt=web_salt.encode('utf-8'),
+        n=16384, r=8, p=1
+    ).hex()
+
     api_token_raw = ''.join(secrets.choice(alphabet) for _ in range(32))
     api_token = f"sk_{api_token_raw}"
     api_hash = hashlib.sha256((api_token + salt).encode('utf-8')).hexdigest()
 
     # 2. Read the immutable template (always from the codebase folder)
-    example_path = ".env.example" 
+    example_path = ".env.example"
     if not os.path.exists(example_path):
         return {"error": "Plantilla .env.example no encontrada en el directorio base."}
 
@@ -3045,6 +3056,7 @@ async def process_setup(data: SetupData):
         "PLEX_TOKEN=": f"PLEX_TOKEN={data.plex_token}",
         "HAS_PLEX_PASS=": f"HAS_PLEX_PASS={str(data.has_plex_pass).lower()}",
         "SALT=": f"SALT={salt}",
+        "WEB_SALT=": f"WEB_SALT={web_salt}",
         "WEB_HASH=": f"WEB_HASH={web_hash}",
         "API_HASH=": f"API_HASH={api_hash}",
         "TMDB_API_KEY=": f"TMDB_API_KEY={data.tmdb_api_key}",
@@ -3105,9 +3117,20 @@ async def process_setup(data: SetupData):
 
 @app.get("/api/update/status", dependencies=[Depends(verify_api_key)])
 def update_status():
-    update_available = os.getenv("UPDATE_AVAILABLE", "")
+    # Read directly from .env so check_update.sh changes are visible without restart
+    update_available = ""
     ignored_version = os.getenv("IGNORED_UPDATE_VERSION", "")
     notify_updates = os.getenv("NOTIFY_UPDATES", "true").lower() == "true"
+    try:
+        if os.path.exists(ENV_PATH):
+            with open(ENV_PATH, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("UPDATE_AVAILABLE="):
+                        update_available = line.split("=", 1)[1].strip().strip('"').strip("'")
+                        break
+    except Exception:
+        update_available = os.getenv("UPDATE_AVAILABLE", "")
     
     if update_available and update_available != ignored_version and notify_updates:
         return {"has_update": True, "version": update_available}
@@ -3193,7 +3216,7 @@ def update_trigger():
 
 # --- SERVE FRONTEND ---
 # Mount the static folder at the end to avoid overwriting routes /api/
-os.makedirs("static", exist_ok=True)
+os.makedirs(os.path.join(DATA_DIR, "static"), exist_ok=True)
 @app.get("/")
 def serve_index():
     # We select the file based on whether the .env file exists.
