@@ -5,6 +5,7 @@ let historyData = [];
 let offset = 0;
 let limit = 20;
 let hasMore = true;
+let isSyncing = false;
 let isLoading = false;
 let currentFilters = { type: 'all', year: 'all', month: 'all', search: '' };
 let statsCache = { movies: 0, moviesHours: 0, episodes: 0, episodesHours: 0 };
@@ -631,7 +632,7 @@ async function reloadHistory() {
     document.getElementById('history-feed').innerHTML = '';
     statsCache.moviesHours = 0;
     statsCache.episodesHours = 0;
-    loadStats(); // Refrescar las tarjetas de estadísticas globales
+    await loadStats(); // Await so that isSyncing updates before loading the history
     await loadMoreHistory();
 }
 
@@ -649,10 +650,23 @@ async function loadMoreHistory() {
         let data = await res.json();
         let newItems = data.items || [];
 
-        if (newItems.length < limit) hasMore = false;
+        // We block scrolling temporarily or permanently if we reach the current end.
+        if (newItems.length < limit) {
+            if (!isSyncing) {
+                // Permanently blocked (until a websocket releases it if something new comes in)
+                hasMore = false;
+            } else {
+                // During database import (state 1), the database grows by the second.
+                // If we permanently lock it, we'll be stuck halfway through.
+                // But if we don't lock it, the scroll bar vibrates at 50Hz against the background.
+                // Solution: Lock it for 2 seconds and then allow scrolling again.
+                hasMore = false;
+                setTimeout(() => { hasMore = true; }, 2000);
+            }
+        }
 
         historyData = historyData.concat(newItems);
-        offset += limit;
+        offset += newItems.length;
 
         if (historyData.length === 0) {
             let emptyMsg = currentLangData.empty_state_msg || 'Run to the TV and put on a good movie!';
@@ -660,6 +674,38 @@ async function loadMoreHistory() {
         } else {
             await renderHistory(newItems);
             generateTimeline(); // Refresh dots after new data
+
+            // Dynamically update the year combo box during the initial import
+            if (isSyncing) {
+                let menu = document.getElementById('dd-year-menu');
+                let dd = document.getElementById('dd-year');
+                if (menu && dd) {
+                    let existingYears = Array.from(menu.querySelectorAll('.c-dropdown-item')).map(el => el.dataset.value);
+                    newItems.forEach(item => {
+                        if (item.watched_at) {
+                            let y = new Date(item.watched_at).getFullYear().toString();
+                            if (!existingYears.includes(y)) {
+                                existingYears.push(y);
+                                let div = document.createElement('div');
+                                div.className = 'c-dropdown-item';
+                                div.dataset.value = y;
+                                div.textContent = y;
+                                div.addEventListener('click', (e) => {
+                                    e.stopPropagation();
+                                    dd.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected'));
+                                    div.classList.add('selected');
+                                    let valEl = dd.querySelector('.c-dropdown-value');
+                                    if (valEl) valEl.textContent = div.textContent;
+                                    dd.classList.remove('open');
+                                    currentFilters.year = y;
+                                    reloadHistory();
+                                });
+                                menu.appendChild(div);
+                            }
+                        }
+                    });
+                }
+            }
         }
     } catch (e) {
         console.error(e);
@@ -695,7 +741,9 @@ async function loadStats() {
 
             // Handle sync banner
             let banner = document.getElementById('sync-banner');
-            if (data.sync_state === 1 || data.sync_state === 2) {
+            isSyncing = (data.sync_state === 1); // Solo true durante la inserción de BD
+
+            if (data.sync_state === 1 || data.sync_state === 2 || data.sync_state === 3) {
                 if (!banner) {
                     banner = document.createElement('div');
                     banner.id = 'sync-banner';
@@ -703,14 +751,18 @@ async function loadStats() {
                     feed.parentNode.insertBefore(banner, feed);
                 }
 
-                if (data.sync_state === 1) {
+                if (data.sync_state === 1 || data.sync_state === 3) {
                     banner.style.cssText = "background-color: rgba(255, 152, 0, 0.2); color: #ffb74d; border: 1px solid #ffb74d; padding: 15px 20px; text-align: center; font-weight: bold; margin-bottom: 20px; border-radius: 8px; display: flex; justify-content: center; align-items: center; gap: 20px; flex-wrap: wrap;";
                     let msg = currentLangData.sync_in_progress_msg || 'The server is still performing the initial load. Some images or metadata might not be available.';
-                    banner.innerHTML = `<span>${msg}</span><button id="btn-view-logs" style="padding: 6px 12px; background: #ffb74d; color: #000; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; font-family: 'Inter', sans-serif;">Ver Terminal</button>`;
+                    if (data.sync_state === 3) {
+                        msg = currentLangData.sync_state_3 || "Database is ready. Downloading artwork in the background...";
+                    }
+                    let btnText = currentLangData.btn_view_logs || "View Terminal";
+                    banner.innerHTML = `<span>${msg}</span><button id="btn-view-logs" style="padding: 6px 12px; background: #ffb74d; color: #000; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; font-family: 'Inter', sans-serif;">${btnText}</button>`;
 
                     document.getElementById('btn-view-logs').addEventListener('click', openLogViewer);
 
-                    // Start the polling loop while in state 1
+                    // Start the polling loop while in state 1 or 3
                     startSyncPolling();
                 } else if (data.sync_state === 2) {
                     banner.style.cssText = "background-color: rgba(76, 175, 80, 0.2); color: #81c784; border: 1px solid #81c784; padding: 15px 20px; text-align: center; font-weight: bold; margin-bottom: 20px; border-radius: 8px;";
@@ -795,8 +847,10 @@ async function renderHistory(items) {
                 }
             };
 
-            let posterStyle = item.poster_path ? `background-image: url('${item.poster_path}')` : 'background-color: #333';
-            let bgStyle = item.fanart_path ? `background-image: url('${item.fanart_path}')` : 'background-color: #111';
+            let pUrl = item.poster_path ? (item.poster_path.startsWith('http') || item.poster_path.startsWith('/') ? item.poster_path : `/cache/posters/${item.poster_path}`) : null;
+            let fUrl = item.fanart_path ? (item.fanart_path.startsWith('http') || item.fanart_path.startsWith('/') ? item.fanart_path : `/cache/fanarts/${item.fanart_path}`) : null;
+            let posterStyle = pUrl ? `background-image: url('${pUrl}')` : 'background-color: #333';
+            let bgStyle = fUrl ? `background-image: url('${fUrl}')` : 'background-color: #111';
 
             let timeStr = new Date(item.watched_at).toLocaleTimeString(navigator.language, { hour: '2-digit', minute: '2-digit' });
             let title = item.media_type === 'movie' ? item.title : item.show_title;
@@ -1947,15 +2001,24 @@ function connectWebSocket() {
         try {
             const data = JSON.parse(event.data);
             if (data.type === 'batch_update' && data.items) {
+                let hasNewItems = false;
                 data.items.forEach(item => {
                     // Actualizar las tarjetas si existen en el DOM
-                    const card = document.querySelector(`.card[data-id="${item.id}"]`);
+                    const card = document.getElementById(`card-${item.id}`);
+                    if (!card) { hasNewItems = true; }
                     if (card) {
-                        const img = card.querySelector('.card-poster');
+                        const img = card.querySelector('.c-poster');
                         if (img && item.poster_path) {
-                            // Añadimos cache-buster para forzar recarga
-                            img.src = item.poster_path + '?t=' + new Date().getTime();
+                            let pUrl = (item.poster_path.startsWith('http') || item.poster_path.startsWith('/')) ? item.poster_path : `/cache/posters/${item.poster_path}`;
+                            img.style.backgroundImage = `url('${pUrl}?t=${new Date().getTime()}')`;
                         }
+
+                        const fanart = card.querySelector('.c-fanart-content');
+                        if (fanart && item.fanart_path) {
+                            let fUrl = (item.fanart_path.startsWith('http') || item.fanart_path.startsWith('/')) ? item.fanart_path : `/cache/fanarts/${item.fanart_path}`;
+                            fanart.style.backgroundImage = `url('${fUrl}?t=${new Date().getTime()}')`;
+                        }
+
                         const title = card.querySelector('.card-title');
                         if (title && item.title) {
                             title.textContent = item.title;
@@ -1972,6 +2035,16 @@ function connectWebSocket() {
                         }
                     }
                 });
+
+                // We reactivated infinite scrolling in case it had been blocked.
+                if (hasNewItems) {
+                    hasMore = true;
+                    // If the user is at the bottom of the page (or there is no scrollbar because there are few items), 
+                    // we auto-load them so they appear on the screen
+                    if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 200) {
+                        loadMoreHistory();
+                    }
+                }
             }
         } catch (e) {
             console.error("Error processing websocket message", e);

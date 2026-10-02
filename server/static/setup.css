@@ -262,6 +262,7 @@
 
     .step-nav {
         display: flex;
+        flex-direction: row-reverse;
         gap: 12px;
         margin-top: 28px
     }

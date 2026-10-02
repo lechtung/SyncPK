@@ -57,6 +57,8 @@
   "empty_state_msg": "快去电视机前看部好电影吧！",
   "error_state_msg": "连接数据库错误或正在扫描...",
   "sync_in_progress_msg": "服务器正在进行初始加载。某些图片或元数据可能尚不可用。请暂时不要配置Plex或Kodi webhooks。",
+  "sync_state_3": "数据库已准备就绪。正在后台下载图库...",
+  "btn_view_logs": "查看终端",
   "sync_done_msg": "初始加载完成！您现在可以配置Plex和Kodi webhooks了。",
   "modal_sync_remote": "在 Plex 和 Kodi 上自动更新",
   "edit_dist_mode_title": "分配模式",

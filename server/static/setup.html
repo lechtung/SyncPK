@@ -100,7 +100,7 @@
         </div>
 
         <div class="test-button-container">
-          <button class="btn-test-action" onclick="testPlexUrl()" type="button">
+          <button class="btn-test-action" onclick="testPlexUrl()" type="button" tabindex="-1">
             <i class="fa-solid fa-plug"></i> <span data-i18n="setup_btn_test">Test</span>
           </button>
         </div>
@@ -113,8 +113,8 @@
         -->
 
         <div class="step-nav">
-          <button class="btn-back" onclick="goBack()"><i class="fa-solid fa-arrow-left"></i></button>
           <button class="btn-next" onclick="validatePlexUrl()" data-i18n="setup_btn_continue">Continue</button>
+          <button class="btn-back" onclick="goBack()"><i class="fa-solid fa-arrow-left"></i></button>
         </div>
       </div>
       <!-- STEP 3: PLEX AUTH -->
@@ -139,9 +139,9 @@
             not open</span>
         </div>
         <div class="step-nav">
-          <button class="btn-back" onclick="goBack();cancelPlexAuth();"><i class="fa-solid fa-arrow-left"></i></button>
           <button class="btn-next" id="btn-plex-auth-next" disabled onclick="goNext()"
             data-i18n="setup_btn_continue">Continue</button>
+          <button class="btn-back" onclick="goBack();cancelPlexAuth();"><i class="fa-solid fa-arrow-left"></i></button>
         </div>
       </div>
       <!-- STEP 4: PLEX PASS -->
@@ -152,8 +152,8 @@
           activity.</div>
         <div id="plex-pass-badge"></div>
         <div class="step-nav">
-          <button class="btn-back" onclick="goBack()"><i class="fa-solid fa-arrow-left"></i></button>
           <button class="btn-next" onclick="goNext()" data-i18n="setup_btn_continue">Continue</button>
+          <button class="btn-back" onclick="goBack()"><i class="fa-solid fa-arrow-left"></i></button>
         </div>
       </div>
       <!-- STEP 5: PASSWORD -->
@@ -165,7 +165,7 @@
         <label class="setup-label" data-i18n="setup_pwd_label">MASTER PASSWORD</label>
         <div class="input-wrap">
           <i class="input-icon fa-solid fa-lock"></i>
-          <input type="password" id="pwd-input" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" />
+          <input type="password" id="pwd-input" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="new-password" />
           <button class="toggle-pw" onclick="togglePw('pwd-input',this)" tabindex="-1"><i
               class="fa-solid fa-eye"></i></button>
         </div>
@@ -173,14 +173,14 @@
         <div class="input-wrap">
           <i class="input-icon fa-solid fa-lock-open"></i>
           <input type="password" id="pwd-confirm-input"
-            placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" />
+            placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="new-password" />
           <button class="toggle-pw" onclick="togglePw('pwd-confirm-input',this)" tabindex="-1"><i
               class="fa-solid fa-eye"></i></button>
         </div>
         <div class="field-error" id="pwd-error" data-i18n="setup_pwd_err">Passwords do not match.</div>
         <div class="step-nav">
-          <button class="btn-back" onclick="goBack()"><i class="fa-solid fa-arrow-left"></i></button>
           <button class="btn-next" onclick="validatePassword()" data-i18n="setup_btn_continue">Continue</button>
+          <button class="btn-back" onclick="goBack()"><i class="fa-solid fa-arrow-left"></i></button>
         </div>
       </div>
       <!-- STEP 6: TMDB -->
@@ -202,7 +202,7 @@
         </div>
 
         <div class="test-button-container">
-          <button class="btn-test-action" onclick="testTmdbKey()" type="button">
+          <button class="btn-test-action" onclick="testTmdbKey()" type="button" tabindex="-1">
             <i class="fa-solid fa-plug"></i> <span data-i18n="setup_btn_test">Test</span>
           </button>
         </div>
@@ -212,8 +212,8 @@
         <!-- <div class="field-error" id="tmdb-error" data-i18n="setup_tmdb_err">Please enter a valid TMDB API key.</div> -->
 
         <div class="step-nav">
-          <button class="btn-back" onclick="goBack()"><i class="fa-solid fa-arrow-left"></i></button>
           <button class="btn-next" onclick="validateTmdb()" data-i18n="setup_btn_continue">Continue</button>
+          <button class="btn-back" onclick="goBack()"><i class="fa-solid fa-arrow-left"></i></button>
         </div>
       </div>
       <!-- STEP 7: PREFERENCES -->
@@ -267,33 +267,33 @@
         <div class="c-dropdown config-input setup-dropdown" id="posterPref-dd">
           <div class="c-dropdown-trigger" id="posterPref-trigger">
             <div class="c-dropdown-bottom">
-              <span class="c-dropdown-value" id="poster-pref-select-val" data-i18n="poster_pref_show">Show Poster</span>
+              <span class="c-dropdown-value" id="poster-pref-select-val" data-i18n="poster_pref_season">Season Poster</span>
               <span class="c-dropdown-arrow">▾</span>
             </div>
           </div>
           <div class="c-dropdown-menu glass-panel" id="posterPref-menu">
-            <div class="c-dropdown-item selected" data-value="show" data-i18n="poster_pref_show">Show Poster</div>
-            <div class="c-dropdown-item" data-value="season" data-i18n="poster_pref_season">Season Poster</div>
+            <div class="c-dropdown-item" data-value="show" data-i18n="poster_pref_show">Show Poster</div>
+            <div class="c-dropdown-item selected" data-value="season" data-i18n="poster_pref_season">Season Poster</div>
           </div>
-          <input type="hidden" id="poster-pref-select" value="show" />
+          <input type="hidden" id="poster-pref-select" value="season" />
         </div>
 
         <label class="setup-label" data-i18n="config_poster_quality_title">POSTER QUALITY</label>
         <div class="c-dropdown config-input setup-dropdown" id="posterQuality-dd">
           <div class="c-dropdown-trigger" id="posterQuality-trigger">
             <div class="c-dropdown-bottom">
-              <span class="c-dropdown-value" id="poster-quality-select-val" data-i18n="quality_w185">185px (Low)</span>
+              <span class="c-dropdown-value" id="poster-quality-select-val" data-i18n="quality_dynamic">Card Size (Dynamic)</span>
               <span class="c-dropdown-arrow">▼</span>
             </div>
           </div>
           <div class="c-dropdown-menu glass-panel" id="posterQuality-menu">
-            <div class="c-dropdown-item" data-value="dynamic" data-i18n="quality_dynamic">Card Size (Dynamic)</div>
-            <div class="c-dropdown-item selected" data-value="w185" data-i18n="quality_w185">185px (Low)</div>
+            <div class="c-dropdown-item selected" data-value="dynamic" data-i18n="quality_dynamic">Card Size (Dynamic)</div>
+            <div class="c-dropdown-item" data-value="w185" data-i18n="quality_w185">185px (Low)</div>
             <div class="c-dropdown-item" data-value="w342" data-i18n="quality_w342">342px (Medium)</div>
             <div class="c-dropdown-item" data-value="w500" data-i18n="quality_w500">500px (High)</div>
             <div class="c-dropdown-item" data-value="original" data-i18n="quality_original">Original (Max)</div>
           </div>
-          <input type="hidden" id="poster-quality-select" value="w185" />
+          <input type="hidden" id="poster-quality-select" value="dynamic" />
         </div>
         <label class="setup-label" data-i18n="config_fanart_pref_title">FANART PREFERENCE (TV SHOWS)</label>
         <div class="c-dropdown config-input setup-dropdown" id="fanartPref-dd">
@@ -316,23 +316,22 @@
         <div class="c-dropdown config-input setup-dropdown" id="fanartQuality-dd">
           <div class="c-dropdown-trigger" id="fanartQuality-trigger">
             <div class="c-dropdown-bottom">
-              <span class="c-dropdown-value" id="fanart-quality-select-val" data-i18n="quality_w300">300px
-                (Medium)</span>
+              <span class="c-dropdown-value" id="fanart-quality-select-val" data-i18n="quality_dynamic">Card Size (Dynamic)</span>
               <span class="c-dropdown-arrow">▼</span>
             </div>
           </div>
           <div class="c-dropdown-menu glass-panel" id="fanartQuality-menu">
-            <div class="c-dropdown-item" data-value="dynamic" data-i18n="quality_dynamic">Card Size (Dynamic)</div>
+            <div class="c-dropdown-item selected" data-value="dynamic" data-i18n="quality_dynamic">Card Size (Dynamic)</div>
             <div class="c-dropdown-item" data-value="w92" data-i18n="quality_w92">92px (Min)</div>
             <div class="c-dropdown-item" data-value="w185" data-i18n="quality_w185">185px (Low)</div>
-            <div class="c-dropdown-item selected" data-value="w300" data-i18n="quality_w300">300px (Medium)</div>
+            <div class="c-dropdown-item" data-value="w300" data-i18n="quality_w300">300px (Medium)</div>
             <div class="c-dropdown-item" data-value="original" data-i18n="quality_original">Original (Max)</div>
           </div>
-          <input type="hidden" id="fanart-quality-select" value="w300" />
+          <input type="hidden" id="fanart-quality-select" value="dynamic" />
         </div>
         <div class="step-nav">
-          <button class="btn-back" onclick="goBack()"><i class="fa-solid fa-arrow-left"></i></button>
           <button class="btn-next" onclick="goNext()" data-i18n="setup_btn_continue">Continue</button>
+          <button class="btn-back" onclick="goBack()"><i class="fa-solid fa-arrow-left"></i></button>
         </div>
       </div>
       <!-- STEP 8: SYSTEM -->
@@ -359,8 +358,8 @@
           <label class="switch"><input type="checkbox" id="debug-toggle" /><span class="switch-slider"></span></label>
         </div>
         <div class="step-nav">
-          <button class="btn-back" onclick="goBack()"><i class="fa-solid fa-arrow-left"></i></button>
           <button class="btn-next" onclick="goNext()" data-i18n="setup_btn_continue">Continue</button>
+          <button class="btn-back" onclick="goBack()"><i class="fa-solid fa-arrow-left"></i></button>
         </div>
       </div>
       <!-- STEP 9: SUMMARY -->
@@ -371,9 +370,9 @@
           click Finish to save.</div>
         <div class="summary-grid" id="summary-grid"></div>
         <div class="step-nav">
-          <button class="btn-back" onclick="goBack()"><i class="fa-solid fa-arrow-left"></i></button>
           <button class="btn-next btn-finish" onclick="finishSetup()" data-i18n="setup_btn_finish"><i
               class="fa-solid fa-check"></i>&nbsp; Finish Setup</button>
+          <button class="btn-back" onclick="goBack()"><i class="fa-solid fa-arrow-left"></i></button>
         </div>
       </div>
     </div>
@@ -381,7 +380,7 @@
   <script>
     const TOTAL_STEPS = 9;
     const STEP_IDS = ['step-lang', 'step-plex-url', 'step-plex-auth', 'step-plex-pass', 'step-password', 'step-tmdb', 'step-prefs', 'step-system', 'step-summary'];
-    const state = { lang: 'en', plexUrl: '', plexToken: '', plexClientId: '', hasPlexPass: false, password: '', tmdbKey: '', dashLang: 'auto', syncLang: 'en', posterPref: 'show', fanartPref: 'episode', autoUpdate: true, debug: false, _step: 1 };
+    const state = { lang: 'en', plexUrl: '', plexToken: '', plexClientId: '', hasPlexPass: false, password: '', tmdbKey: '', dashLang: 'auto', syncLang: 'en', posterPref: 'season', fanartPref: 'episode', autoUpdate: true, debug: false, _step: 1 };
     let i18n = {}, _pinPollTimer = null, _pinId = null, _authUrl = null, _clientId = null;
     const FB = {
       setup_lang_title: 'Choose your language', setup_lang_sub: 'Select the language for this wizard.',

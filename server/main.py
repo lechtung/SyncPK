@@ -1,5 +1,5 @@
 #v8
-from fastapi import FastAPI, Request, Query, Depends, HTTPException, Header, Cookie, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, Query, Depends, HTTPException, Header, Cookie, WebSocket, WebSocketDisconnect, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
@@ -86,9 +86,11 @@ sys.stderr = sys.stdout
 # la información que necesitamos, el titulo original, el director, los actores.. y lo guardamos todo en otra tabla, una de scraping (incluidos los enlaces a el arte)
 # en el registro original dejamos una fk a dicho registro. 
 # al pulsar mostramos una pantalla nuestra interna donde mostramos todo. 
-
-
 # si se cambia cualquier cosa de apariencia, se debe recargar el interfaz automaticamente al guardar. Ademas, se deben aplicar los cambios a las tarjetas... obvio
+
+# irnos al historial de descargas de xbytes y recuperar TODAS las peliculas que nos hemos bajado y hacer una especie de pyton que sea capaz de conectarse a la bd 
+# y crear de forma automatica registros de visualización (intentando respetar la fecha de descarga, pero buscando una adecuada). 
+# Lo suyo es que despues intentara hacer el scrooble en plex...
 
 #### DONE ####
 
@@ -263,7 +265,9 @@ def init_db():
             created_at TEXT,
             duration INTEGER DEFAULT 0,
             poster_path TEXT,
-            fanart_path TEXT
+            fanart_path TEXT,
+            year INTEGER DEFAULT NULL,
+            show_year INTEGER DEFAULT NULL
         )
     """)
     cursor.execute("""
@@ -313,6 +317,14 @@ def init_db():
         cursor.execute("ALTER TABLE watch_history ADD COLUMN fanart_path TEXT")
     except sqlite3.OperationalError:
         pass
+
+    # Point 13: Cleanup tombstones older than 5 years
+    try:
+        five_years_ago = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=365*5)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        cursor.execute("DELETE FROM deleted_history WHERE deleted_at < ?", (five_years_ago,))
+    except Exception as e:
+        print(f"Error cleaning up tombstones: {e}")
+
     conn.commit()
     conn.close()
 
@@ -356,7 +368,7 @@ async def download_tmdb_images(db_id, tmdb_id, media_type):
                     local_path = os.path.join(CACHE_PATH, f"posters/{tmdb_id}.jpg")
                     with open(local_path, "wb") as f:
                         f.write(img_resp.content)
-                    poster_local = f"/cache/posters/{tmdb_id}.jpg"
+                    poster_local = f"{tmdb_id}.jpg"
             
             if backdrop:
                 img_url = f"https://image.tmdb.org/t/p/w300{backdrop}"
@@ -365,7 +377,7 @@ async def download_tmdb_images(db_id, tmdb_id, media_type):
                     local_path = os.path.join(CACHE_PATH, f"fanarts/{tmdb_id}.jpg")
                     with open(local_path, "wb") as f:
                         f.write(img_resp.content)
-                    fanart_local = f"/cache/fanarts/{tmdb_id}.jpg"
+                    fanart_local = f"{tmdb_id}.jpg"
     except Exception as e:
         print(f"Error asíncrono en TMDB para {tmdb_id}: {e}", flush=True)
 
@@ -377,8 +389,8 @@ def download_tmdb_images_sync(tmdb_id, media_type):
     poster_local_path = os.path.join(CACHE_PATH, f"posters/{tmdb_id}.jpg")
     fanart_local_path = os.path.join(CACHE_PATH, f"fanarts/{tmdb_id}.jpg")
     
-    poster_local = f"/cache/posters/{tmdb_id}.jpg" if os.path.exists(poster_local_path) else None
-    fanart_local = f"/cache/fanarts/{tmdb_id}.jpg" if os.path.exists(fanart_local_path) else None
+    poster_local = f"{tmdb_id}.jpg" if os.path.exists(poster_local_path) else None
+    fanart_local = f"{tmdb_id}.jpg" if os.path.exists(fanart_local_path) else None
 
     if poster_local and fanart_local:
         return poster_local, fanart_local
@@ -404,7 +416,7 @@ def download_tmdb_images_sync(tmdb_id, media_type):
             if img_resp.status_code == 200:
                 with open(poster_local_path, "wb") as f:
                     f.write(img_resp.content)
-                poster_local = f"/cache/posters/{tmdb_id}.jpg"
+                poster_local = f"{tmdb_id}.jpg"
         
         if backdrop and not fanart_local:
             img_url = f"https://image.tmdb.org/t/p/w300{backdrop}"
@@ -412,7 +424,7 @@ def download_tmdb_images_sync(tmdb_id, media_type):
             if img_resp.status_code == 200:
                 with open(fanart_local_path, "wb") as f:
                     f.write(img_resp.content)
-                fanart_local = f"/cache/fanarts/{tmdb_id}.jpg"
+                fanart_local = f"{tmdb_id}.jpg"
                 
     except Exception as e:
         print(f"Error descargando imágenes sincrónicas TMDB para {tmdb_id}: {e}")
@@ -429,7 +441,7 @@ def download_episode_fanart_sync(thumb_url, metadata_id):
         return None
         
     fanart_local_path = os.path.join(CACHE_PATH, f"fanarts/ep_{metadata_id}.jpg")
-    fanart_local = f"/cache/fanarts/ep_{metadata_id}.jpg" if os.path.exists(fanart_local_path) else None
+    fanart_local = f"ep_{metadata_id}.jpg" if os.path.exists(fanart_local_path) else None
     
     if fanart_local:
         return fanart_local
@@ -453,7 +465,7 @@ def download_episode_fanart_sync(thumb_url, metadata_id):
         if img_resp.status_code == 200:
             with open(fanart_local_path, "wb") as f:
                 f.write(img_resp.content)
-            return f"/cache/fanarts/ep_{metadata_id}.jpg"
+            return f"ep_{metadata_id}.jpg"
     except Exception as e:
         print(f"Error downloading episode fanart for {metadata_id}: {e}")
         
@@ -467,7 +479,7 @@ def download_episode_fanart_tmdb_sync(show_tmdb_id, season, episode):
     local_path = os.path.join(CACHE_PATH, f"fanarts/{filename}")
     
     if os.path.exists(local_path):
-        return f"/cache/fanarts/{filename}"
+        return f"{filename}"
         
     url = f"https://api.themoviedb.org/3/tv/{show_tmdb_id}/season/{season}/episode/{episode}?api_key={TMDB_API_KEY}"
     import requests
@@ -482,7 +494,7 @@ def download_episode_fanart_tmdb_sync(show_tmdb_id, season, episode):
                     os.makedirs(os.path.join(CACHE_PATH, "fanarts"), exist_ok=True)
                     with open(local_path, "wb") as f:
                         f.write(img_resp.content)
-                    return f"/cache/fanarts/{filename}"
+                    return f"{filename}"
     except Exception as e:
         print(f"Error fetching TMDB episode fanart: {e}", flush=True)
     return None
@@ -594,7 +606,7 @@ def execute_full_rescan(sync_lang, tmdb_key, poster_pref, fanart_pref, is_debug=
                         _download_image(data.get("poster_path"), p_filename, "posters", p_size)
                         _download_image(data.get("backdrop_path"), f_filename, "fanarts", f_size)
                         
-                final_poster, final_fanart = f"/cache/posters/{p_filename}", f"/cache/fanarts/{f_filename}"
+                final_poster, final_fanart = p_filename, f_filename
                 cursor.execute("UPDATE watch_history SET title=?, poster_path=?, fanart_path=? WHERE id=?", (updated_info["title"], final_poster, final_fanart, h_id))
                 updated_info["poster_path"] = final_poster
                 updated_info["fanart_path"] = final_fanart
@@ -638,7 +650,7 @@ def execute_full_rescan(sync_lang, tmdb_key, poster_pref, fanart_pref, is_debug=
                     _download_image(p_suffix, p_filename, "posters", p_size)
                     _download_image(f_suffix, f_filename, "fanarts", f_size)
                 
-                final_poster, final_fanart = f"/cache/posters/{p_filename}", f"/cache/fanarts/{f_filename}"
+                final_poster, final_fanart = p_filename, f_filename
                 cursor.execute("UPDATE watch_history SET title=?, show_title=?, poster_path=?, fanart_path=? WHERE id=?", 
                                (new_ep_title, new_show_title, final_poster, final_fanart, h_id))
                 updated_info["title"] = new_ep_title
@@ -676,7 +688,8 @@ async def bulk_download_tmdb_images():
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, execute_full_rescan, lang, tmdb_key, p_pref, f_pref, is_debug, loop)
     
-    if settings.get("sync_state") == 1:
+    settings = load_settings()
+    if settings.get("sync_state") in [1, 3]:
         settings["sync_state"] = 2
         save_settings(settings)
     print("✅ Bulk TMDB image download completed!")
@@ -704,9 +717,31 @@ def get_show_ids_from_plex(grandparent_key):
         print(f"Error sacando IDs de la serie: {e}")
     return None, None, None
 
+_my_plex_account_id = None
+
+def get_my_plex_account_id() -> str:
+    global _my_plex_account_id
+    if _my_plex_account_id:
+        return _my_plex_account_id
+    try:
+        r = requests.get(f"{PLEX_URL}/", headers=plex_headers, timeout=5)
+        if r.status_code == 200:
+            _my_plex_account_id = str(r.json().get("MediaContainer", {}).get("myPlexUserId", ""))
+    except Exception as e:
+        print(f"[account] No se pudo obtener accountID: {e}")
+    return _my_plex_account_id or ""
+
 def process_plex_payload(payload, cursor, is_bulk=False):
     if os.getenv("DEBUG") == "true":
         print(f"[DEBUG] process_plex_payload: Processing webhook event '{payload.get('event')}'")
+        
+    account = payload.get("Account", {})
+    if account:
+        my_id = get_my_plex_account_id()
+        if my_id and str(account.get("id", "")) != my_id:
+            print(f"⏭️ Webhook ignorado: pertenece a otra cuenta ({account.get('title')})")
+            return False
+            
     if payload.get("event") != "media.scrobble": return False
         
     metadata = payload.get("Metadata", {})
@@ -725,6 +760,8 @@ def process_plex_payload(payload, cursor, is_bulk=False):
     now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     
     duration = int(metadata.get("duration", 0)) // 60000
+    year = metadata.get("year")
+    show_year = metadata.get("show_year")
     
     imdb_id, tmdb_id, tvdb_id = extract_ids(metadata.get("Guid", []))
     
@@ -747,31 +784,32 @@ def process_plex_payload(payload, cursor, is_bulk=False):
     existing_id = None
     if media_type == "episode":
         if tmdb_id:
-            cursor.execute("SELECT id FROM watch_history WHERE media_type='episode' AND tmdb_id=?", (tmdb_id,))
+            cursor.execute("SELECT id, watched_at FROM watch_history WHERE media_type='episode' AND tmdb_id=?", (tmdb_id,))
         else:
-            cursor.execute("SELECT id FROM watch_history WHERE media_type='episode' AND show_title=? AND season=? AND episode=?", (show_title, season, episode))
+            cursor.execute("SELECT id, watched_at FROM watch_history WHERE media_type='episode' AND show_title=? AND season=? AND episode=?", (show_title, season, episode))
     else:
         if tmdb_id:
-            cursor.execute("SELECT id FROM watch_history WHERE media_type='movie' AND tmdb_id=?", (tmdb_id,))
+            cursor.execute("SELECT id, watched_at FROM watch_history WHERE media_type='movie' AND tmdb_id=?", (tmdb_id,))
         else:
-            cursor.execute("SELECT id FROM watch_history WHERE media_type='movie' AND title=?", (title,))
+            cursor.execute("SELECT id, watched_at FROM watch_history WHERE media_type='movie' AND title=?", (title,))
             
     row = cursor.fetchone()
     if row and not is_live_event:
         existing_id = row[0]
         cursor.execute("""
             UPDATE watch_history SET
-                plex_guid=?, plex_show_guid=?, duration=?
+                plex_guid=?, plex_show_guid=?, duration=?,
+                year=COALESCE(?, year), show_year=COALESCE(?, show_year)
             WHERE id=?
-        """, (plex_guid, plex_show_guid, duration, existing_id))
+        """, (plex_guid, plex_show_guid, duration, year, show_year, existing_id))
         action = "Bulk Update (Solo IDs)"
         
         if media_type == "episode":
             prefix = "Bulk Import" if is_bulk else "Plex PUSH"
-            print(f"🔄 {prefix} ({action}): Serie '{show_title}' T{season}E{episode} - {title}")
+            print(f"🔄 {prefix} ({action}) [{watched_at}]: Serie '{show_title}' T{season}E{episode} - {title}")
         else:
             prefix = "Bulk Import" if is_bulk else "Plex PUSH"
-            print(f"🔄 {prefix} ({action}): Película '{title}'")
+            print(f"🔄 {prefix} ({action}) [{watched_at}]: Película '{title}'")
     else:
         if row and is_live_event:
             action = "Live Update (Re-visionado - NEW ROW)"
@@ -783,21 +821,21 @@ def process_plex_payload(payload, cursor, is_bulk=False):
                 media_type, title, show_title, season, episode, 
                 plex_guid, plex_show_guid, 
                 imdb_id, tmdb_id, tvdb_id, show_imdb_id, show_tmdb_id, show_tvdb_id, 
-                watched_at, origin, created_at, duration
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                watched_at, origin, created_at, duration, year, show_year
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             media_type, title, show_title, season, episode, 
             plex_guid, plex_show_guid,
             imdb_id, tmdb_id, tvdb_id, show_imdb_id, show_tmdb_id, show_tvdb_id,
-            watched_at, 'plex', now_utc, duration
+            watched_at, 'plex', now_utc, duration, year, show_year
         ))
         
         if media_type == "episode":
             prefix = "Bulk Import" if is_bulk else "Plex PUSH"
-            print(f"✅ {prefix} ({action}): Serie '{show_title}' T{season}E{episode} - {title}")
+            print(f"✅ {prefix} ({action}) [{watched_at}]: Serie '{show_title}' T{season}E{episode} - {title}")
         else:
             prefix = "Bulk Import" if is_bulk else "Plex PUSH"
-            print(f"✅ {prefix} ({action}): Película '{title}'")
+            print(f"✅ {prefix} ({action}) [{watched_at}]: Película '{title}'")
             
     try:
         db_id = existing_id if existing_id else cursor.lastrowid
@@ -880,6 +918,8 @@ def process_kodi_payload(payload, cursor, is_bulk=False):
     now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     
     duration = int(metadata.get("duration", 0)) // 60
+    year = metadata.get("year")
+    show_year = metadata.get("show_year") or metadata.get("year")
     
     unique_ids = metadata.get("unique_ids", {})
     imdb_id = unique_ids.get("imdb") or metadata.get("imdbnumber")
@@ -887,6 +927,7 @@ def process_kodi_payload(payload, cursor, is_bulk=False):
     tvdb_id = unique_ids.get("tvdb")
     
     if imdb_id and not tmdb_id and not tvdb_id and not imdb_id.startswith("tt"): 
+        print(f"⚠️ [Kodi] imdbnumber '{imdb_id}' sin prefijo 'tt', asumiendo TMDB ID. Verificar configuración Kodi.")
         tmdb_id = imdb_id
         imdb_id = None
     
@@ -903,6 +944,66 @@ def process_kodi_payload(payload, cursor, is_bulk=False):
         show_imdb_id = show_unique_ids.get("imdb")
         show_tmdb_id = show_unique_ids.get("tmdb")
         show_tvdb_id = show_unique_ids.get("tvdb")
+
+    plex_guid = None
+    plex_rating_key = None
+    
+    plex_movies, plex_shows = get_plex_items_map()
+    
+    if media_type == "movie":
+        matched = match_movie({"movie": {"title": title}}, plex_movies, tmdb_id, year=year)
+        if matched:
+            plex_guid = matched.get("guid")
+            plex_rating_key = matched.get("ratingKey")
+    elif media_type == "episode":
+        s_season = int(season) if season is not None else None
+        s_episode = int(episode) if episode is not None else None
+        show_key = match_show({"show": {"title": show_title}}, plex_shows, show_tmdb_id, year=show_year)
+        if show_key:
+            try:
+                r_eps = requests.get(f"{PLEX_URL}/library/metadata/{show_key}/allLeaves", headers=plex_headers)
+                if r_eps.status_code == 200:
+                    for ep in r_eps.json().get("MediaContainer", {}).get("Metadata", []):
+                        if ep.get("parentIndex") == s_season and ep.get("index") == s_episode:
+                            plex_guid = ep.get("guid")
+                            plex_rating_key = ep.get("ratingKey")
+                            break
+            except Exception as e:
+                pass
+
+    if plex_guid is None:
+        print(f"⚠️ [Kodi] No encontrado en Plex local: '{title}'. Guardando sin plex_guid.")
+
+    if is_live_event:
+        today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
+        if media_type == "episode" and tmdb_id:
+            cursor.execute("""
+                SELECT id FROM watch_history
+                WHERE media_type='episode' AND tmdb_id=?
+                AND substr(watched_at, 1, 10) = ?
+            """, (tmdb_id, today))
+        elif media_type == "episode":
+            cursor.execute("""
+                SELECT id FROM watch_history
+                WHERE media_type='episode' AND show_title=? AND season=? AND episode=?
+                AND substr(watched_at, 1, 10) = ?
+            """, (show_title, season, episode, today))
+        elif tmdb_id:
+            cursor.execute("""
+                SELECT id FROM watch_history
+                WHERE media_type='movie' AND tmdb_id=?
+                AND substr(watched_at, 1, 10) = ?
+            """, (tmdb_id, today))
+        else:
+            cursor.execute("""
+                SELECT id FROM watch_history
+                WHERE media_type='movie' AND title=?
+                AND substr(watched_at, 1, 10) = ?
+            """, (title, today))
+            
+        if cursor.fetchone():
+            print(f"🔁 Ignorando duplicado del mismo día: '{title}'")
+            return False
 
     existing_id = None
     if media_type == "episode":
@@ -921,9 +1022,10 @@ def process_kodi_payload(payload, cursor, is_bulk=False):
         existing_id = row[0]
         cursor.execute("""
             UPDATE watch_history SET
-                kodi_id=?, kodi_show_id=?, duration=?
+                kodi_id=?, kodi_show_id=?, duration=?,
+                year=COALESCE(?, year), show_year=COALESCE(?, show_year)
             WHERE id=?
-        """, (kodi_id, kodi_show_id, duration, existing_id))
+        """, (kodi_id, kodi_show_id, duration, year, show_year, existing_id))
         action = "Bulk Update (Solo IDs)"
         
         if media_type == "episode":
@@ -941,13 +1043,13 @@ def process_kodi_payload(payload, cursor, is_bulk=False):
                 media_type, title, show_title, season, episode, 
                 kodi_id, kodi_show_id, 
                 imdb_id, tmdb_id, tvdb_id, show_imdb_id, show_tmdb_id, show_tvdb_id, 
-                watched_at, origin, created_at, duration
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                watched_at, origin, created_at, duration, year, show_year, plex_guid
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             media_type, title, show_title, season, episode, 
             kodi_id, kodi_show_id,
             imdb_id, tmdb_id, tvdb_id, show_imdb_id, show_tmdb_id, show_tvdb_id,
-            watched_at, 'kodi', now_utc, duration
+            watched_at, 'kodi', now_utc, duration, year, show_year, plex_guid
         ))
         
         if media_type == "episode":
@@ -966,39 +1068,18 @@ def process_kodi_payload(payload, cursor, is_bulk=False):
     except Exception as e:
         print(f"Error asignando carátulas Kodi: {e}")
             
-    # Asynchronously mark as watched in Plex using its API
-    if not existing_id:
-        import threading
-        s_season = int(season) if season is not None else None
-        s_episode = int(episode) if episode is not None else None
-        threading.Thread(target=scrobble_kodi_webhook_to_plex, args=(title, show_title, s_season, s_episode, media_type, tmdb_id, tvdb_id, show_tmdb_id, show_tvdb_id)).start()
+    # Scrobble directo — ya tenemos el ratingKey, sin hilo separado
+    if plex_rating_key and not existing_id:
+        try:
+            requests.get(
+                f"{PLEX_URL}/:/scrobble?identifier=com.plexapp.plugins.library&key={plex_rating_key}",
+                headers=plex_headers, timeout=5
+            )
+            print(f"✅ [Kodi→Plex] Marcado como visto: '{title}'")
+        except Exception as e:
+            print(f"⚠️ [Kodi→Plex] Scrobble fallido para '{title}': {e}")
             
     return True
-
-def scrobble_kodi_webhook_to_plex(title, show_title, season, episode, media_type, tmdb_id=None, tvdb_id=None, show_tmdb_id=None, show_tvdb_id=None):
-    if os.getenv("DEBUG") == "true":
-        print(f"[DEBUG] scrobble_kodi_webhook_to_plex: Triggering local scrobble for {media_type} '{title}'")
-    try:
-        plex_movies, plex_shows = get_plex_items_map()
-        if media_type == "movie":
-            matched = match_movie({"movie": {"title": title}}, plex_movies, tmdb_id)
-            if matched:
-                r_key = matched.get("ratingKey")
-                requests.get(f"{PLEX_URL}/:/scrobble?identifier=com.plexapp.plugins.library&key={r_key}", headers=plex_headers)
-                print(f"✅ [Direct] Marked movie in Plex: {title}")
-        elif media_type == "episode":
-            s_key = match_show({"show": {"title": show_title}}, plex_shows, show_tmdb_id)
-            if s_key:
-                r_eps = requests.get(f"{PLEX_URL}/library/metadata/{s_key}/allLeaves", headers=plex_headers)
-                if r_eps.status_code == 200:
-                    plex_eps = r_eps.json().get("MediaContainer", {}).get("Metadata", [])
-                    for pep in plex_eps:
-                        if pep.get("parentIndex") == season and pep.get("index") == episode:
-                            requests.get(f"{PLEX_URL}/:/scrobble?identifier=com.plexapp.plugins.library&key={pep['ratingKey']}", headers=plex_headers)
-                            print(f"✅ [Direct] Marked episode in Plex: {show_title} T{season}E{episode} - {title}")
-                            break
-    except Exception as e:
-        print(f"Error en scrobble_kodi_webhook_to_plex: {e}")
 
 
 @app.post("/webhook/kodi/bulk", dependencies=[Depends(verify_api_key)])
@@ -1367,13 +1448,13 @@ def get_plex_activity_nodes(metadata_id, types=None, max_timeout=600):
                 # Retorna inmediatamente lo que haya (vacío o lleno)
                 return r.json().get("data", {}).get("activityFeed", {}).get("nodes", [])
             elif r.status_code == 429:
+                if (time.time() - start_time) >= max_timeout:
+                    return []
                 retry_after = int(r.headers.get("Retry-After", 5))
                 time.sleep(retry_after)
                 continue
-            else:
-                return []
         except Exception:
-            return []
+            pass
 
         if (time.time() - start_time) >= max_timeout:
             return []
@@ -1416,11 +1497,22 @@ def mutate_plex_activity(node_id, action, watched_at_graphql=None, title="", max
                     print(f"[DEBUG] mutate_plex_activity response for '{title}': {resp_json}", flush=True)
                     
                 if "errors" in resp_json:
-                    print(f"⚠️ Mutation error in Plex Cloud for '{title}': {resp_json['errors']}", flush=True)
+                    FATAL_CODES = {"NOT_FOUND", "FORBIDDEN", "UNAUTHORIZED", "BAD_USER_INPUT", "INVALID_ARGUMENT"}
+                    for e in resp_json["errors"]:
+                        code = e.get("extensions", {}).get("code", "")
+                        if code in FATAL_CODES:
+                            print(f"❌ [{action}] Error definitivo GraphQL ({code}) para '{title}'. Abortando.")
+                            return False
+                    print(f"⚠️ [{action}] Error GraphQL transitorio, reintentando: {resp_json['errors']}", flush=True)
                 else:
-                    print(f"{msg} for '{title}': HTTP 200", flush=True)
+                    print(f"{msg} para '{title}': HTTP 200", flush=True)
                     return True
+            elif r.status_code in (400, 403, 404):
+                print(f"❌ [{action}] HTTP {r.status_code} para '{title}'. No reintentable. Abortando.")
+                return False
             elif r.status_code == 429:
+                if (time.time() - start_time) >= max_timeout:
+                    return False
                 retry_after = int(r.headers.get("Retry-After", 5))
                 time.sleep(retry_after)
                 continue
@@ -1477,7 +1569,7 @@ def unscrobble_plex(item):
                     pass
             
             if not nodes_to_delete:
-                if is_debug: print(f"[DEBUG] [unscrobble] No exact date match found. Deleting ALL {total_nodes} activities.", flush=True)
+                print(f"⚠️ [unscrobble] No se encontró coincidencia de fecha para '{title}'. Se borrarán TODOS los {total_nodes} registros cloud. Considera abortar si es un error.")
                 nodes_to_delete = nodes
             else:
                 if is_debug: print(f"[DEBUG] [unscrobble] Found {len(nodes_to_delete)} matching activit(ies) to delete.", flush=True)
@@ -1730,9 +1822,7 @@ def get_items_for_scope(item: dict, scope: str, cursor) -> list:
             
     return items_to_modify
 
-@app.put("/api/history/{item_id}")
-
-def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: str = Depends(verify_api_key)):
+def _update_in_background(item_id: int, req: UpdateHistoryRequest):
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -1796,12 +1886,12 @@ def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: 
     if dist_mode == "same":
         days_counts = [total_items]
     elif dist_mode == "fixed":
-        eps = getattr(req, "eps_per_day", 1)
+        eps = max(1, getattr(req, "eps_per_day", 1))
         days_counts = [eps] * (total_items // eps)
         if total_items % eps > 0: days_counts.append(total_items % eps)
     elif dist_mode == "random":
-        eps_min = getattr(req, "eps_min", 1)
-        eps_max = getattr(req, "eps_max", 3)
+        eps_min = max(1, getattr(req, "eps_min", 1))
+        eps_max = max(eps_min, getattr(req, "eps_max", 3))
         c_sum = 0
         while c_sum < total_items:
             r = random.randint(eps_min, eps_max)
@@ -1863,6 +1953,10 @@ def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: 
         
     success_count = 0
     errors = []
+    
+    if len(sorted_items) != len(assigned_dates):
+        print(f"⚠️ [dist] {len(sorted_items)} ítems pero {len(assigned_dates)} fechas generadas.")
+        
     for item, assign_dt in zip(sorted_items, assigned_dates):
         watched_str = assign_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
         
@@ -1908,16 +2002,21 @@ def update_history_item(item_id: int, req: UpdateHistoryRequest, authorization: 
             conn_update.close()
         
     if success_count == total_items:
-        return {"success": True, "status": "success"}
+        print("[background] Update success")
     elif success_count > 0:
-        return {"success": True, "status": "partial", "errors": errors}
+        print(f"[background] Update partial errors: {errors}")
     else:
-        return {"success": False, "status": "error", "errors": errors}
+        print(f"[background] Update error: {errors}")
+
+@app.put("/api/history/{item_id}")
+def update_history_item(item_id: int, req: UpdateHistoryRequest, background_tasks: BackgroundTasks, authorization: str = Depends(verify_api_key)):
+    background_tasks.add_task(_update_in_background, item_id, req)
+    return {"success": True, "status": "success", "message": "Procesando en segundo plano..."}
 
 @app.post("/api/dismiss-sync")
 def dismiss_sync(authorization: str = Depends(verify_api_key)):
     settings = load_settings()
-    settings["sync_state"] = 3
+    settings["sync_state"] = 0
     save_settings(settings)
     return {"success": True}
 
@@ -2054,7 +2153,8 @@ def build_payload_from_plex(item, media_type, show_map=None):
             "Guid": guids,
             "thumb": item.get("thumb"),
             "watched_at": watched_at,
-            "duration": item.get("duration", 0)
+            "duration": item.get("duration", 0),
+            "year": item.get("year")
         }
     }
     
@@ -2070,6 +2170,7 @@ def build_payload_from_plex(item, media_type, show_map=None):
             show_data = show_map[parent_key]
             payload["Metadata"]["grandparentGuid"] = show_data["guid"]
             payload["Metadata"]["grandparentGuids"] = show_data["Guid"]
+            payload["Metadata"]["show_year"] = show_data.get("year")
         else:
             if "grandparentGuid" in item:
                 payload["Metadata"]["grandparentGuid"] = item.get("grandparentGuid")
@@ -2102,7 +2203,8 @@ def push_all_to_db():
                         for item in items:
                             show_map[item.get("ratingKey")] = {
                                 "guid": item.get("guid"),
-                                "Guid": item.get("Guid", [])
+                                "Guid": item.get("Guid", []),
+                                "year": item.get("year")
                             }
                         start += size
                     else:
@@ -2146,7 +2248,7 @@ def push_all_to_db():
                             actual_media_type = "movie" if sec["type"] == "movie" else "episode"
                             
                             if sec["type"] == "movie":
-                                dedup_key = ("movie", item.get("title"))
+                                dedup_key = ("movie", item.get("title"), item.get("year"))
                             else:
                                 dedup_key = ("episode", item.get("grandparentTitle"), item.get("parentIndex"), item.get("index"))
                                 
@@ -2188,6 +2290,10 @@ def push_recent_to_db(last_sync_utc_str):
     if r.status_code != 200: return
     
     sessions = r.json().get("MediaContainer", {}).get("Metadata", [])
+    my_id = get_my_plex_account_id()
+    if my_id:
+        sessions = [s for s in sessions if str(s.get("accountID", "")) == my_id]
+        
     recent_sessions = [s for s in sessions if s.get("viewedAt", 0) >= last_sync_ts]
     
     if not recent_sessions:
@@ -2224,7 +2330,14 @@ def push_recent_to_db(last_sync_utc_str):
         conn.close()
         print(f"🚀 Incremental items processed.")
 
-def get_plex_items_map():
+_plex_items_cache = {"data": None, "ts": 0}
+_CACHE_TTL = 300  # 5 minutos
+
+def get_plex_items_map(force_refresh=False):
+    now = time.time()
+    if not force_refresh and _plex_items_cache["data"] and (now - _plex_items_cache["ts"]) < _CACHE_TTL:
+        return _plex_items_cache["data"]
+
     plex_movies = []
     plex_shows = []
     sections = get_plex_libraries()
@@ -2232,7 +2345,7 @@ def get_plex_items_map():
     for sec in sections:
         try:
             sec_key = sec["key"]
-            r = requests.get(f"{PLEX_URL}/library/sections/{sec_key}/all", headers=plex_headers)
+            r = requests.get(f"{PLEX_URL}/library/sections/{sec_key}/all?includeGuids=1", headers=plex_headers)
             if r.status_code == 200:
                 items = r.json().get("MediaContainer", {}).get("Metadata", [])
                 for item in items:
@@ -2242,31 +2355,59 @@ def get_plex_items_map():
                         plex_shows.append(item)
         except Exception as e:
             print(f"[get_plex_items_map] Error on section {sec}: {e}")
+            
+    _plex_items_cache["data"] = (plex_movies, plex_shows)
+    _plex_items_cache["ts"] = now
     return plex_movies, plex_shows
 
-def match_movie(movie_data, plex_movies, tmdb_id=None):
+def match_movie(movie_data, plex_movies, tmdb_id=None, year=None):
+    # 1. Match por GUID (prioritario)
+    if tmdb_id:
+        for pm in plex_movies:
+            _, pm_tmdb, _ = extract_ids(pm.get("Guid", []))
+            if pm_tmdb == str(tmdb_id):
+                return pm
+    # 2. Match por título + año exacto
     title = movie_data.get("movie", {}).get("title", "").lower()
+    candidates = []
     for pm in plex_movies:
-        pm_title = pm.get("title", "").lower()
-        if pm_title == title or title in pm_title:
-            return pm
+        if pm.get("title", "").lower() == title:
+            if year and pm.get("year") and abs(int(pm.get("year")) - int(year)) <= 1:
+                return pm  # match exacto título+año → retornar inmediatamente
+            candidates.append(pm)
+    # 3. Fallback: título exacto sin año (si solo hay un candidato)
+    if len(candidates) == 1:
+        return candidates[0]
     return None
 
-def match_show(show_data, plex_shows, show_tmdb_id=None):
+def match_show(show_data, plex_shows, show_tmdb_id=None, year=None):
+    # 1. GUID
+    if show_tmdb_id:
+        for ps in plex_shows:
+            _, ps_tmdb, _ = extract_ids(ps.get("Guid", []))
+            if ps_tmdb == str(show_tmdb_id):
+                return ps.get("ratingKey")
+    # 2. Título exacto + año
     title = show_data.get("show", {}).get("title", "").lower()
     import difflib
+    candidates = []
     for ps in plex_shows:
         ps_title = ps.get("title", "").lower()
-        if ps_title == title or title in ps_title or ps_title in title:
-            return ps.get("ratingKey")
-        if difflib.SequenceMatcher(None, ps_title, title).ratio() > 0.85:
-            return ps.get("ratingKey")
+        if ps_title == title:
+            if year and ps.get("year") and abs(int(ps.get("year")) - int(year)) <= 1:
+                return ps.get("ratingKey")
+            candidates.append(ps)
+        elif difflib.SequenceMatcher(None, ps_title, title).ratio() > 0.92:
+            candidates.append(ps)
+    if len(candidates) == 1:
+        return candidates[0].get("ratingKey")
     return None
 
 
 
 def push_cloud_orphans_to_db():
     print("Starting SMART EXTRACTOR V2 from Plex Cloud to local DB...")
+    is_debug = os.getenv("DEBUG") == "true"
     
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -2340,19 +2481,36 @@ def push_cloud_orphans_to_db():
         nonlocal count_orphans, count_updates
         cloud_date = node.get("date")
         meta = node.get("metadataItem")
-        if not meta or not meta.get("guid"): return
+        
+        if is_debug:
+            print(f"[DEBUG] CLOUD NODE LÍDO: {meta.get('title') if meta else 'Sin Titulo'} | Date: {cloud_date} | GUID: {meta.get('guid') if meta else 'No GUID'}")
+            
+        if not meta or not meta.get("guid"): 
+            if is_debug: print(f"[DEBUG] -> Ignorado: No tiene metadata o GUID")
+            return
         
         guid = meta.get("guid")
         
         if guid in local_items_by_guid:
             local_date = local_items_by_guid[guid]["watched_at"]
-            if cloud_date and cloud_date < local_date:
-                print(f"⬇️ Updating date from {local_date} to {cloud_date} for {meta.get('title')}")
-                cursor.execute("UPDATE watch_history SET watched_at = ?, created_at = ? WHERE id = ?", (cloud_date, now_utc, local_items_by_guid[guid]["id"]))
-                local_items_by_guid[guid]["watched_at"] = cloud_date
-                count_updates += 1
-                conn.commit()
+            if is_debug: print(f"[DEBUG] -> ENCONTRADO EN BD LOCAL (ID: {local_items_by_guid[guid]['id']}). Fecha Local: {local_date}")
+            
+            if cloud_date and local_date:
+                def parse_iso_to_dt(s: str):
+                    clean = s.replace("Z", "").split(".")[0]
+                    return datetime.datetime.strptime(clean, "%Y-%m-%dT%H:%M:%S")
+                cloud_dt = parse_iso_to_dt(cloud_date)
+                local_dt = parse_iso_to_dt(local_date)
+                if cloud_dt < local_dt:
+                    print(f"⬇️ Updating date from {local_date} to {cloud_date} for {meta.get('title')}")
+                    cursor.execute("UPDATE watch_history SET watched_at = ?, created_at = ? WHERE id = ?", (cloud_date, now_utc, local_items_by_guid[guid]["id"]))
+                    local_items_by_guid[guid]["watched_at"] = cloud_date
+                    count_updates += 1
+                    conn.commit()
+                else:
+                    if is_debug: print(f"[DEBUG] -> NO ACTUALIZADO: Fecha Cloud ({cloud_date}) no es más antigua que Fecha Local ({local_date})")
         else:
+            if is_debug: print(f"[DEBUG] -> NO ENCONTRADO EN BD LOCAL. Marcado como Huérfano.")
             print(f"🌟 Orphan detected in Cloud: {meta.get('title')} ({cloud_date})")
             try:
                 plex_metadata_id = guid.split("/")[-1]
@@ -2424,8 +2582,10 @@ def push_cloud_orphans_to_db():
     def fetch_show_history_db(show_id, show_title):
         h_next = True
         p_cursor = None
+        page_num = 1
         print(f"\n📡 [API] Obteniendo historial completo de la serie: {show_title} ({show_id})...")
         while h_next:
+            if is_debug: print(f"[DEBUG] -> Pidiendo Página {page_num} de {show_title} (Cursor: {p_cursor})")
             payload_sec = {
                 "query": query_secondary,
                 "variables": {
@@ -2437,107 +2597,157 @@ def push_cloud_orphans_to_db():
                 },
                 "operationName": "GetActivityFeed"
             }
-            try:
-                resp_sec = requests.post(url_graphql, headers=headers_fetch, json=payload_sec, timeout=30)
-                if resp_sec.status_code == 429:
-                    retry = int(resp_sec.headers.get("Retry-After", "60"))
-                    print(f"⏳ [429] Esperando {retry}s...")
-                    time.sleep(retry)
-                    continue
-                if resp_sec.status_code != 200:
+            start_time = time.time()
+            success = False
+            while True:
+                try:
+                    resp_sec = requests.post(url_graphql, headers=headers_fetch, json=payload_sec, timeout=30)
+                    if resp_sec.status_code == 429:
+                        retry = int(resp_sec.headers.get("Retry-After", "60"))
+                        if is_debug: print(f"[DEBUG] -> RATE LIMIT (429). Esperando {retry}s...")
+                        print(f"⏳ [429] Esperando {retry}s...")
+                        time.sleep(retry)
+                        continue
+                    if resp_sec.status_code != 200:
+                        if time.time() - start_time > 600:
+                            if is_debug: print(f"[DEBUG] -> FALLO API CLOUD. HTTP {resp_sec.status_code}. Tiempo límite (10m) superado.")
+                            break
+                        if is_debug: print(f"[DEBUG] -> FALLO API CLOUD. HTTP {resp_sec.status_code}. Reintentando en 3s...")
+                        time.sleep(3)
+                        continue
+                        
+                    data_sec = resp_sec.json().get("data", {}).get("activityFeed", {})
+                    nodes_sec = data_sec.get("nodes", [])
+                    
+                    if is_debug: print(f"[DEBUG] -> Página {page_num} recibida. Nodos: {len(nodes_sec)}")
+                    if not nodes_sec:
+                        if is_debug: print(f"[DEBUG] -> JSON/XML DEVUELTO VACÍO PARA {show_title} en página {page_num}.")
+                        
+                    for n_sec in nodes_sec:
+                        m_sec = n_sec.get("metadataItem")
+                        if m_sec and m_sec.get("type") == "EPISODE":
+                            process_item_node(n_sec, is_secondary=True)
+                            
+                    p_info = data_sec.get("pageInfo", {})
+                    h_next = p_info.get("hasNextPage", False)
+                    p_cursor = p_info.get("endCursor")
+                    if is_debug: print(f"[DEBUG] -> Fin de Página {page_num}. Hay más páginas? {h_next}")
+                    page_num += 1
+                    time.sleep(1)
+                    success = True
                     break
-                data_sec = resp_sec.json().get("data", {}).get("activityFeed", {})
-                nodes_sec = data_sec.get("nodes", [])
-                for n_sec in nodes_sec:
-                    m_sec = n_sec.get("metadataItem")
-                    if m_sec and m_sec.get("type") == "EPISODE":
-                        process_item_node(n_sec, is_secondary=True)
-                p_info = data_sec.get("pageInfo", {})
-                h_next = p_info.get("hasNextPage", False)
-                p_cursor = p_info.get("endCursor")
-                time.sleep(1)
-            except Exception as e:
-                print(f"Error fetching show history: {e}")
+                except Exception as e:
+                    if time.time() - start_time > 600:
+                        print(f"Error fetching show history: {e}")
+                        if is_debug: print(f"[DEBUG] -> EXCEPCION en fetch_show_history_db: {e}")
+                        break
+                    if is_debug: print(f"[DEBUG] -> EXCEPCION. Reintentando en 3s: {e}")
+                    time.sleep(3)
+                    
+            if not success:
+                print(f"❌ Abortando historial de {show_title} tras 10 minutos de fallos continuos.")
                 break
 
+    retries_primary = 0
     while has_next:
         payload = {
             "query": query_primary,
             "variables": {"first": 50, "after": page_cursor, "types": ["WATCH_HISTORY", "WATCH_SESSION"]},
             "operationName": "GetActivityFeed"
         }
-        
-        retries_primary = 0
-        try:
-            resp = requests.post(url_graphql, headers=headers_fetch, json=payload, timeout=20)
-            if resp.status_code == 429:
-                time.sleep(5)
-                continue
-            if resp.status_code != 200:
-                print(f"Error {resp.status_code} fetching from Plex Cloud.")
-                break
-                
-            resp_json = resp.json()
-            if "errors" in resp_json:
-                print(f"⚠️ Error interno en GraphQL de Plex Cloud: {resp_json['errors']}")
-                retries_primary += 1
-                if retries_primary > 3:
-                    print("❌ Demasiados fallos consecutivos en Plex Cloud. Saltando...")
-                    break
-                time.sleep(5)
-                continue
-                
-            data = resp_json.get("data")
-            if not data:
-                break
-            
-            data = data.get("activityFeed", {})
-            nodes = data.get("nodes", [])
-            page_info = data.get("pageInfo", {})
-            
-            if not nodes: break
-            
-            for node in nodes:
-                meta = node.get("metadataItem")
-                if not meta: continue
-                m_type = meta.get("type")
-                
-                if m_type == "MOVIE":
-                    process_item_node(node)
-                elif m_type == "EPISODE":
-                    gp = meta.get("grandparent")
-                    if not gp:
-                        process_item_node(node)
-                        continue
-                    show_guid = gp.get("guid")
-                    show_title = gp.get("title")
-                    if not show_guid:
-                        process_item_node(node)
-                        continue
-                    show_id = show_guid.split("/")[-1]
-                    if show_id in processed_shows:
-                        continue
-                    processed_shows.add(show_id)
-                    fetch_show_history_db(show_id, show_title)
-                elif m_type == "SHOW":
-                    show_guid = meta.get("guid")
-                    show_title = meta.get("title")
-                    if not show_guid:
-                        continue
-                    show_id = show_guid.split("/")[-1]
-                    if show_id in processed_shows:
-                        continue
-                    processed_shows.add(show_id)
-                    fetch_show_history_db(show_id, show_title)
+        start_time = time.time()
+        success = False
+        while True:
+            try:
+                resp = requests.post(url_graphql, headers=headers_fetch, json=payload, timeout=20)
+                if resp.status_code == 429:
+                    time.sleep(5)
+                    continue
+                if resp.status_code != 200:
+                    if time.time() - start_time > 600:
+                        print(f"Error {resp.status_code} fetching from Plex Cloud. Tiempo límite (10m) superado.")
+                        break
+                    time.sleep(3)
+                    continue
                     
-            has_next = page_info.get("hasNextPage", False)
-            page_cursor = page_info.get("endCursor")
-            time.sleep(1)
-            
-        except Exception as e:
-            print(f"Error connecting to GraphQL Plex Cloud: {e}")
+                resp_json = resp.json()
+                if "errors" in resp_json:
+                    FATAL_CODES = {"NOT_FOUND", "FORBIDDEN", "UNAUTHORIZED", "BAD_USER_INPUT"}
+                    is_fatal = any(
+                        e.get("extensions", {}).get("code", "") in FATAL_CODES
+                        for e in resp_json["errors"]
+                    )
+                    if is_fatal:
+                        print("❌ Error definitivo GraphQL en Smart Extractor. Abortando.")
+                        has_next = False
+                        break
+                        
+                    if time.time() - start_time > 600:
+                        print(f"⚠️ Error interno en GraphQL transitorio superó 10 min: {resp_json['errors']}")
+                        break
+                    time.sleep(3)
+                    continue
+                    
+                success = True
+                break
+            except Exception as e:
+                if time.time() - start_time > 600:
+                    print(f"❌ Error de red primario superó 10 min: {e}")
+                    break
+                time.sleep(3)
+                
+        if not success:
+            print("❌ Abortando Cloud Phase tras 10 minutos de fallos continuos.")
             break
             
+        retries_primary = 0
+                
+        data = resp_json.get("data")
+        if not data:
+            break
+        
+        data = data.get("activityFeed", {})
+        nodes = data.get("nodes", [])
+        page_info = data.get("pageInfo", {})
+        
+        if not nodes: break
+        
+        for node in nodes:
+            meta = node.get("metadataItem")
+            if not meta: continue
+            m_type = meta.get("type")
+            
+            if m_type == "MOVIE":
+                process_item_node(node)
+            elif m_type == "EPISODE":
+                gp = meta.get("grandparent")
+                if not gp:
+                    process_item_node(node)
+                    continue
+                show_guid = gp.get("guid")
+                show_title = gp.get("title")
+                if not show_guid:
+                    process_item_node(node)
+                    continue
+                show_id = show_guid.split("/")[-1]
+                if show_id in processed_shows:
+                    continue
+                processed_shows.add(show_id)
+                fetch_show_history_db(show_id, show_title)
+            elif m_type == "SHOW":
+                show_guid = meta.get("guid")
+                show_title = meta.get("title")
+                if not show_guid:
+                    continue
+                show_id = show_guid.split("/")[-1]
+                if show_id in processed_shows:
+                    continue
+                processed_shows.add(show_id)
+                fetch_show_history_db(show_id, show_title)
+                
+        has_next = page_info.get("hasNextPage", False)
+        page_cursor = page_info.get("endCursor")
+        time.sleep(1)
     conn.close()
     print(f"✅ Smart Extractor V2 completed! Inserted {count_orphans} orphans and updated {count_updates} dates.")
 
@@ -2571,6 +2781,12 @@ async def sync_loop():
 async def background_initial_task():
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, run_sync)
+    
+    # Notificamos que la BD ha terminado de llenarse, pasamos a descargar imágenes
+    settings = load_settings()
+    settings["sync_state"] = 3
+    save_settings(settings)
+    
     # Once DB loading is finished, download images asynchronously
     await bulk_download_tmdb_images()
 
@@ -2813,13 +3029,30 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
                 
             # LOCAL SCROBBLE (As requested by user to ensure local watch state)
             try:
-                import threading
                 ep_title = f"Episode {req.episode}" if req.media_type == "episode" else req.title
                 s_season = int(req.season) if req.season is not None else None
                 s_episode = int(req.episode) if req.episode is not None else None
                 movie_tmdb = req.tmdb_id if req.media_type == "movie" else None
                 show_tmdb = req.tmdb_id if req.media_type == "episode" else None
-                threading.Thread(target=scrobble_kodi_webhook_to_plex, args=(ep_title, req.title, s_season, s_episode, req.media_type, movie_tmdb, None, show_tmdb, None)).start()
+                
+                plex_movies, plex_shows = get_plex_items_map()
+                
+                if req.media_type == "movie":
+                    matched = match_movie({"movie": {"title": ep_title}}, plex_movies, movie_tmdb, year=target_year)
+                    if matched:
+                        r_key = matched.get("ratingKey")
+                        requests.get(f"{PLEX_URL}/:/scrobble?identifier=com.plexapp.plugins.library&key={r_key}", headers=plex_headers)
+                        print(f"✅ [Local Scrobble] Marked movie in Plex: {ep_title}")
+                elif req.media_type == "episode":
+                    s_key = match_show({"show": {"title": req.title}}, plex_shows, show_tmdb, year=target_year)
+                    if s_key:
+                        r_eps = requests.get(f"{PLEX_URL}/library/metadata/{s_key}/allLeaves", headers=plex_headers)
+                        if r_eps.status_code == 200:
+                            for pep in r_eps.json().get("MediaContainer", {}).get("Metadata", []):
+                                if pep.get("parentIndex") == s_season and pep.get("index") == s_episode:
+                                    requests.get(f"{PLEX_URL}/:/scrobble?identifier=com.plexapp.plugins.library&key={pep['ratingKey']}", headers=plex_headers)
+                                    print(f"✅ [Local Scrobble] Marked episode in Plex: {req.title} T{s_season}E{s_episode}")
+                                    break
             except Exception as e:
                 print(f"[manual_add] Error triggering local scrobble: {e}")
 
@@ -2850,15 +3083,15 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
 
         if req.media_type == "movie":
             cursor.execute("""
-                INSERT INTO watch_history (origin, title, media_type, tmdb_id, watched_at, poster_path, fanart_path, plex_guid, duration)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (final_origin, req.title, req.media_type, req.tmdb_id, final_watched_at, poster_path, fanart_path, plex_guid, found_duration))
+                INSERT INTO watch_history (origin, title, media_type, tmdb_id, watched_at, poster_path, fanart_path, plex_guid, duration, year)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (final_origin, req.title, req.media_type, req.tmdb_id, final_watched_at, poster_path, fanart_path, plex_guid, found_duration, target_year))
         else:
             ep_title = f"Episode {req.episode}"
             cursor.execute("""
-                INSERT INTO watch_history (origin, title, show_title, media_type, show_tmdb_id, season, episode, watched_at, poster_path, fanart_path, plex_guid, plex_show_guid, duration)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (final_origin, ep_title, req.title, req.media_type, req.tmdb_id, req.season, req.episode, final_watched_at, poster_path, fanart_path, plex_guid, found_show_guid, found_duration))
+                INSERT INTO watch_history (origin, title, show_title, media_type, show_tmdb_id, season, episode, watched_at, poster_path, fanart_path, plex_guid, plex_show_guid, duration, show_year)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (final_origin, ep_title, req.title, req.media_type, req.tmdb_id, req.season, req.episode, final_watched_at, poster_path, fanart_path, plex_guid, found_show_guid, found_duration, target_year))
 
         conn.commit()
         conn.close()

@@ -57,6 +57,8 @@
   "empty_state_msg": "Lauf zum Fernseher und schalte einen guten Film ein!",
   "error_state_msg": "Fehler bei der Verbindung zur Datenbank oder Scan läuft...",
   "sync_in_progress_msg": "Der Server führt derzeit das erste Laden aus. Einige Bilder oder Metadaten sind möglicherweise noch nicht verfügbar. Bitte konfigurieren Sie die Plex- oder Kodi-Webhooks NOCH NICHT.",
+  "sync_state_3": "Die Datenbank ist bereit. Cover werden im Hintergrund heruntergeladen...",
+  "btn_view_logs": "Terminal anzeigen",
   "sync_done_msg": "Erstes Laden abgeschlossen! Sie können nun die Plex- und Kodi-Webhooks konfigurieren.",
   "modal_sync_remote": "Automatisch auf Plex & Kodi aktualisieren",
   "edit_dist_mode_title": "Verteilungsmodus",

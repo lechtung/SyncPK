@@ -57,6 +57,8 @@
   "empty_state_msg": "テレビの前に走って、いい映画を見よう！",
   "error_state_msg": "データベースへの接続エラー、またはスキャン中...",
   "sync_in_progress_msg": "サーバーは現在、初期ロードを実行しています。一部の画像やメタデータはまだ利用できない場合があります。Plex または Kodi の Webhook はまだ設定しないでください。",
+  "sync_state_3": "データベースの準備ができました。バックグラウンドでアートワークをダウンロードしています...",
+  "btn_view_logs": "ターミナルを表示",
   "sync_done_msg": "初期ロードが完了しました！これで Plex と Kodi の Webhook を設定できます。",
   "modal_sync_remote": "Plex と Kodi で自動的に更新",
   "edit_dist_mode_title": "配信モード",

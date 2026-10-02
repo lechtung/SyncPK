@@ -57,6 +57,8 @@
   "empty_state_msg": "Corri alla TV e metti su un bel film!",
   "error_state_msg": "Errore di connessione al database o scansione in corso...",
   "sync_in_progress_msg": "Il server sta eseguendo il caricamento iniziale. Alcune immagini o metadati potrebbero non essere ancora disponibili. NON configurare ancora i webhook Plex o Kodi.",
+  "sync_state_3": "Il database è pronto. Download delle copertine in background...",
+  "btn_view_logs": "Visualizza Terminale",
   "sync_done_msg": "Caricamento iniziale completato! Ora puoi configurare i webhook Plex e Kodi.",
   "modal_sync_remote": "Aggiorna automaticamente su Plex & Kodi",
   "edit_dist_mode_title": "Modalità di distribuzione",
