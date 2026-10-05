@@ -22,7 +22,7 @@ curl -fsSL --max-time 20 -o "$TMP" "https://api.github.com/repos/lechtung/SyncPK
 REMOTE_VER=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tag_name"].lstrip("v"))' "$TMP" 2>/dev/null || true)
 
 if [ -z "$REMOTE_VER" ] || [[ ! "$REMOTE_VER" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "Error: Versión remota inválida ($REMOTE_VER)"
+    echo "Error: Invalid remote version ($REMOTE_VER)"
     exit 1
 fi
 

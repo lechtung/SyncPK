@@ -859,11 +859,14 @@ async def plex_webhook(request: Request):
         
     payload = json.loads(payload_str)
     
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    if process_plex_payload(payload, cursor):
-        conn.commit()
-    conn.close()
+    from fastapi.concurrency import run_in_threadpool
+    def _db_task():
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        if process_plex_payload(payload, cursor):
+            conn.commit()
+        conn.close()
+    await run_in_threadpool(_db_task)
     
     return {"status": "success"}
 
@@ -874,11 +877,14 @@ async def kodi_webhook(request: Request):
     except Exception:
         return {"status": "error", "message": "Invalid JSON"}
         
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    if process_kodi_payload(payload, cursor):
-        conn.commit()
-    conn.close()
+    from fastapi.concurrency import run_in_threadpool
+    def _db_task():
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        if process_kodi_payload(payload, cursor):
+            conn.commit()
+        conn.close()
+    await run_in_threadpool(_db_task)
     
     return {"status": "success"}
 
@@ -2086,7 +2092,8 @@ def get_oldest_date(rating_key, metadata_id, xml_watched_at):
         elif hr.status_code == 404:
             pass # No local history for this item
     except requests.exceptions.RequestException as req_err:
-        print(f"❌ Connection error to local Plex server ({PLEX_URL}): {req_err}", flush=True)
+        err_str = re.sub(r'X-Plex-Token=[a-zA-Z0-9_-]+', 'X-Plex-Token=***', str(req_err))
+        print(f"❌ Connection error to local Plex server ({PLEX_URL}): {err_str}", flush=True)
     except Exception as e:
         print(f"❌ Unknown error processing local history for {rating_key}: {e}", flush=True)
         
@@ -3590,7 +3597,7 @@ async def test_tmdb(req: TestTmdbRequest):
         return {"success": False, "error": str(e)}
 
 @app.post("/api/setup")
-async def process_setup(data: SetupData):
+def process_setup(data: SetupData):
     # For security, if the .env file already exists, we block any attempt to overwrite it.
     if os.path.exists(ENV_PATH):
         return {"error": "La instalación ya ha sido completada previamente."}

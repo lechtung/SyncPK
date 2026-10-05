@@ -18,30 +18,30 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "[Info] Obteniendo la última versión de GitHub..."
+echo "[Info] Fetching latest version from GitHub..."
 # Point 1: API Check, atomic download.
-curl -fsSL --max-time 30 "$API_URL" | "$PYTHON_BIN" -c 'import json,sys; print(json.load(sys.stdin)["tarball_url"])' > "$TMP_DIR/url" || { echo "[Error] No se pudo obtener la URL de descarga"; exit 1; }
+curl -fsSL --max-time 30 "$API_URL" | "$PYTHON_BIN" -c 'import json,sys; print(json.load(sys.stdin)["tarball_url"])' > "$TMP_DIR/url" || { echo "[Error] Could not fetch download URL"; exit 1; }
 
 TAR_URL=$(cat "$TMP_DIR/url")
 if [ -z "$TAR_URL" ]; then
-    echo "[Error] URL de descarga vacía."
+    echo "[Error] Download URL is empty."
     exit 1
 fi
 
-echo "[Info] Descargando y extrayendo código fuente..."
+echo "[Info] Downloading and extracting source code..."
 mkdir -p "$TMP_DIR/src"
-curl -fsSL --max-time 300 "$TAR_URL" | tar -xz -C "$TMP_DIR/src" --strip-components=1 || { echo "[Error] Fallo al descargar/extraer"; exit 1; }
+curl -fsSL --max-time 300 "$TAR_URL" | tar -xz -C "$TMP_DIR/src" --strip-components=1 || { echo "[Error] Failed to download/extract"; exit 1; }
 
-echo "[Info] Descargando dependencias..."
+echo "[Info] Downloading dependencies..."
 mkdir -p "$TMP_DIR/wheels"
 # Download before stopping service
-"$PIP_BIN" download -q -r "$TMP_DIR/src/server/requirements.txt" -d "$TMP_DIR/wheels" || { echo "[Error] Fallo al descargar dependencias de Python"; exit 1; }
+"$PIP_BIN" download -q -r "$TMP_DIR/src/server/requirements.txt" -d "$TMP_DIR/wheels" || { echo "[Error] Failed to download Python dependencies"; exit 1; }
 
 # ---- Ventana de parada mínima ----
-echo "[Info] Deteniendo servicio..."
+echo "[Info] Stopping service..."
 systemctl stop syncpk-server
 
-echo "[Info] Creando copia de seguridad local (código y BD)..."
+echo "[Info] Creating local backup (code and DB)..."
 rm -rf "$CODE_DIR.prev"
 cp -a "$CODE_DIR" "$CODE_DIR.prev"
 mkdir -p "$DATA_DIR/backup"
@@ -50,11 +50,11 @@ if ls "$DATA_DIR"/sync.db* 1> /dev/null 2>&1; then
     cp -a "$DATA_DIR"/sync.db* "$DATA_DIR/backup/"
 fi
 
-echo "[Info] Limpiando código viejo..."
+echo "[Info] Cleaning old code..."
 # Point 11: Borrar todo excepto venv (y variables locales si las hubiera)
-find "$CODE_DIR" -mindepth 1 -maxdepth 1 ! -name 'venv' ! -name '.ver' ! -name 'update.sh' -exec rm -rf {} +
+find "$CODE_DIR" -mindepth 1 -maxdepth 1 ! -name 'venv' ! -name '.ver' ! -name 'update.sh' ! -name 'check_update.sh' -exec rm -rf {} +
 
-echo "[Info] Aplicando nuevo código..."
+echo "[Info] Applying new code..."
 # Copiar server/
 cp -a "$TMP_DIR/src/server/"* "$CODE_DIR/"
 # Point 2: Actualizar update.sh y check_update.sh
@@ -69,21 +69,21 @@ if [ -d "$TMP_DIR/src/server/systemd" ]; then
     systemctl daemon-reload
 fi
 
-echo "[Info] Instalando nuevas dependencias offline..."
+echo "[Info] Installing new dependencies offline..."
 "$PIP_BIN" install -q --no-index --find-links "$TMP_DIR/wheels" -r "$CODE_DIR/requirements.txt" || {
-    echo "[Error] Fallo al instalar dependencias, restaurando backup..."
+    echo "[Error] Failed to install dependencies, restoring backup..."
     rm -rf "$CODE_DIR"
     mv "$CODE_DIR.prev" "$CODE_DIR"
     exit 1
 }
 
-echo "[Info] Actualizando versión local..."
+echo "[Info] Updating local version..."
 if [ -f "$TMP_DIR/src/.ver" ]; then
     cp "$TMP_DIR/src/.ver" "$CODE_DIR/.ver"
 fi
 
 # Point 6: Permisos
-echo "[Info] Configurando permisos..."
+echo "[Info] Configuring permissions..."
 chown -R root:root "$CODE_DIR"
 find "$CODE_DIR" -type d -exec chmod 755 {} +
 find "$CODE_DIR" -type f -exec chmod 644 {} +
@@ -92,10 +92,10 @@ if [ -f "$CODE_DIR/check_update.sh" ]; then
     chmod +x "$CODE_DIR/check_update.sh"
 fi
 
-echo "[Info] Iniciando servicio..."
+echo "[Info] Starting service..."
 systemctl start syncpk-server
 
-echo "[Info] Comprobando salud del servicio..."
+echo "[Info] Checking service health..."
 # Healthcheck: retry for up to 30 seconds
 HEALTH_OK=0
 for i in $(seq 1 15); do
@@ -107,13 +107,13 @@ for i in $(seq 1 15); do
 done
 
 if [ "$HEALTH_OK" -eq 0 ]; then
-    echo "[Error] El servicio no responde tras la actualización. Restaurando versión anterior..."
+    echo "[Error] Service is unresponsive after update. Restoring previous version..."
     systemctl stop syncpk-server
     rm -rf "$CODE_DIR"
     mv "$CODE_DIR.prev" "$CODE_DIR"
     systemctl start syncpk-server
-    echo "[Error] Rollback completado."
+    echo "[Error] Rollback completed."
     exit 1
 fi
 
-echo "[Info] Actualización completada con éxito."
+echo "[Info] Update completed successfully."

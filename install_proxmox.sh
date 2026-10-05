@@ -17,7 +17,6 @@ if ! command -v pvesm &> /dev/null; then
     error "This script must be run on the Proxmox HOST, not inside a container."
 fi
 
-# Instalar whiptail/curl solo si faltan (Punto 24)
 if ! command -v whiptail &> /dev/null || ! command -v curl &> /dev/null; then
     apt-get update &>/dev/null
     apt-get install -y whiptail curl &>/dev/null
@@ -41,9 +40,8 @@ while true; do
     ROOT_PASSWORD=$(whiptail --passwordbox "Enter a root password for the LXC container (min 5 chars):" 10 60 --title "SyncPK - Security" 3>&1 1>&2 2>&3)
     if [ $? -ne 0 ]; then exit 1; fi
 
-    # Validar longitud mínima (Punto 23)
     if [ ${#ROOT_PASSWORD} -lt 5 ]; then
-        whiptail --msgbox "La contraseña debe tener al menos 5 caracteres." 8 45 --title "Error"
+        whiptail --msgbox "The password must be at least 5 characters long." 8 45 --title "Error"
         continue
     fi
 
@@ -53,7 +51,7 @@ while true; do
     if [ "$ROOT_PASSWORD" == "$ROOT_PASSWORD_CONFIRM" ]; then
         break
     else
-        whiptail --msgbox "Las contraseñas no coinciden. Inténtalo de nuevo." 8 45 --title "Error"
+        whiptail --msgbox "Passwords do not match. Please try again." 8 45 --title "Error"
     fi
 done
 
@@ -64,7 +62,6 @@ if [ -z "$TEMPLATE_STORAGE" ]; then
     error "No storage found that supports LXC templates (vztmpl)."
 fi
 
-# Restaurado menú de templates descargadas (Apunte del usuario y Punto 22)
 echo "[Info] Searching for downloaded LXC templates..."
 DOWNLOADED_TEMPLATES=$(pvesm list $TEMPLATE_STORAGE --content vztmpl | awk 'NR>1 {print $1}')
 if [ -z "$DOWNLOADED_TEMPLATES" ]; then
@@ -81,13 +78,11 @@ LATEST_TEMPLATE=$(whiptail --title "SyncPK - Template Selection" --menu "Select 
 if [ $? -ne 0 ]; then exit 1; fi
 
 echo "[Info] Creating CT container $CTID..."
-# Capturar error de creación (Punto 4)
-pct create $CTID $LATEST_TEMPLATE -storage $TARGET_STORAGE -rootfs $TARGET_STORAGE:8 -password "$ROOT_PASSWORD" -arch amd64 -hostname syncpk -cores 1 -memory 512 -net0 name=eth0,bridge=vmbr0,ip=dhcp -unprivileged 1 -features nesting=1 -timezone host -onboot 1 || error "pct create falló."
+pct create $CTID $LATEST_TEMPLATE -storage $TARGET_STORAGE -rootfs $TARGET_STORAGE:8 -password "$ROOT_PASSWORD" -arch amd64 -hostname syncpk -cores 1 -memory 512 -net0 name=eth0,bridge=vmbr0,ip=dhcp -unprivileged 1 -features nesting=1 -timezone host -onboot 1 || error "Failed to create LXC container (pct create failed)."
 
 pct start $CTID
 
 echo "[Info] Waiting for the container to get network access..."
-# Límite de intentos y comprobación de DNS en lugar de ICMP (Punto 4)
 NET_OK=0
 for i in $(seq 1 30); do
     if pct exec $CTID -- getent hosts raw.githubusercontent.com >/dev/null 2>&1; then
@@ -98,15 +93,14 @@ for i in $(seq 1 30); do
 done
 
 if [ "$NET_OK" -eq 0 ]; then
-    error "Sin red en el LXC (¿bridge correcto? ¿DHCP?). Revisa con: pct enter $CTID"
+    error "No network access in the LXC container (Check bridge and DHCP). Debug with: pct enter $CTID"
 fi
 
 CT_IP=$(pct exec $CTID -- ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
 echo "[Info] Assigned IP: $CT_IP"
 
 echo "[Info] Launching automated system installer inside LXC..."
-# Pipeline seguro con set -o pipefail y || error (Punto 4)
-pct exec $CTID -- bash -c "set -euo pipefail; apt-get update >/dev/null 2>&1 && apt-get install -y curl ca-certificates >/dev/null 2>&1 && curl -fsSL https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/install.sh > install.sh && bash install.sh" || error "install.sh falló dentro del LXC."
+pct exec $CTID -- bash -c "set -euo pipefail; apt-get update >/dev/null 2>&1 && apt-get install -y curl ca-certificates >/dev/null 2>&1 && curl -fsSL https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/install.sh > install.sh && bash install.sh" || error "install.sh failed inside LXC."
 
 echo "[Info] Configuring Welcome Message (MOTD)..."
 pct exec $CTID -- bash -c "cat << 'EOF' > /etc/profile.d/syncpk-motd.sh
@@ -119,7 +113,7 @@ echo \"================================================================\"
 echo -e \" \e[1mWeb Dashboard:\e[0m http://\$LOCAL_IP:8000\"
 echo -e \" \e[1mKodi Webhook:\e[0m  http://\$LOCAL_IP:8000/webhook/kodi\"
 echo -e \" \e[1mPlex Webhook:\e[0m  http://\$LOCAL_IP:8000/webhook/plex\"
-echo \"(Asegúrate de añadir tu ?token=... en Plex/Kodi si lo configuraste)\"
+echo \"(Make sure to append your ?token=... in Plex/Kodi if configured)\"
 echo \"================================================================\"
 echo \"\"
 EOF"

@@ -15,9 +15,9 @@ DATA_DIR="/var/lib/syncpk"
 API_URL="https://api.github.com/repos/lechtung/SyncPK/releases/latest"
 
 if [ -d "$CODE_DIR" ] || [ -d "$DATA_DIR" ]; then
-    echo -e "\e[33m[Warning] SyncPK ya parece estar instalado en este sistema.\e[0m"
-    echo "Si deseas actualizar, ejecuta: sudo $CODE_DIR/update.sh"
-    echo "Si deseas reinstalar, borra primero $CODE_DIR y $DATA_DIR."
+    echo -e "\e[33m[Warning] SyncPK seems to be already installed on this system.\e[0m"
+    echo "If you want to update, run: sudo $CODE_DIR/update.sh"
+    echo "If you want to reinstall, delete $CODE_DIR and $DATA_DIR first."
     exit 1
 fi
 
@@ -29,12 +29,12 @@ fi
 echo "[Info] Installing OS dependencies..."
 apt-get update > /var/log/syncpk-install.log 2>&1 || {
     tail -n 20 /var/log/syncpk-install.log
-    echo -e "\e[31m[ERROR] Falló apt-get update. Revisa el log.\e[0m"
+    echo -e "\e[31m[ERROR] apt-get update failed. Check the log.\e[0m"
     exit 1
 }
 apt-get install -y curl python3 python3-venv ca-certificates >> /var/log/syncpk-install.log 2>&1 || {
     tail -n 20 /var/log/syncpk-install.log
-    echo -e "\e[31m[ERROR] Falló la instalación de paquetes. Revisa el log.\e[0m"
+    echo -e "\e[31m[ERROR] Package installation failed. Check the log.\e[0m"
     exit 1
 }
 
@@ -42,22 +42,22 @@ echo "[Info] Preparing directories..."
 mkdir -p $CODE_DIR
 mkdir -p $DATA_DIR
 
-echo "[Info] Obteniendo la última versión de GitHub..."
+echo "[Info] Fetching latest version from GitHub..."
 TMP_DIR=$(mktemp -d)
 cleanup() { rm -rf "$TMP_DIR"; }
 trap cleanup EXIT
 
-curl -fsSL --max-time 30 "$API_URL" | python3 -c 'import json,sys; print(json.load(sys.stdin)["tarball_url"])' > "$TMP_DIR/url" || { echo -e "\e[31m[ERROR] No se pudo obtener la URL de descarga\e[0m"; exit 1; }
+curl -fsSL --max-time 30 "$API_URL" | python3 -c 'import json,sys; print(json.load(sys.stdin)["tarball_url"])' > "$TMP_DIR/url" || { echo -e "\e[31m[ERROR] Could not fetch download URL\e[0m"; exit 1; }
 
 TAR_URL=$(cat "$TMP_DIR/url")
 if [ -z "$TAR_URL" ]; then
-    echo -e "\e[31m[ERROR] URL de descarga vacía.\e[0m"
+    echo -e "\e[31m[ERROR] Download URL is empty.\e[0m"
     exit 1
 fi
 
-echo "[Info] Descargando y extrayendo código fuente..."
+echo "[Info] Downloading and extracting source code..."
 mkdir -p "$TMP_DIR/src"
-curl -fsSL --max-time 300 "$TAR_URL" | tar -xz -C "$TMP_DIR/src" --strip-components=1 || { echo -e "\e[31m[ERROR] Fallo al descargar/extraer código\e[0m"; exit 1; }
+curl -fsSL --max-time 300 "$TAR_URL" | tar -xz -C "$TMP_DIR/src" --strip-components=1 || { echo -e "\e[31m[ERROR] Failed to download/extract source code\e[0m"; exit 1; }
 
 # Copiar el contenido
 cp -a "$TMP_DIR/src/server/"* "$CODE_DIR/"
@@ -71,14 +71,14 @@ if [ -f "$TMP_DIR/src/check_update.sh" ]; then
 fi
 
 if [ ! -f "$CODE_DIR/requirements.txt" ]; then
-    echo -e "\e[31m[ERROR] No se encontró requirements.txt en la release.\e[0m"
+    echo -e "\e[31m[ERROR] requirements.txt not found in the release.\e[0m"
     exit 1
 fi
 
 echo "[Info] Configuring Python virtual environment..."
 python3 -m venv $CODE_DIR/venv
 $CODE_DIR/venv/bin/pip install -q -r $CODE_DIR/requirements.txt || {
-    echo -e "\e[31m[ERROR] Falló la instalación de dependencias de Python.\e[0m"
+    echo -e "\e[31m[ERROR] Failed to install Python dependencies.\e[0m"
     exit 1
 }
 
@@ -101,7 +101,7 @@ echo "[Info] Installing systemd services..."
 if [ -d "$TMP_DIR/src/server/systemd" ]; then
     cp -a "$TMP_DIR/src/server/systemd/"* /etc/systemd/system/
 else
-    echo -e "\e[31m[ERROR] No se encontraron archivos de systemd en la release.\e[0m"
+    echo -e "\e[31m[ERROR] No systemd files found in the release.\e[0m"
     exit 1
 fi
 
@@ -113,7 +113,7 @@ systemctl enable --now syncpk-updater.path
 
 LOCAL_IP=$(hostname -I | awk '{print $1}')
 
-echo "[Info] Comprobando salud del servicio..."
+echo "[Info] Checking service health..."
 HEALTH_OK=0
 for i in $(seq 1 15); do
     if curl -fsSL --max-time 5 "http://127.0.0.1:8000/api/time" >/dev/null 2>&1; then
@@ -124,7 +124,7 @@ for i in $(seq 1 15); do
 done
 
 if [ "$HEALTH_OK" -eq 0 ]; then
-    echo -e "\e[31m[ERROR] El servicio no responde. Revisa los logs:\e[0m"
+    echo -e "\e[31m[ERROR] Service is unresponsive. Check the logs:\e[0m"
     journalctl -u syncpk-server -n 30 --no-pager
     exit 1
 fi
