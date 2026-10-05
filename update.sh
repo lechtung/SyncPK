@@ -62,9 +62,11 @@ echo "[Info] Applying new code..."
 # Copiar server/
 cp -a "$TMP_DIR/src/server/." "$CODE_DIR/"
 # Point 2: Actualizar update.sh y check_update.sh
-cp -a "$TMP_DIR/src/update.sh" "$CODE_DIR/update.sh"
+cp -a "$TMP_DIR/src/update.sh" "$CODE_DIR/update.sh.tmp"
+mv "$CODE_DIR/update.sh.tmp" "$CODE_DIR/update.sh"
 if [ -f "$TMP_DIR/src/check_update.sh" ]; then
-    cp -a "$TMP_DIR/src/check_update.sh" "$CODE_DIR/check_update.sh"
+    cp -a "$TMP_DIR/src/check_update.sh" "$CODE_DIR/check_update.sh.tmp"
+    mv "$CODE_DIR/check_update.sh.tmp" "$CODE_DIR/check_update.sh"
 fi
 
 # Point 9: Copiar archivos systemd y hacer daemon-reload
