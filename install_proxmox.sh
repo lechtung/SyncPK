@@ -82,3 +82,25 @@ echo "[Info] Assigned IP: $CT_IP"
 
 echo "[Info] Launching automated system installer inside LXC..."
 pct exec $CTID -- bash -c "apt-get update >/dev/null 2>&1 && apt-get install -y curl ca-certificates >/dev/null 2>&1 && curl -fsSL https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/install.sh | bash"
+
+echo "[Info] Configuring Welcome Message (MOTD)..."
+pct exec $CTID -- bash -c "cat << 'EOF' > /etc/profile.d/syncpk-motd.sh
+#!/bin/bash
+LOCAL_IP=\$(hostname -I | awk '{print \$1}')
+echo \"\"
+echo \"================================================================\"
+echo -e \" \e[32m\e[1mSyncPK - Two-Way Kodi & Plex Sync Server\e[0m\"
+echo \"================================================================\"
+echo -e \" \e[1mWeb Dashboard:\e[0m http://\$LOCAL_IP:8000\"
+echo -e \" \e[1mKodi Webhook:\e[0m  http://\$LOCAL_IP:8000/webhook/kodi\"
+echo -e \" \e[1mPlex Webhook:\e[0m  http://\$LOCAL_IP:8000/webhook/plex\"
+echo \"================================================================\"
+echo \"\"
+EOF"
+pct exec $CTID -- chmod +x /etc/profile.d/syncpk-motd.sh
+
+echo "================================================================"
+echo -e "\e[32mInstallation completed successfully!\e[0m"
+echo -e "Open your browser to launch the Web Setup Wizard:"
+echo -e "➡️  \e[1mhttp://$CT_IP:8000\e[0m"
+echo "================================================================"

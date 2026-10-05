@@ -21,7 +21,9 @@ curl -fsSL "$LATEST_TAR_URL" | tar -xz -C "$TMP_DIR" --strip-components=1
 
 echo "[Info] Actualizando archivos..."
 # Copiar el contenido de la carpeta server al directorio principal
+shopt -s dotglob
 cp -r "$TMP_DIR/server/"* "$CODE_DIR/"
+shopt -u dotglob
 # Si no existe .env.example, lo copiamos (ahora bajará directo de server/.env.example)
 
 echo "[Info] Instalando dependencias de Python..."

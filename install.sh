@@ -42,8 +42,10 @@ echo "[Info] Descargando y extrayendo código fuente..."
 TMP_DIR=$(mktemp -d)
 curl -fsSL "$LATEST_TAR_URL" | tar -xz -C "$TMP_DIR" --strip-components=1
 
-# Copiar el contenido de la carpeta server al directorio principal
+# Copiar el contenido de la carpeta server al directorio principal (incluyendo archivos ocultos)
+shopt -s dotglob
 cp -r "$TMP_DIR/server/"* "$CODE_DIR/"
+shopt -u dotglob
 # Copiar .ver al código principal
 cp "$TMP_DIR/.ver" "$CODE_DIR/.ver"
 
@@ -149,6 +151,7 @@ systemctl enable --now syncpk-checker.timer
 systemctl enable --now syncpk-updater.path
 
 LOCAL_IP=$(hostname -I | awk '{print $1}')
+
 
 echo "================================================================"
 echo -e "\e[32mInstallation completed successfully!\e[0m"

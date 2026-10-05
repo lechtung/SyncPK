@@ -813,7 +813,8 @@
       document.getElementById('finish-msg').textContent = 'Writing configuration...';
       try {
         const res = await fetch('/api/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plex_url: state.plexUrl, plex_token: state.plexToken, plex_client_id: state.plexClientId, has_plex_pass: state.hasPlexPass, password: state.password, tmdb_api_key: state.tmdbKey, dashboard_language: state.dashLang, sync_language: state.syncLang, poster_pref: state.posterPref, fanart_pref: state.fanartPref, poster_quality: state.posterQuality, fanart_quality: state.fanartQuality, auto_update: state.autoUpdate, debug: state.debug }) });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error || 'HTTP ' + res.status);
         document.getElementById('finish-status-icon').innerHTML = '<svg class="svg-anim" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52"><circle class="circle" cx="26" cy="26" r="25" stroke="#3fb950"/><path class="check" stroke="#3fb950" d="M14.1 27.2l7.1 7.2 16.7-16.8"/></svg>';
         document.getElementById('finish-title').textContent = t('setup_finish_title');
         document.getElementById('finish-msg').textContent = t('setup_finish_msg');
