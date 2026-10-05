@@ -108,7 +108,7 @@ if [ $? -ne 0 ]; then exit 1; fi
 
 LATEST_TEMPLATE_FILE="${TPL_MAP[$CHOICE]}"
 
-if echo "$LATEST_TEMPLATE_FILE" | grep -q "^debian-\|^ubuntu-"; then
+if ! pvesm list $TEMPLATE_STORAGE --content vztmpl | grep -q "$LATEST_TEMPLATE_FILE"; then
     echo "[Info] Downloading selected template ($LATEST_TEMPLATE_FILE)..."
     pveam download $TEMPLATE_STORAGE $LATEST_TEMPLATE_FILE &>/dev/null || error "Failed to download the template."
 fi
