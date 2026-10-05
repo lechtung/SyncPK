@@ -60,7 +60,7 @@ mkdir -p "$TMP_DIR/src"
 curl -fsSL --max-time 300 "$TAR_URL" | tar -xz -C "$TMP_DIR/src" --strip-components=1 || { echo -e "\e[31m[ERROR] Failed to download/extract source code\e[0m"; exit 1; }
 
 # Copiar el contenido
-cp -a "$TMP_DIR/src/server/"* "$CODE_DIR/"
+cp -a "$TMP_DIR/src/server/." "$CODE_DIR/"
 if [ -f "$TMP_DIR/src/.ver" ]; then
     cp "$TMP_DIR/src/.ver" "$CODE_DIR/.ver"
 fi

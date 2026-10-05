@@ -56,7 +56,7 @@ find "$CODE_DIR" -mindepth 1 -maxdepth 1 ! -name 'venv' ! -name '.ver' ! -name '
 
 echo "[Info] Applying new code..."
 # Copiar server/
-cp -a "$TMP_DIR/src/server/"* "$CODE_DIR/"
+cp -a "$TMP_DIR/src/server/." "$CODE_DIR/"
 # Point 2: Actualizar update.sh y check_update.sh
 cp -a "$TMP_DIR/src/update.sh" "$CODE_DIR/update.sh"
 if [ -f "$TMP_DIR/src/check_update.sh" ]; then
