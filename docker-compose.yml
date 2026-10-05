@@ -4,10 +4,8 @@ services:
     container_name: syncpk-server
     restart: unless-stopped
     ports:
+      # Si publicas directamente a internet, usa un reverse proxy y cambia a "127.0.0.1:8000:8000" para evitar saltar el firewall ufw.
       - "8000:8000"
-    environment:
-      # Tell Python where to store everything
-      - DATA_DIR=/app/data
     volumes:
-      # All persistence (db, json, env and cache) will live in ./data
+      # Toda la persistencia (db, config json, .env y caché de imágenes) vive en ./data
       - ./data:/app/data

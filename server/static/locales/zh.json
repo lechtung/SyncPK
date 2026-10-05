@@ -323,6 +323,14 @@
   "import_step3_text": "正在下载图片 {cur}/{tot}...",
   "import_step3_done": "所有图片下载成功！",
   "import_complete_title": "导入完成！",
-  "import_complete_msg": "正在重定向到仪表板...",
+  "import_complete_subtitle": "您的服务器现在已完全同步。<br>为保持实时更新，请配置这些 Webhook：",
+  "import_complete_plex_webhook": "Plex Webhook",
+  "import_complete_plex_pass_required": "Plex Pass",
+  "import_complete_plex_desc": "在您的 Plex 帐户设置中添加此 URL。",
+  "import_complete_plex_no_pass": "因为您没有 Plex Pass，SyncPK 将使用定期后台同步而不是 webhook。您无需配置其他任何内容。",
+  "import_complete_kodi_webhook": "Kodi Webhook",
+  "import_complete_kodi_desc": "在 Kodi 插件设置中配置此 IP 和您的 API 令牌。",
+  "import_complete_note": "注意：您可以随时从仪表板设置中查看和修改这些 Webhook。",
+  "import_complete_btn": "转到仪表板",
   "import_step2_complete_text": " (已完成)"
 }

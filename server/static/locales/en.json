@@ -323,6 +323,14 @@
   "import_step3_text": "Downloading image {cur} of {tot}...",
   "import_step3_done": "All images downloaded successfully!",
   "import_complete_title": "Import Complete!",
-  "import_complete_msg": "Redirecting to dashboard...",
+  "import_complete_subtitle": "Your server is now fully synchronized.<br>To keep it updated in real-time, configure these webhooks:",
+  "import_complete_plex_webhook": "Plex Webhook",
+  "import_complete_plex_pass_required": "Plex Pass",
+  "import_complete_plex_desc": "Add this URL in your Plex account settings.",
+  "import_complete_plex_no_pass": "Since you don't have a Plex Pass, SyncPK will use periodic background synchronization instead of webhooks. You don't need to configure anything else.",
+  "import_complete_kodi_webhook": "Kodi Webhook",
+  "import_complete_kodi_desc": "Configure this IP and your API Token in the Kodi Add-on settings.",
+  "import_complete_note": "Note: You can view and modify these Webhooks at any time from the Dashboard settings.",
+  "import_complete_btn": "Go to Dashboard",
   "import_step2_complete_text": " (Completed)"
 }

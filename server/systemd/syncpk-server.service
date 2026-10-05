@@ -1,0 +1,18 @@
+[Unit]
+Description=SyncPK Central Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=syncpk
+Group=syncpk
+WorkingDirectory=/opt/syncpk
+Environment="DATA_DIR=/var/lib/syncpk"
+ExecStart=/opt/syncpk/venv/bin/python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=5
+StartLimitBurst=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

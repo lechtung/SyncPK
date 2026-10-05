@@ -21,12 +21,70 @@
     <div id="setup-progress-bar" style="width:0%"></div>
   </div>
   <div id="setup-step-indicator"></div>
-  <div id="finish-overlay">
-    <div id="finish-status-icon">
-      <svg class="svg-anim" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52"><circle class="circle" cx="26" cy="26" r="25" stroke="#4ade80"/><path class="check" stroke="#4ade80" d="M14 27 l 7 7 17 -17"/></svg>
+  <div class="wizard-card glass-panel" id="webhooks-card-container" style="display: none; animation: fadeIn 0.5s ease; max-width: 550px;">
+    <!-- Header de Éxito -->
+    <div style="text-align: center; margin-bottom: 30px;">
+        <div style="display:inline-block; margin-bottom: 15px;">
+            <svg class="svg-anim" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52" style="width: 70px; height: 70px;">
+                <circle class="circle" cx="26" cy="26" r="25" stroke="#4ade80" fill="none" stroke-width="2"/>
+                <path class="check" stroke="#4ade80" fill="none" stroke-width="2" d="M14 27 l 7 7 17 -17"/>
+            </svg>
+        </div>
+        <h2 style="font-size: 1.8rem; font-weight: 600; margin-bottom: 10px; background: linear-gradient(90deg, #fff, #aaa); -webkit-background-clip: text; -webkit-text-fill-color: transparent;" data-i18n="import_complete_title">¡Importación Completada!</h2>
+        <p style="color: #aaa; font-size: 0.95rem; line-height: 1.5;" id="import_complete_subtitle_container">Tu servidor ya está completamente sincronizado.<br>Para mantenerlo actualizado en tiempo real, configura estos webhooks:</p>
     </div>
-    <div id="finish-title" data-i18n="import_complete_title">Import Complete!</div>
-    <div id="finish-msg" data-i18n="import_complete_msg">Redirecting to dashboard...</div>
+
+    <!-- Contenedor Webhooks -->
+    <div class="webhook-card" style="background: rgba(0,0,0,0.3); border-radius: 12px; padding: 20px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 30px;">
+        <!-- Plex Webhook -->
+        <div style="margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                <i class="fa-solid fa-play" style="color: #e5a00d;"></i>
+                <span style="font-weight: 500; font-size: 0.95rem;" data-i18n="import_complete_plex_webhook">Plex Webhook</span>
+                <span id="plex-pass-badge" style="font-size: 0.7rem; background: rgba(229, 160, 13, 0.2); color: #e5a00d; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(229,160,13,0.3);" data-i18n="import_complete_plex_pass_required">Plex Pass</span>
+            </div>
+            
+            <!-- Vista CON Plex Pass -->
+            <div id="plex-webhook-active">
+                <p style="font-size: 0.8rem; color: #888; margin-bottom: 10px; line-height: 1.4;" data-i18n="import_complete_plex_desc">Añade esta URL en los ajustes de tu cuenta de Plex.</p>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="final-plex-webhook" class="config-input" readonly style="flex: 1; margin: 0; font-family: monospace; font-size: 0.8rem; background: rgba(0,0,0,0.5); padding: 10px 12px; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #aaa;">
+                    <button class="icon-action-btn" onclick="copyWebhook('final-plex-webhook')" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0 15px; cursor: pointer; color: #fff; transition: all 0.2s;" title="Copiar"><i class="fa-solid fa-copy"></i></button>
+                </div>
+            </div>
+
+            <!-- Vista SIN Plex Pass -->
+            <div id="plex-webhook-fallback" style="display: none;">
+                <p style="font-size: 0.85rem; color: #aaa; margin-bottom: 0; line-height: 1.5; background: rgba(255,255,255,0.05); padding: 12px; border-radius: 8px; border-left: 3px solid #e5a00d;" data-i18n="import_complete_plex_no_pass">
+                    Como no dispones de Plex Pass, SyncPK utilizará sincronización periódica en segundo plano en lugar de webhooks. No necesitas configurar nada adicional.
+                </p>
+            </div>
+        </div>
+
+        <!-- Kodi Webhook -->
+        <div>
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                <i class="fa-solid fa-tv" style="color: #17B2E7;"></i>
+                <span style="font-weight: 500; font-size: 0.95rem;" data-i18n="import_complete_kodi_webhook">Kodi Webhook</span>
+            </div>
+            <p style="font-size: 0.8rem; color: #888; margin-bottom: 10px; line-height: 1.4;" data-i18n="import_complete_kodi_desc">Configura esta IP y tu API Token en los ajustes del Add-on de Kodi.</p>
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="final-kodi-webhook" class="config-input" readonly style="flex: 1; margin: 0; font-family: monospace; font-size: 0.8rem; background: rgba(0,0,0,0.5); padding: 10px 12px; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #aaa;">
+                <button class="icon-action-btn" onclick="copyWebhook('final-kodi-webhook')" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0 15px; cursor: pointer; color: #fff; transition: all 0.2s;" title="Copiar"><i class="fa-solid fa-copy"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Nota recordatoria -->
+    <p style="font-size: 0.8rem; color: #888; text-align: center; margin-top: -15px; margin-bottom: 25px;">
+        <i class="fa-solid fa-circle-info" style="margin-right: 5px;"></i>
+        <span data-i18n="import_complete_note">Nota: Podrás consultar y modificar estos Webhooks en cualquier momento desde los ajustes del Panel de Control.</span>
+    </p>
+
+    <!-- Acción Final -->
+    <button class="btn-next" onclick="window.location.href='/'" style="width: 100%; display: flex; align-items: center; justify-content: center;">
+        <span data-i18n="import_complete_btn">Entrar al Panel de Control</span> <i class="fa-solid fa-arrow-right" style="margin-left: 8px;"></i>
+    </button>
   </div>
   <div id="setup-shell">
     <div id="setup-logo">
@@ -212,12 +270,47 @@
         }, 250);
     }
 
-    function completeImport() {
-        const ov = document.getElementById('finish-overlay');
-        ov.classList.add('active');
-        setTimeout(() => {
-            window.location.href = '/';
-        }, 3000);
+    async function completeImport() {
+        // Ocultar la tarjeta de pasos de importación
+        const stepsCard = document.querySelector('#setup-shell .wizard-card:not(#webhooks-card-container)');
+        if(stepsCard) stepsCard.style.display = 'none';
+
+        // Obtener configuración para rellenar webhooks
+        try {
+            let res = await fetch('/api/config');
+            let data = await res.json();
+            
+            let host = window.location.host;
+            let token = data.api_token_raw || 'ERROR_NO_TOKEN';
+            
+            document.getElementById('final-kodi-webhook').value = `http://${host}/webhook/kodi?token=${token}`;
+            
+            if (data.has_plex_pass) {
+                document.getElementById('final-plex-webhook').value = `http://${host}/webhook/plex?token=${token}`;
+                document.getElementById('plex-webhook-active').style.display = 'block';
+                document.getElementById('plex-webhook-fallback').style.display = 'none';
+                document.getElementById('plex-pass-badge').style.display = 'inline-block';
+            } else {
+                document.getElementById('plex-webhook-active').style.display = 'none';
+                document.getElementById('plex-webhook-fallback').style.display = 'block';
+                document.getElementById('plex-pass-badge').style.display = 'none';
+            }
+        } catch(e) {
+            console.error('Error fetching config for webhooks', e);
+        }
+
+        // Mostrar la nueva tarjeta final
+        const finalCard = document.getElementById('webhooks-card-container');
+        finalCard.style.display = 'block';
+    }
+
+    window.copyWebhook = function(id) {
+        const el = document.getElementById(id);
+        navigator.clipboard.writeText(el.value);
+        const btn = el.nextElementSibling;
+        const oldIcon = btn.innerHTML;
+        btn.innerHTML = '<i class="fa-solid fa-check" style="color: #4ade80;"></i>';
+        setTimeout(() => { btn.innerHTML = oldIcon; }, 2000);
     }
     
     function connectWebSocket() {

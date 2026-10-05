@@ -10,27 +10,25 @@ ENV DATA_DIR=/app/data
 # Set working directory
 WORKDIR /app
 
-# Install necessary system packages (added su-exec/gosu equivalent, using gosu or just installing su-exec if available on debian slim)
-# Debian no tiene su-exec oficial, usa gosu.
+# Install necessary system packages (using gosu for stepping down from root)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     gosu \
     && rm -rf /var/lib/apt/lists/*
 
-# Alias su-exec to gosu for our script
-RUN ln -s /usr/sbin/gosu /usr/local/bin/su-exec
-
-# Copy python dependencies (from server directory)
+# Copy python dependencies
 COPY server/requirements.txt .
 
 # Install python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application files (from server directory)
-COPY server/main.py .
-COPY server/static/ static/
+# Copy all application files to workdir (Punto 14 - copiar todo server/)
+COPY server/ ./
 
-# Create cache directories and set ownership of /app (data is handled by entrypoint)
+# Copy version file and update checkers even if unused natively by docker, just in case
+COPY check_update.sh update.sh .ver ./ 
+
+# Create cache directories and set ownership of /app
 RUN mkdir -p /app/data/cache/posters /app/data/cache/fanarts && chown -R syncpkuser:syncpkuser /app
 
 # Copy entrypoint script and make it executable
@@ -45,4 +43,4 @@ EXPOSE 8000
 
 # Start the application via entrypoint
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

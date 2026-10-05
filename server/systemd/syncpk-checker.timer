@@ -1,0 +1,11 @@
+[Unit]
+Description=Temporizador para SyncPK Checker
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=24h
+RandomizedDelaySec=1h
+Unit=syncpk-checker.service
+
+[Install]
+WantedBy=timers.target

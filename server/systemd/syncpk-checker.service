@@ -1,0 +1,11 @@
+[Unit]
+Description=SyncPK Update Checker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=syncpk
+Environment="DATA_DIR=/var/lib/syncpk"
+ExecStart=/bin/bash /opt/syncpk/check_update.sh
+NoNewPrivileges=true

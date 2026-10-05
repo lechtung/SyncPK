@@ -323,6 +323,14 @@
   "import_step3_text": "画像 {cur}/{tot} をダウンロード中...",
   "import_step3_done": "すべての画像のダウンロードが完了しました！",
   "import_complete_title": "インポート完了！",
-  "import_complete_msg": "ダッシュボードへリダイレクトしています...",
+  "import_complete_subtitle": "サーバーは完全に同期されました。<br>リアルタイムで更新し続けるには、次のWebhookを設定してください：",
+  "import_complete_plex_webhook": "Plex Webhook",
+  "import_complete_plex_pass_required": "Plex Pass",
+  "import_complete_plex_desc": "Plexアカウント設定でこのURLを追加してください。",
+  "import_complete_plex_no_pass": "Plex Passがないため、SyncPKはWebhookの代わりに定期的なバックグラウンド同期を使用します。追加の設定は必要ありません。",
+  "import_complete_kodi_webhook": "Kodi Webhook",
+  "import_complete_kodi_desc": "Kodiアドオン設定でこのIPとAPIトークンを設定してください。",
+  "import_complete_note": "注意：ダッシュボード設定からいつでもこれらのWebhookを表示および変更できます。",
+  "import_complete_btn": "ダッシュボードへ",
   "import_step2_complete_text": " (完了)"
 }

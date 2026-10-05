@@ -322,7 +322,15 @@
   "import_step3_subtitle": "Recupero dei metadati e delle immagini di alta qualità da TMDB.",
   "import_step3_text": "Download immagine {cur} di {tot}...",
   "import_step3_done": "Tutte le immagini scaricate con successo!",
-  "import_complete_title": "Importazione Completata!",
-  "import_complete_msg": "Reindirizzamento alla dashboard...",
+  "import_complete_title": "Importazione completata!",
+  "import_complete_subtitle": "Il tuo server è ora completamente sincronizzato.<br>Per mantenerlo aggiornato in tempo reale, configura questi webhook:",
+  "import_complete_plex_webhook": "Plex Webhook",
+  "import_complete_plex_pass_required": "Plex Pass",
+  "import_complete_plex_desc": "Aggiungi questo URL nelle impostazioni del tuo account Plex.",
+  "import_complete_plex_no_pass": "Poiché non hai un Plex Pass, SyncPK utilizzerà la sincronizzazione periodica in background anziché i webhook. Non devi configurare nient'altro.",
+  "import_complete_kodi_webhook": "Kodi Webhook",
+  "import_complete_kodi_desc": "Configura questo IP e il tuo token API nelle impostazioni dell'add-on di Kodi.",
+  "import_complete_note": "Nota: puoi visualizzare e modificare questi webhook in qualsiasi momento dalle impostazioni del dashboard.",
+  "import_complete_btn": "Vai al Dashboard",
   "import_step2_complete_text": " (Completato)"
 }

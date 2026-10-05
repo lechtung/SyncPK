@@ -1,0 +1,9 @@
+[Unit]
+Description=Actualizador root de SyncPK
+
+[Service]
+Type=oneshot
+User=root
+ExecStartPre=/bin/rm -f /var/lib/syncpk/.trigger_update
+ExecStart=/bin/bash /opt/syncpk/update.sh
+TimeoutStartSec=15min

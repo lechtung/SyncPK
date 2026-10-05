@@ -1,0 +1,9 @@
+[Unit]
+Description=Vigila peticiones de actualizacion de SyncPK
+
+[Path]
+PathExists=/var/lib/syncpk/.trigger_update
+Unit=syncpk-updater.service
+
+[Install]
+WantedBy=multi-user.target

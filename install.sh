@@ -10,12 +10,16 @@ echo "======================================================"
 echo "          SyncPK Installer (System Setup)             "
 echo "======================================================"
 
-GITHUB_USER="lechtung"
-GITHUB_REPO="SyncPK"
-GITHUB_BRANCH="main"
-
 CODE_DIR="/opt/syncpk"
 DATA_DIR="/var/lib/syncpk"
+API_URL="https://api.github.com/repos/lechtung/SyncPK/releases/latest"
+
+if [ -d "$CODE_DIR" ] || [ -d "$DATA_DIR" ]; then
+    echo -e "\e[33m[Warning] SyncPK ya parece estar instalado en este sistema.\e[0m"
+    echo "Si deseas actualizar, ejecuta: sudo $CODE_DIR/update.sh"
+    echo "Si deseas reinstalar, borra primero $CODE_DIR y $DATA_DIR."
+    exit 1
+fi
 
 echo "[Info] Creating dedicated system user 'syncpk'..."
 if ! id "syncpk" &>/dev/null; then
@@ -23,126 +27,83 @@ if ! id "syncpk" &>/dev/null; then
 fi
 
 echo "[Info] Installing OS dependencies..."
-apt-get update &>/dev/null
-apt-get install -y curl python3 python3-venv python3-pip &>/dev/null
+apt-get update > /var/log/syncpk-install.log 2>&1 || {
+    tail -n 20 /var/log/syncpk-install.log
+    echo -e "\e[31m[ERROR] Falló apt-get update. Revisa el log.\e[0m"
+    exit 1
+}
+apt-get install -y curl python3 python3-venv ca-certificates >> /var/log/syncpk-install.log 2>&1 || {
+    tail -n 20 /var/log/syncpk-install.log
+    echo -e "\e[31m[ERROR] Falló la instalación de paquetes. Revisa el log.\e[0m"
+    exit 1
+}
 
 echo "[Info] Preparing directories..."
 mkdir -p $CODE_DIR
 mkdir -p $DATA_DIR
 
 echo "[Info] Obteniendo la última versión de GitHub..."
-LATEST_TAR_URL=$(curl -fsSL https://api.github.com/repos/$GITHUB_USER/$GITHUB_REPO/releases/latest | grep "tarball_url" | cut -d '"' -f 4 || true)
+TMP_DIR=$(mktemp -d)
+cleanup() { rm -rf "$TMP_DIR"; }
+trap cleanup EXIT
 
-if [ -z "$LATEST_TAR_URL" ]; then
-    echo -e "\e[31m[ERROR] No se pudo obtener la última release de GitHub.\e[0m"
+curl -fsSL --max-time 30 "$API_URL" | python3 -c 'import json,sys; print(json.load(sys.stdin)["tarball_url"])' > "$TMP_DIR/url" || { echo -e "\e[31m[ERROR] No se pudo obtener la URL de descarga\e[0m"; exit 1; }
+
+TAR_URL=$(cat "$TMP_DIR/url")
+if [ -z "$TAR_URL" ]; then
+    echo -e "\e[31m[ERROR] URL de descarga vacía.\e[0m"
     exit 1
 fi
 
 echo "[Info] Descargando y extrayendo código fuente..."
-TMP_DIR=$(mktemp -d)
-curl -fsSL "$LATEST_TAR_URL" | tar -xz -C "$TMP_DIR" --strip-components=1
+mkdir -p "$TMP_DIR/src"
+curl -fsSL --max-time 300 "$TAR_URL" | tar -xz -C "$TMP_DIR/src" --strip-components=1 || { echo -e "\e[31m[ERROR] Fallo al descargar/extraer código\e[0m"; exit 1; }
 
-# Copiar el contenido de la carpeta server al directorio principal (incluyendo archivos ocultos)
-shopt -s dotglob
-cp -r "$TMP_DIR/server/"* "$CODE_DIR/"
-shopt -u dotglob
-# Copiar .ver al código principal
-cp "$TMP_DIR/.ver" "$CODE_DIR/.ver"
+# Copiar el contenido
+cp -a "$TMP_DIR/src/server/"* "$CODE_DIR/"
+if [ -f "$TMP_DIR/src/.ver" ]; then
+    cp "$TMP_DIR/src/.ver" "$CODE_DIR/.ver"
+fi
+# Copiar el actualizador local y el checker
+cp -a "$TMP_DIR/src/update.sh" "$CODE_DIR/update.sh"
+if [ -f "$TMP_DIR/src/check_update.sh" ]; then
+    cp -a "$TMP_DIR/src/check_update.sh" "$CODE_DIR/check_update.sh"
+fi
 
-rm -rf "$TMP_DIR"
-
-if [ ! -f $CODE_DIR/requirements.txt ] || ! grep -q "fastapi" $CODE_DIR/requirements.txt; then
-    echo -e "fastapi\nuvicorn\nrequests\npython-dotenv\npython-multipart\nhttpx" > $CODE_DIR/requirements.txt
+if [ ! -f "$CODE_DIR/requirements.txt" ]; then
+    echo -e "\e[31m[ERROR] No se encontró requirements.txt en la release.\e[0m"
+    exit 1
 fi
 
 echo "[Info] Configuring Python virtual environment..."
 python3 -m venv $CODE_DIR/venv
-$CODE_DIR/venv/bin/pip install -r $CODE_DIR/requirements.txt
+$CODE_DIR/venv/bin/pip install -q -r $CODE_DIR/requirements.txt || {
+    echo -e "\e[31m[ERROR] Falló la instalación de dependencias de Python.\e[0m"
+    exit 1
+}
 
 echo "[Info] Applying security permissions..."
-# El usuario root es dueño del código, los demás solo pueden leer/ejecutar
+# Propietario del código es root
 chown -R root:root $CODE_DIR
-chmod -R u=rwX,go=rX $CODE_DIR
-# El usuario syncpk es el dueño absoluto de los datos
+find $CODE_DIR -type d -exec chmod 755 {} +
+find $CODE_DIR -type f -exec chmod 644 {} +
+chmod +x $CODE_DIR/update.sh
+if [ -f "$CODE_DIR/check_update.sh" ]; then
+    chmod +x $CODE_DIR/check_update.sh
+fi
+
+# Propietario de los datos es syncpk
 chown -R syncpk:syncpk $DATA_DIR
-chmod -R 750 $DATA_DIR
+find $DATA_DIR -type d -exec chmod 750 {} +
+find $DATA_DIR -type f -exec chmod 640 {} +
 
-echo "[Info] Creating systemd service..."
-cat << EOF > /etc/systemd/system/syncpk-server.service
-[Unit]
-Description=SyncPK Central Server
-After=network.target
-
-[Service]
-User=syncpk
-Group=syncpk
-WorkingDirectory=$CODE_DIR
-Environment="DATA_DIR=$DATA_DIR"
-ExecStart=$CODE_DIR/venv/bin/python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
-Restart=always
-RestartSec=5
-NoNewPrivileges=true
-ProtectSystem=strict
-ReadWritePaths=$DATA_DIR
-PrivateTmp=true
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-echo "[Info] Creating update systemd services..."
-
-# 1. The checker service (User: syncpk)
-cat << EOF > /etc/systemd/system/syncpk-checker.service
-[Unit]
-Description=SyncPK Update Checker
-After=network.target
-
-[Service]
-Type=oneshot
-User=syncpk
-Environment="DATA_DIR=$DATA_DIR"
-ExecStart=/bin/bash $CODE_DIR/check_update.sh
-EOF
-
-# 2. The tester timer
-cat << EOF > /etc/systemd/system/syncpk-checker.timer
-[Unit]
-Description=Temporizador para SyncPK Checker
-
-[Timer]
-OnBootSec=5min
-OnUnitActiveSec=24h
-Unit=syncpk-checker.service
-
-[Install]
-WantedBy=timers.target
-EOF
-
-# 3. The update executor service (User: root)
-cat << EOF > /etc/systemd/system/syncpk-updater.service
-[Unit]
-Description=Actualizador root de SyncPK
-
-[Service]
-Type=oneshot
-User=root
-ExecStartPre=/bin/rm -f $DATA_DIR/.trigger_update
-ExecStart=/bin/bash -c "curl -fsSL https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/update.sh | bash"
-EOF
-
-# 4. The vigilante who shoots the executioner
-cat << EOF > /etc/systemd/system/syncpk-updater.path
-[Unit]
-Description=Vigila peticiones de actualizacion de SyncPK
-
-[Path]
-PathExists=$DATA_DIR/.trigger_update
-Unit=syncpk-updater.service
-
-[Install]
-WantedBy=multi-user.target
-EOF
+echo "[Info] Installing systemd services..."
+if [ -d "$TMP_DIR/src/server/systemd" ]; then
+    cp -a "$TMP_DIR/src/server/systemd/"* /etc/systemd/system/
+else
+    echo -e "\e[31m[ERROR] No se encontraron archivos de systemd en la release.\e[0m"
+    exit 1
+fi
 
 echo "[Info] Starting and enabling all systemd services..."
 systemctl daemon-reload
@@ -152,6 +113,21 @@ systemctl enable --now syncpk-updater.path
 
 LOCAL_IP=$(hostname -I | awk '{print $1}')
 
+echo "[Info] Comprobando salud del servicio..."
+HEALTH_OK=0
+for i in $(seq 1 15); do
+    if curl -fsSL --max-time 5 "http://127.0.0.1:8000/api/time" >/dev/null 2>&1; then
+        HEALTH_OK=1
+        break
+    fi
+    sleep 2
+done
+
+if [ "$HEALTH_OK" -eq 0 ]; then
+    echo -e "\e[31m[ERROR] El servicio no responde. Revisa los logs:\e[0m"
+    journalctl -u syncpk-server -n 30 --no-pager
+    exit 1
+fi
 
 echo "================================================================"
 echo -e "\e[32mInstallation completed successfully!\e[0m"

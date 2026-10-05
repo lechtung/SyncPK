@@ -7,34 +7,35 @@ APP_DIR="/opt/syncpk"
 DATA_DIR="${DATA_DIR:-/var/lib/syncpk}"
 ENV_FILE="$DATA_DIR/.env"
 LOCAL_VER_FILE="$APP_DIR/.ver"
-REMOTE_VER_URL="https://raw.githubusercontent.com/lechtung/SyncPK/main/.ver"
-TEMP_VER_FILE="/tmp/syncpk_remote.ver"
+STATUS_FILE="$DATA_DIR/update_status.json"
 TRIGGER_FILE="$DATA_DIR/.trigger_update"
 
-# Fallar si hay error HTTP y max time 20s
-curl -fsSL --max-time 20 -o "$TEMP_VER_FILE" "$REMOTE_VER_URL" || true
+TMP=$(mktemp)
+trap 'rm -f "$TMP"' EXIT
 
-if [ ! -f "$TEMP_VER_FILE" ]; then
-    echo "Error: Could not download version file."
+# API de Github (Punto 3 y 8)
+curl -fsSL --max-time 20 -o "$TMP" "https://api.github.com/repos/lechtung/SyncPK/releases/latest" || {
+    echo "Error: Could not check for updates (Network error)."
+    exit 1
+}
+
+REMOTE_VER=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tag_name"].lstrip("v"))' "$TMP" 2>/dev/null || true)
+
+if [ -z "$REMOTE_VER" ] || [[ ! "$REMOTE_VER" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "Error: Versión remota inválida ($REMOTE_VER)"
     exit 1
 fi
 
-REMOTE_VER=$(cat "$TEMP_VER_FILE" | tr -d ' \n\r')
 LOCAL_VER=$(cat "$LOCAL_VER_FILE" 2>/dev/null | tr -d ' \n\r') || LOCAL_VER="0.0.0"
 
-# Comprobar que cumple formato de version (ej. 1.0.0)
-if [[ ! "$REMOTE_VER" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "Error: Versión remota inválida ($REMOTE_VER)"
-    rm -f "$TEMP_VER_FILE"
-    exit 1
-fi
-
-if [ "$REMOTE_VER" != "" ] && [ "$REMOTE_VER" != "$LOCAL_VER" ]; then
+# Comparamos semánticamente (solo actualiza si remota es mayor)
+if [ "$REMOTE_VER" != "$LOCAL_VER" ] && [ "$(printf '%s\n%s\n' "$LOCAL_VER" "$REMOTE_VER" | sort -V | tail -n1)" = "$REMOTE_VER" ]; then
     echo "New version available: $REMOTE_VER (Local: $LOCAL_VER)"
     
+    # Leer AUTO_UPDATE de .env (Punto 7) - Soporta comillas simples o dobles o sin comillas
     AUTO_UPDATE="false"
     if [ -f "$ENV_FILE" ]; then
-        if grep -q "^AUTO_UPDATE=true" "$ENV_FILE"; then
+        if grep -q -i "^AUTO_UPDATE=[\"']\?true[\"']\?" "$ENV_FILE"; then
             AUTO_UPDATE="true"
         fi
     fi
@@ -44,21 +45,11 @@ if [ "$REMOTE_VER" != "" ] && [ "$REMOTE_VER" != "$LOCAL_VER" ]; then
         touch "$TRIGGER_FILE"
     else
         echo "Auto-update disabled. Notifying UI."
-        if [ -f "$ENV_FILE" ]; then
-            if grep -q "^UPDATE_AVAILABLE=" "$ENV_FILE"; then
-                sed -i "s/^UPDATE_AVAILABLE=.*/UPDATE_AVAILABLE=$REMOTE_VER/" "$ENV_FILE"
-            else
-                echo "UPDATE_AVAILABLE=$REMOTE_VER" >> "$ENV_FILE"
-            fi
-        else
-            echo "UPDATE_AVAILABLE=$REMOTE_VER" > "$ENV_FILE"
-        fi
+        echo "{\"update_available\": \"$REMOTE_VER\"}" > "$STATUS_FILE"
+        chmod 644 "$STATUS_FILE"
     fi
 else
     echo "SyncPK is up to date."
-    if [ -f "$ENV_FILE" ]; then
-        sed -i "s/^UPDATE_AVAILABLE=.*/UPDATE_AVAILABLE=/" "$ENV_FILE"
-    fi
+    echo "{\"update_available\": false}" > "$STATUS_FILE"
+    chmod 644 "$STATUS_FILE"
 fi
-
-rm -f "$TEMP_VER_FILE"
