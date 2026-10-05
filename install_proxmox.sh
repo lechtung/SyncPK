@@ -62,20 +62,50 @@ if [ -z "$TEMPLATE_STORAGE" ]; then
     error "No storage found that supports LXC templates (vztmpl)."
 fi
 
-echo "[Info] Searching for downloaded LXC templates..."
+echo "[Info] Gathering local and available templates..."
+pveam update &>/dev/null
 DOWNLOADED_TEMPLATES=$(pvesm list $TEMPLATE_STORAGE --content vztmpl | awk 'NR>1 {print $1}')
-if [ -z "$DOWNLOADED_TEMPLATES" ]; then
-    error "No templates downloaded in $TEMPLATE_STORAGE. Please download a template first via Proxmox UI."
-fi
+AVAILABLE_TEMPLATES=$(pveam available | grep -E 'system.*(debian-12-standard|ubuntu-24\.04-standard|ubuntu-22\.04-standard)' | awk '{print $2}')
 
 TEMPLATE_MENU=()
+DEFAULT_ITEM=""
+
 for t in $DOWNLOADED_TEMPLATES; do
-    name=$(basename "$t")
-    TEMPLATE_MENU+=("$t" "$name")
+    filename=$(basename "$t")
+    shortname=$(echo "$filename" | sed -E 's/(-standard|_amd64.*\.tar\.[a-z]+)//g')
+    TEMPLATE_MENU+=("$filename" "[Local] $shortname")
+    if [[ "$filename" == *"debian-12-standard"* ]]; then
+        DEFAULT_ITEM="$filename"
+    fi
 done
 
-LATEST_TEMPLATE=$(whiptail --title "SyncPK - Template Selection" --menu "Select the base image for the LXC container:" 15 70 6 "${TEMPLATE_MENU[@]}" 3>&1 1>&2 2>&3)
+for t in $AVAILABLE_TEMPLATES; do
+    if ! echo "$DOWNLOADED_TEMPLATES" | grep -q "$t"; then
+        shortname=$(echo "$t" | sed -E 's/(-standard|_amd64.*\.tar\.[a-z]+)//g')
+        TEMPLATE_MENU+=("$t" "[Download] $shortname")
+        if [ -z "$DEFAULT_ITEM" ] && [[ "$t" == *"debian-12-standard"* ]]; then
+            DEFAULT_ITEM="$t"
+        fi
+    fi
+done
+
+if [ -z "$DEFAULT_ITEM" ] && [ ${#TEMPLATE_MENU[@]} -gt 0 ]; then
+    DEFAULT_ITEM="${TEMPLATE_MENU[0]}"
+fi
+
+if [ ${#TEMPLATE_MENU[@]} -eq 0 ]; then
+    error "No templates found locally or remotely."
+fi
+
+LATEST_TEMPLATE_FILE=$(whiptail --title "SyncPK - Template Selection" --default-item "$DEFAULT_ITEM" --menu "Select the base image for the LXC container (Debian 12 recommended):" 18 70 8 "${TEMPLATE_MENU[@]}" 3>&1 1>&2 2>&3)
 if [ $? -ne 0 ]; then exit 1; fi
+
+if echo "$LATEST_TEMPLATE_FILE" | grep -q "^debian-\|^ubuntu-"; then
+    echo "[Info] Downloading selected template ($LATEST_TEMPLATE_FILE)..."
+    pveam download $TEMPLATE_STORAGE $LATEST_TEMPLATE_FILE &>/dev/null || error "Failed to download the template."
+fi
+
+LATEST_TEMPLATE="$TEMPLATE_STORAGE:vztmpl/$LATEST_TEMPLATE_FILE"
 
 echo "[Info] Creating CT container $CTID..."
 pct create $CTID $LATEST_TEMPLATE -storage $TARGET_STORAGE -rootfs $TARGET_STORAGE:8 -password "$ROOT_PASSWORD" -arch amd64 -hostname syncpk -cores 1 -memory 512 -net0 name=eth0,bridge=vmbr0,ip=dhcp -unprivileged 1 -features nesting=1 -timezone host -onboot 1 || error "Failed to create LXC container (pct create failed)."
