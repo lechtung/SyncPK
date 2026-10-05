@@ -3597,7 +3597,7 @@ async def test_tmdb(req: TestTmdbRequest):
         return {"success": False, "error": str(e)}
 
 @app.post("/api/setup")
-def process_setup(data: SetupData):
+async def process_setup(data: SetupData):
     # For security, if the .env file already exists, we block any attempt to overwrite it.
     if os.path.exists(ENV_PATH):
         return {"error": "La instalación ya ha sido completada previamente."}
@@ -3610,11 +3610,16 @@ def process_setup(data: SetupData):
     web_salt = ''.join(secrets.choice(alphabet) for _ in range(16))
 
     # Web password hash: scrypt instead of SHA-256 (resistant to brute-force/dictionary attacks)
-    web_hash = hashlib.scrypt(
-        data.password.encode('utf-8'),
-        salt=web_salt.encode('utf-8'),
-        n=16384, r=8, p=1
-    ).hex()
+    from fastapi.concurrency import run_in_threadpool
+    
+    def _hash_pwd():
+        return hashlib.scrypt(
+            data.password.encode('utf-8'),
+            salt=web_salt.encode('utf-8'),
+            n=16384, r=8, p=1
+        ).hex()
+        
+    web_hash = await run_in_threadpool(_hash_pwd)
 
     api_token_raw = ''.join(secrets.choice(alphabet) for _ in range(32))
     api_token = f"sk_{api_token_raw}"

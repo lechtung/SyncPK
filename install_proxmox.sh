@@ -156,9 +156,3 @@ echo \"================================================================\"
 echo \"\"
 EOF"
 pct exec $CTID -- chmod +x /etc/profile.d/syncpk-motd.sh
-
-echo "================================================================"
-echo -e "\e[32mInstallation completed successfully!\e[0m"
-echo -e "Open your browser to launch the Web Setup Wizard:"
-echo -e "➡️  \e[1mhttp://$CT_IP:8000\e[0m"
-echo "================================================================"
