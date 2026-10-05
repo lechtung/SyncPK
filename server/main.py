@@ -56,22 +56,40 @@ CACHE_PATH = os.path.join(DATA_DIR, "static/cache")
 rescan_status = {"running": False, "done": False}
 
 
+import logging
+from logging.handlers import RotatingFileHandler
+
+logging.basicConfig(
+    handlers=[RotatingFileHandler(LOG_FILE, maxBytes=5*1024*1024, backupCount=1, encoding='utf-8')],
+    level=logging.INFO,
+    format='%(message)s'
+)
+
 class DualLogger(object):
-    def __init__(self, filename=LOG_FILE):
-        self.terminal = sys.stdout
-        self.log = open(filename, "a", encoding="utf-8")
+    def __init__(self, is_stderr=False):
+        self.terminal = sys.stderr if is_stderr else sys.__stdout__
+        self.logger = logging.getLogger('SyncPK')
+        self.buf = ""
         
     def write(self, message):
         self.terminal.write(message)
-        self.log.write(message)
-        self.log.flush()
-        
+        self.terminal.flush()
+        self.buf += message
+        if '\n' in self.buf:
+            lines = self.buf.split('\n')
+            for line in lines[:-1]:
+                if line.strip():
+                    self.logger.info(line.strip())
+            self.buf = lines[-1]
+            
     def flush(self):
         self.terminal.flush()
-        self.log.flush()
+        if self.buf.strip():
+            self.logger.info(self.buf.strip())
+            self.buf = ""
 
-sys.stdout = DualLogger(LOG_FILE)
-sys.stderr = sys.stdout
+sys.stdout = DualLogger(is_stderr=False)
+sys.stderr = DualLogger(is_stderr=True)
 
 #### TODOLIST ####
 
@@ -234,8 +252,14 @@ def verify_webhook_token(token: Optional[str] = Query(None)):
     return True
 
 
+
+def get_db_connection():
+    conn = sqlite3.connect(DB_PATH, timeout=20)
+    conn.execute("PRAGMA journal_mode=WAL")
+    return conn
+
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS watch_history (
@@ -337,50 +361,6 @@ import os
 os.makedirs(os.path.join(CACHE_PATH, "posters"), exist_ok=True)
 os.makedirs(os.path.join(CACHE_PATH, "fanarts"), exist_ok=True)
 
-tmdb_semaphore = asyncio.Semaphore(10)
-
-async def download_tmdb_images(db_id, tmdb_id, media_type):
-    if not TMDB_API_KEY or not tmdb_id:
-        return
-        
-    lang = os.getenv("SYNC_LANGUAGE", "en")
-    async with tmdb_semaphore:
-        url = f"https://api.themoviedb.org/3/{media_type}/{tmdb_id}?api_key={TMDB_API_KEY}&language={lang}"
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(url, timeout=10)
-            if resp.status_code != 200:
-                # Retry without language if it fails
-                resp = await client.get(url.replace(f"&language={lang}", ""), timeout=10)
-                if resp.status_code != 200: return
-                
-            data = resp.json()
-            poster = data.get("poster_path")
-            backdrop = data.get("backdrop_path")
-            
-            poster_local = None
-            fanart_local = None
-            
-            if poster:
-                img_url = f"https://image.tmdb.org/t/p/w185{poster}"
-                img_resp = await client.get(img_url, timeout=15)
-                if img_resp.status_code == 200:
-                    local_path = os.path.join(CACHE_PATH, f"posters/{tmdb_id}.jpg")
-                    with open(local_path, "wb") as f:
-                        f.write(img_resp.content)
-                    poster_local = f"{tmdb_id}.jpg"
-            
-            if backdrop:
-                img_url = f"https://image.tmdb.org/t/p/w300{backdrop}"
-                img_resp = await client.get(img_url, timeout=15)
-                if img_resp.status_code == 200:
-                    local_path = os.path.join(CACHE_PATH, f"fanarts/{tmdb_id}.jpg")
-                    with open(local_path, "wb") as f:
-                        f.write(img_resp.content)
-                    fanart_local = f"{tmdb_id}.jpg"
-    except Exception as e:
-        print(f"Error asíncrono en TMDB para {tmdb_id}: {e}", flush=True)
-
 def download_tmdb_images_sync(tmdb_id, media_type):
     import re
     if not TMDB_API_KEY or not tmdb_id or not re.match(r'^[0-9]+$', str(tmdb_id)):
@@ -401,7 +381,7 @@ def download_tmdb_images_sync(tmdb_id, media_type):
     try:
         resp = requests.get(url, timeout=10)
         if resp.status_code != 200:
-            resp = requests.get(url.replace(f"&language={lang}", ""), timeout=10)
+            resp = requests.get(url.replace(f"&language={lang}", "", timeout=10), timeout=10)
             if resp.status_code != 200: 
                 print(f"❌ Error TMDB ({resp.status_code}) para {tmdb_id}: {resp.text}", flush=True)
                 return poster_local, fanart_local
@@ -499,33 +479,35 @@ def download_episode_fanart_tmdb_sync(show_tmdb_id, season, episode):
         print(f"Error fetching TMDB episode fanart: {e}", flush=True)
     return None
 
-def execute_full_rescan(sync_lang, tmdb_key, poster_pref, fanart_pref, is_debug=False, main_loop=None):
+async def execute_full_rescan(sync_lang, tmdb_key, poster_pref, fanart_pref, is_debug=False, main_loop=None):
     print(f"[rescan] Starting full library rescan for language: {sync_lang}")
     try:
-        conn = sqlite3.connect(DB_PATH)
+        import httpx
+        import asyncio
+        import json
+        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT id, tmdb_id, show_tmdb_id, media_type, season, episode, title, show_title, poster_path, fanart_path FROM watch_history")
         rows = cursor.fetchall()
         total = len(rows)
         print(f"[rescan] {total} items to process.")
 
+        # Announce total immediately so frontend shows "0 de X" before first batch arrives
+        await manager.broadcast(json.dumps({"type": "step3_init", "total": total}))
+
         lang_param = f"&language={sync_lang}"
-        
-        # Leemos variables de calidad del entorno (con fallbacks estables)
         poster_q = os.getenv("POSTER_QUALITY", "w185")
         fanart_q = os.getenv("FANART_QUALITY", "w300")
-        ui_poster_w = int(os.getenv("UI_POSTER_W", "150"))
-        ui_fanart_w = int(os.getenv("UI_FANART_W", "300"))
+        ui_poster_w = int(os.getenv("UI_POSTER_W", "108"))
+        ui_fanart_w = int(os.getenv("UI_FANART_W", "288"))
 
         def _get_tmdb_size(desired_px, valid_sizes, default):
             for size in valid_sizes:
                 if size == 'original': return size
                 try:
                     px = int(size[1:])
-                    if px >= desired_px:
-                        return size
-                except:
-                    pass
+                    if px >= desired_px: return size
+                except: pass
             return 'original'
             
         def _get_poster_size():
@@ -534,146 +516,149 @@ def execute_full_rescan(sync_lang, tmdb_key, poster_pref, fanart_pref, is_debug=
 
         def _get_fanart_size(is_episode):
             if fanart_q != "dynamic": return fanart_q
-            if is_episode:
-                return _get_tmdb_size(ui_fanart_w, ['w92', 'w185', 'w300', 'original'], 'w300')
-            else:
-                return _get_tmdb_size(ui_fanart_w, ['w300', 'w780', 'w1280', 'original'], 'w300')
-
-        def _download_image(url_suffix, local_filename, folder, target_size):
-            if not url_suffix: return False
-            local_path = os.path.join(CACHE_PATH, folder, local_filename)
-            # CACHE CHECK: Si existe, no descargamos de nuevo
-            if os.path.exists(local_path):
-                return True
-                
-            img_url = f"https://image.tmdb.org/t/p/{target_size}{url_suffix}"
-            try:
-                import requests
-                r = requests.get(img_url, timeout=15)
-                if r.status_code == 200:
-                    os.makedirs(os.path.join(CACHE_PATH, folder), exist_ok=True)
-                    with open(local_path, "wb") as f:
-                        f.write(r.content)
-                    return True
-            except Exception as e:
-                print(f"[rescan] ❌ Error downloading {img_url}: {e}")
-            return False
+            if is_episode: return _get_tmdb_size(ui_fanart_w, ['w92', 'w185', 'w300', 'original'], 'w300')
+            else: return _get_tmdb_size(ui_fanart_w, ['w300', 'w780', 'w1280', 'original'], 'w300')
 
         def _extract_filename(tmdb_id, is_poster, media_type, show_tmdb_id, season, episode):
-            # Formato de nombre que incorpora las preferencias para evitar solapamientos en caché
             pref_tag = poster_pref if is_poster else fanart_pref
             if media_type == "movie": return f"movie_{tmdb_id}_{sync_lang}.jpg"
             if is_poster:
                 return f"show_{show_tmdb_id}_s{season}_poster_{pref_tag}_{sync_lang}.jpg" if pref_tag == "season" else f"show_{show_tmdb_id}_poster_{pref_tag}_{sync_lang}.jpg"
             if fanart_pref == "episode": return f"show_{show_tmdb_id}_s{season}e{episode}_fanart_{pref_tag}.jpg"
             return f"show_{show_tmdb_id}_fanart_{pref_tag}_{sync_lang}.jpg"
-            
-        def _notify_frontend(batch_data):
-            if not main_loop or not batch_data: return
-            import asyncio
-            try:
-                msg = json.dumps({"type": "batch_update", "items": batch_data})
-                asyncio.run_coroutine_threadsafe(manager.broadcast(msg), main_loop)
-            except Exception as e:
-                pass
 
-        batch_updates = []
-        for idx, row in enumerate(rows, 1):
+        semaphore = asyncio.Semaphore(15)
+
+        async def fetch_json(client, url):
+            async with semaphore:
+                for attempt in range(4):
+                    try:
+                        resp = await client.get(url, timeout=15)
+                        if resp.status_code == 429:
+                            await asyncio.sleep(2 ** attempt)
+                            continue
+                        if resp.status_code == 200:
+                            return resp.json()
+                        return None
+                    except Exception:
+                        await asyncio.sleep(2 ** attempt)
+                return None
+
+        async def download_image(client, url_suffix, local_filename, folder, target_size):
+            if not url_suffix: return False
+            local_path = os.path.join(CACHE_PATH, folder, local_filename)
+            if os.path.exists(local_path): return True
+            img_url = f"https://image.tmdb.org/t/p/{target_size}{url_suffix}"
+            async with semaphore:
+                for attempt in range(4):
+                    try:
+                        resp = await client.get(img_url, timeout=15)
+                        if resp.status_code == 429:
+                            await asyncio.sleep(2 ** attempt)
+                            continue
+                        if resp.status_code == 200:
+                            os.makedirs(os.path.join(CACHE_PATH, folder), exist_ok=True)
+                            with open(local_path, "wb") as f:
+                                f.write(resp.content)
+                            return True
+                        return False
+                    except Exception:
+                        await asyncio.sleep(2 ** attempt)
+                return False
+
+        async def process_item(client, idx, row):
             h_id, m_tmdb_id, s_tmdb_id, m_type, s_season, s_ep, db_title, db_show_title, db_poster, db_fanart = row
-            log_name = db_title if m_type == "movie" else f"{db_show_title} T{s_season}E{s_ep}"
-            
             p_size = _get_poster_size()
             f_size = _get_fanart_size(is_episode=(m_type == "episode" and fanart_pref == "episode"))
-            
             p_filename = _extract_filename(m_tmdb_id, True, m_type, s_tmdb_id, s_season, s_ep)
             f_filename = _extract_filename(m_tmdb_id, False, m_type, s_tmdb_id, s_season, s_ep)
             
-            updated_info = {"id": h_id, "title": db_title, "show_title": db_show_title, "poster_path": db_poster, "fanart_path": db_fanart}
+            updated_info = {"id": h_id, "title": db_title, "show_title": db_show_title, "poster_path": db_poster, "fanart_path": db_fanart, "m_type": m_type}
             
             if m_type == "movie" and m_tmdb_id:
-                # Comprobamos si las fotos ya están cacheadas antes de hacer HTTP a TMDB
                 has_poster = os.path.exists(os.path.join(CACHE_PATH, "posters", p_filename))
                 has_fanart = os.path.exists(os.path.join(CACHE_PATH, "fanarts", f_filename))
-                
                 if not (has_poster and has_fanart):
-                    tmdb_url = f"https://api.themoviedb.org/3/movie/{m_tmdb_id}?api_key={tmdb_key}{lang_param}"
-                    import requests
-                    res = requests.get(tmdb_url, timeout=10)
-                    if is_debug: print(f"[rescan][DEBUG] {idx}/{total} movie {log_name} -> HTTP {res.status_code}")
-                    if res.status_code == 200:
-                        data = res.json()
+                    data = await fetch_json(client, f"https://api.themoviedb.org/3/movie/{m_tmdb_id}?api_key={tmdb_key}{lang_param}")
+                    if data:
                         updated_info["title"] = data.get("title", db_title)
-                        _download_image(data.get("poster_path"), p_filename, "posters", p_size)
-                        _download_image(data.get("backdrop_path"), f_filename, "fanarts", f_size)
-                        
-                final_poster, final_fanart = p_filename, f_filename
-                cursor.execute("UPDATE watch_history SET title=?, poster_path=?, fanart_path=? WHERE id=?", (updated_info["title"], final_poster, final_fanart, h_id))
-                updated_info["poster_path"] = final_poster
-                updated_info["fanart_path"] = final_fanart
+                        await download_image(client, data.get("poster_path"), p_filename, "posters", p_size)
+                        await download_image(client, data.get("backdrop_path"), f_filename, "fanarts", f_size)
+                updated_info["poster_path"] = p_filename
+                updated_info["fanart_path"] = f_filename
 
             elif m_type == "episode" and s_tmdb_id:
                 has_poster = os.path.exists(os.path.join(CACHE_PATH, "posters", p_filename))
                 has_fanart = os.path.exists(os.path.join(CACHE_PATH, "fanarts", f_filename))
                 
-                new_ep_title = db_title
-                new_show_title = db_show_title
-                
                 if not (has_poster and has_fanart):
-                    ep_still, show_poster, show_backdrop, season_poster = None, None, None, None
-                    import requests
-                    ep_url = f"https://api.themoviedb.org/3/tv/{s_tmdb_id}/season/{s_season}/episode/{s_ep}?api_key={tmdb_key}{lang_param}"
-                    res_ep = requests.get(ep_url, timeout=10)
-                    if res_ep.status_code == 200:
-                        new_ep_title = res_ep.json().get("name", db_title)
-                        ep_still = res_ep.json().get("still_path")
-
-                    show_url = f"https://api.themoviedb.org/3/tv/{s_tmdb_id}?api_key={tmdb_key}{lang_param}"
-                    res_show = requests.get(show_url, timeout=10)
-                    if res_show.status_code == 200:
-                        new_show_title = res_show.json().get("name", db_show_title)
-                        show_poster = res_show.json().get("poster_path")
-                        show_backdrop = res_show.json().get("backdrop_path")
-                        
-                    if poster_pref == "season":
-                        season_url = f"https://api.themoviedb.org/3/tv/{s_tmdb_id}/season/{s_season}?api_key={tmdb_key}{lang_param}"
-                        res_season = requests.get(season_url, timeout=10)
-                        if res_season.status_code == 200: season_poster = res_season.json().get("poster_path")
-
-                    if is_debug: print(f"[rescan][DEBUG] {idx}/{total} processed {log_name}")
-
-                    p_suffix = season_poster if poster_pref == "season" and season_poster else show_poster
-                    f_suffix = ep_still if fanart_pref == "episode" and ep_still else show_backdrop
+                    ep_data, show_data, season_data = await asyncio.gather(
+                        fetch_json(client, f"https://api.themoviedb.org/3/tv/{s_tmdb_id}/season/{s_season}/episode/{s_ep}?api_key={tmdb_key}{lang_param}"),
+                        fetch_json(client, f"https://api.themoviedb.org/3/tv/{s_tmdb_id}?api_key={tmdb_key}{lang_param}"),
+                        fetch_json(client, f"https://api.themoviedb.org/3/tv/{s_tmdb_id}/season/{s_season}?api_key={tmdb_key}{lang_param}") if poster_pref == "season" else asyncio.sleep(0)
+                    )
                     
-                    if is_debug and p_suffix:
-                        print(f"[DEBUG POSTER] DOWNLOADING '{log_name}' POSTER FROM: https://image.tmdb.org/t/p/{p_size}{p_suffix}")
+                    if ep_data: updated_info["title"] = ep_data.get("name", db_title)
+                    if show_data: updated_info["show_title"] = show_data.get("name", db_show_title)
                     
-                    _download_image(p_suffix, p_filename, "posters", p_size)
-                    _download_image(f_suffix, f_filename, "fanarts", f_size)
+                    p_suffix = season_data.get("poster_path") if poster_pref == "season" and season_data and hasattr(season_data, "get") else (show_data.get("poster_path") if show_data else None)
+                    f_suffix = ep_data.get("still_path") if fanart_pref == "episode" and ep_data else (show_data.get("backdrop_path") if show_data else None)
+                    
+                    await download_image(client, p_suffix, p_filename, "posters", p_size)
+                    await download_image(client, f_suffix, f_filename, "fanarts", f_size)
                 
-                final_poster, final_fanart = p_filename, f_filename
-                cursor.execute("UPDATE watch_history SET title=?, show_title=?, poster_path=?, fanart_path=? WHERE id=?", 
-                               (new_ep_title, new_show_title, final_poster, final_fanart, h_id))
-                updated_info["title"] = new_ep_title
-                updated_info["show_title"] = new_show_title
-                updated_info["poster_path"] = final_poster
-                updated_info["fanart_path"] = final_fanart
+                updated_info["poster_path"] = p_filename
+                updated_info["fanart_path"] = f_filename
                 
-            batch_updates.append(updated_info)
-            
-            # Batch commit and broadcast every 10 items
-            if len(batch_updates) >= 10:
+            return updated_info
+
+        def _notify_frontend(batch_data):
+            """Schedule a batch_update WS broadcast (non-blocking, called from sync context inside async)."""
+            if not main_loop or not batch_data: return
+            try:
+                msg = json.dumps({"type": "batch_update", "items": batch_data, "total": total})
+                asyncio.run_coroutine_threadsafe(manager.broadcast(msg), main_loop)
+            except: pass
+
+        async with httpx.AsyncClient() as client:
+            chunk_size = 50
+            for i in range(0, len(rows), chunk_size):
+                chunk_rows = rows[i:i+chunk_size]
+                tasks = [process_item(client, i + idx, row) for idx, row in enumerate(chunk_rows, 1)]
+                results = await asyncio.gather(*tasks)
+                
+                batch_updates = []
+                for res in results:
+                    if res["m_type"] == "movie":
+                        cursor.execute("UPDATE watch_history SET title=?, poster_path=?, fanart_path=? WHERE id=?", 
+                                       (res["title"], res["poster_path"], res["fanart_path"], res["id"]))
+                    else:
+                        cursor.execute("UPDATE watch_history SET title=?, show_title=?, poster_path=?, fanart_path=? WHERE id=?", 
+                                       (res["title"], res["show_title"], res["poster_path"], res["fanart_path"], res["id"]))
+                    
+                    res.pop("m_type", None)
+                    batch_updates.append(res)
+                    
                 conn.commit()
                 _notify_frontend(batch_updates)
-                batch_updates = []
-
-        if batch_updates:
-            conn.commit()
-            _notify_frontend(batch_updates)
+                print(f"[Import TMDB] Processed chunk {i//chunk_size + 1}, items {i+1} to {min(i+chunk_size, len(rows))}/{len(rows)}")
             
         conn.close()
-        print("[rescan] 🚀 Full library rescan completed successfully.")
+        # Notify frontend that TMDB is fully done.
+        # We use await here (we are in async context) so this is guaranteed to
+        # fire AFTER every download inside this coroutine has completed.
+        done_msg = json.dumps({"type": "import_done", "total": total})
+        await manager.broadcast(done_msg)
+        print("[rescan] Full library rescan completed successfully.")
     except Exception as e:
-        print(f"[rescan] ❌ Error during rescan: {e}")
+        import traceback
+        print(f"[rescan] Error during rescan: {e}")
+        traceback.print_exc()
+        # Even on error, signal the frontend so it doesn't hang
+        try:
+            err_msg = json.dumps({"type": "import_done", "total": total, "error": True})
+            await manager.broadcast(err_msg)
+        except: pass
 
 async def bulk_download_tmdb_images():
     print("Starting bulk TMDB image download (full rescan logic)...")
@@ -686,13 +671,13 @@ async def bulk_download_tmdb_images():
     
     import asyncio
     loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, execute_full_rescan, lang, tmdb_key, p_pref, f_pref, is_debug, loop)
+    await execute_full_rescan(lang, tmdb_key, p_pref, f_pref, is_debug, loop)
     
     settings = load_settings()
     if settings.get("sync_state") in [1, 3]:
         settings["sync_state"] = 2
         save_settings(settings)
-    print("✅ Bulk TMDB image download completed!")
+    print("Bulk TMDB image download completed!")
 
 def extract_ids(guid_array):
     imdb_id = tmdb_id = tvdb_id = None
@@ -874,7 +859,7 @@ async def plex_webhook(request: Request):
         
     payload = json.loads(payload_str)
     
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
     if process_plex_payload(payload, cursor):
         conn.commit()
@@ -889,7 +874,7 @@ async def kodi_webhook(request: Request):
     except Exception:
         return {"status": "error", "message": "Invalid JSON"}
         
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
     if process_kodi_payload(payload, cursor):
         conn.commit()
@@ -961,7 +946,7 @@ def process_kodi_payload(payload, cursor, is_bulk=False):
         show_key = match_show({"show": {"title": show_title}}, plex_shows, show_tmdb_id, year=show_year)
         if show_key:
             try:
-                r_eps = requests.get(f"{PLEX_URL}/library/metadata/{show_key}/allLeaves", headers=plex_headers)
+                r_eps = requests.get(f"{PLEX_URL}/library/metadata/{show_key}/allLeaves", headers=plex_headers, timeout=10)
                 if r_eps.status_code == 200:
                     for ep in r_eps.json().get("MediaContainer", {}).get("Metadata", []):
                         if ep.get("parentIndex") == s_season and ep.get("index") == s_episode:
@@ -1092,7 +1077,7 @@ async def kodi_webhook_bulk(request: Request):
     if not isinstance(payloads, list):
         return {"status": "error", "message": "Expected a list"}
         
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
     count = 0
     for p in payloads:
@@ -1110,7 +1095,7 @@ class ConfirmSyncRequest(BaseModel):
 def confirm_kodi_sync(req: ConfirmSyncRequest):
     if not req.ids:
         return {"status": "success", "deleted": 0}
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
     placeholders = ",".join("?" for _ in req.ids)
     cursor.execute(f"DELETE FROM deleted_history WHERE id IN ({placeholders})", req.ids)
@@ -1120,7 +1105,7 @@ def confirm_kodi_sync(req: ConfirmSyncRequest):
 
 @app.get("/sync/all-items", dependencies=[Depends(verify_api_key)])
 def get_all_items(client: Optional[str] = Query("kodi"), date_from: Optional[str] = Query(None)):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
@@ -1239,7 +1224,8 @@ def login(req: LoginRequest):
 
 @app.get("/api/history")
 def get_history(limit: int = 20, offset: int = 0, type: str = "all", year: str = "all", month: str = "all", search: str = "", authorization: str = Depends(verify_api_key)):
-    conn = sqlite3.connect(DB_PATH)
+    limit = min(limit, 100)
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
@@ -1276,7 +1262,7 @@ def get_history(limit: int = 20, offset: int = 0, type: str = "all", year: str =
 
 @app.get("/api/stats")
 def get_stats(type: str = "all", year: str = "all", month: str = "all", search: str = "", authorization: str = Depends(verify_api_key)):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     base_query = " FROM watch_history WHERE 1=1"
@@ -1334,9 +1320,10 @@ import subprocess
 def get_logs(authorization: str = Depends(verify_api_key)):
     try:
         if os.path.exists(LOG_FILE):
+            from collections import deque
             with open(LOG_FILE, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-            return {"logs": "".join(lines[-200:])}
+                lines = deque(f, maxlen=200)
+            return {"logs": "".join(lines)}
         return {"logs": "No logs available."}
     except Exception as e:
         return {"logs": f"Error leyendo logs: {e}"}
@@ -1361,7 +1348,7 @@ def download_logs():
 def delete_history_item(item_id: int, scope: str = "episode", sync_remote: bool = False, authorization: str = Depends(verify_api_key)):
     if os.getenv("DEBUG") == "true":
         print(f"[DEBUG] delete_history_item: Deleting item_id {item_id}, scope={scope}, sync_remote={sync_remote}")
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
@@ -1823,7 +1810,7 @@ def get_items_for_scope(item: dict, scope: str, cursor) -> list:
     return items_to_modify
 
 def _update_in_background(item_id: int, req: UpdateHistoryRequest):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
@@ -1971,7 +1958,7 @@ def _update_in_background(item_id: int, req: UpdateHistoryRequest):
                 
         if should_update_db:
             success_count += 1
-            conn_update = sqlite3.connect(DB_PATH)
+            conn_update = get_db_connection()
             conn_update.row_factory = sqlite3.Row
             c_update = conn_update.cursor()
             
@@ -2013,12 +2000,7 @@ def update_history_item(item_id: int, req: UpdateHistoryRequest, background_task
     background_tasks.add_task(_update_in_background, item_id, req)
     return {"success": True, "status": "success", "message": "Procesando en segundo plano..."}
 
-@app.post("/api/dismiss-sync")
-def dismiss_sync(authorization: str = Depends(verify_api_key)):
-    settings = load_settings()
-    settings["sync_state"] = 0
-    save_settings(settings)
-    return {"success": True}
+
 
 
 # --- PLEX SYNC BACKGROUND LOGIC ---
@@ -2034,12 +2016,14 @@ def load_settings():
     return {"last_sync_date": ""}
 
 def save_settings(settings):
-    with open(SETTINGS_FILE, "w") as f:
+    tmp_file = SETTINGS_FILE + ".tmp"
+    with open(tmp_file, "w") as f:
         json.dump(settings, f)
+    os.replace(tmp_file, SETTINGS_FILE)
 
 def get_plex_libraries():
     try:
-        r = requests.get(f"{PLEX_URL}/library/sections", headers=plex_headers)
+        r = requests.get(f"{PLEX_URL}/library/sections", headers=plex_headers, timeout=10)
         if r.status_code == 200:
             data = r.json()
             sections = data.get("MediaContainer", {}).get("Directory", [])
@@ -2056,7 +2040,7 @@ def get_real_plex_history_map():
     history_map = {}
     try:
         url = f"{PLEX_URL}/status/sessions/history/all"
-        r = requests.get(url, headers=plex_headers)
+        r = requests.get(url, headers=plex_headers, timeout=10)
         if r.status_code == 200:
             data = r.json()
             sessions = data.get("MediaContainer", {}).get("Metadata", [])
@@ -2179,11 +2163,48 @@ def build_payload_from_plex(item, media_type, show_map=None):
         
     return payload
 
-def push_all_to_db():
+def push_all_to_db(main_loop=None):
     print("Starting FULL PUSH from Plex to local DB (Library Scan)...")
     
     payloads = []
     sections = get_plex_libraries()
+    
+    # Phase 0: Pre-flight to get total items for WebSocket progress
+    total_items_to_process = 0
+    lib_names = {}
+    for sec in sections:
+        headers = plex_headers.copy()
+        headers["X-Plex-Container-Start"] = "0"
+        headers["X-Plex-Container-Size"] = "0"
+        try:
+            if sec["type"] == "movie":
+                r = requests.get(f"{PLEX_URL}/library/sections/{sec['key']}/all", headers=headers, timeout=10)
+            elif sec["type"] == "show":
+                r = requests.get(f"{PLEX_URL}/library/sections/{sec['key']}/all?type=4", headers=headers, timeout=10)
+            else:
+                continue
+            if r.status_code == 200:
+                mc = r.json().get("MediaContainer", {})
+                total_items_to_process += mc.get("totalSize", 0)
+                lib_names[sec['key']] = mc.get("title1", sec.get("title", f"Library {sec['key']}"))
+        except Exception as e:
+            print(f"Error pre-flighting section {sec['key']}: {e}")
+    
+    import json
+    def _notify_step1(current_count, lib_name):
+        if not main_loop: return
+        try:
+            msg = json.dumps({
+                "type": "import_progress",
+                "step": 0,
+                "library": lib_name,
+                "current": current_count,
+                "total": total_items_to_process
+            })
+            asyncio.run_coroutine_threadsafe(manager.broadcast(msg), main_loop)
+        except: pass
+    
+    processed_items_count = 0
     
     # Phase A: In-Memory Mapping of all Shows (with pagination)
     show_map = {}
@@ -2214,7 +2235,7 @@ def push_all_to_db():
                     break
 
     # Phase B: Immediate Extraction and Insertion
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
     count = 0
     seen_keys = set()
@@ -2267,6 +2288,13 @@ def push_all_to_db():
                             conn.commit()
                             
                             sec_processed += 1
+                        
+                        processed_items_count += 1
+                        if processed_items_count % 20 == 0 or processed_items_count == total_items_to_process:
+                            lib_title = lib_names.get(sec['key'], f"Library {sec['key']}")
+                            _notify_step1(processed_items_count, lib_title)
+                            print(f"[Import Local] Processed {processed_items_count}/{total_items_to_process} ({lib_title})")
+                            
                     start += size
                 else:
                     break
@@ -2275,6 +2303,7 @@ def push_all_to_db():
                 break
             
     conn.close()
+    _notify_step1(total_items_to_process, "Finished")
     print(f"✅ Initial Sync completed! {count} items processed.")
     
 def push_recent_to_db(last_sync_utc_str):
@@ -2285,16 +2314,39 @@ def push_recent_to_db(last_sync_utc_str):
     except Exception:
         last_sync_ts = 0
         
-    url = f"{PLEX_URL}/status/sessions/history/all"
-    r = requests.get(url, headers=plex_headers)
-    if r.status_code != 200: return
-    
-    sessions = r.json().get("MediaContainer", {}).get("Metadata", [])
     my_id = get_my_plex_account_id()
-    if my_id:
-        sessions = [s for s in sessions if str(s.get("accountID", "")) == my_id]
-        
-    recent_sessions = [s for s in sessions if s.get("viewedAt", 0) >= last_sync_ts]
+    recent_sessions = []
+    
+    offset = 0
+    limit = 50
+    
+    while True:
+        url = f"{PLEX_URL}/status/sessions/history/all?sort=viewedAt:desc&X-Plex-Container-Start={offset}&X-Plex-Container-Size={limit}"
+        try:
+            r = requests.get(url, headers=plex_headers, timeout=15)
+        except Exception as e:
+            print(f"Error fetching history: {e}")
+            break
+            
+        if r.status_code != 200: 
+            break
+            
+        raw_sessions = r.json().get("MediaContainer", {}).get("Metadata", [])
+        if not raw_sessions:
+            break
+            
+        should_break = False
+        for s in raw_sessions:
+            if s.get("viewedAt", 0) < last_sync_ts:
+                should_break = True
+                break
+            if not my_id or str(s.get("accountID", "")) == my_id:
+                recent_sessions.append(s)
+                
+        if should_break or len(raw_sessions) < limit:
+            break
+            
+        offset += limit
     
     if not recent_sessions:
         print("No new watches in Plex since last sync.")
@@ -2309,7 +2361,7 @@ def push_recent_to_db(last_sync_utc_str):
         if not r_key or not viewed_at: continue
             
         try:
-            det_r = requests.get(f"{PLEX_URL}/library/metadata/{r_key}", headers=plex_headers)
+            det_r = requests.get(f"{PLEX_URL}/library/metadata/{r_key}", headers=plex_headers, timeout=10)
             if det_r.status_code == 200:
                 item_data = det_r.json().get("MediaContainer", {}).get("Metadata", [])[0]
                 m_type = item_data.get("type")
@@ -2322,7 +2374,7 @@ def push_recent_to_db(last_sync_utc_str):
             print(f"[push_recent_to_db] Error processing ratingKey {r_key}: {e}")
             
     if payloads:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         cursor = conn.cursor()
         for p in payloads:
             process_plex_payload(p, cursor, is_bulk=False)
@@ -2345,7 +2397,7 @@ def get_plex_items_map(force_refresh=False):
     for sec in sections:
         try:
             sec_key = sec["key"]
-            r = requests.get(f"{PLEX_URL}/library/sections/{sec_key}/all?includeGuids=1", headers=plex_headers)
+            r = requests.get(f"{PLEX_URL}/library/sections/{sec_key}/all?includeGuids=1", headers=plex_headers, timeout=10)
             if r.status_code == 200:
                 items = r.json().get("MediaContainer", {}).get("Metadata", [])
                 for item in items:
@@ -2405,11 +2457,11 @@ def match_show(show_data, plex_shows, show_tmdb_id=None, year=None):
 
 
 
-def push_cloud_orphans_to_db():
+def push_cloud_orphans_to_db(main_loop=None):
     print("Starting SMART EXTRACTOR V2 from Plex Cloud to local DB...")
     is_debug = os.getenv("DEBUG") == "true"
     
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
@@ -2473,12 +2525,28 @@ def push_cloud_orphans_to_db():
     
     count_orphans = 0
     count_updates = 0
+    items_notified = [0]  # use list to allow mutation from nested functions
     
     processed_shows = set()
     show_titles_cache = {}
     
+    import json
+    def _notify_step2(count):
+        if not main_loop: return
+        try:
+            msg = json.dumps({
+                "type": "import_progress",
+                "step": 1,
+                "count": count
+            })
+            asyncio.run_coroutine_threadsafe(manager.broadcast(msg), main_loop)
+        except: pass
+    
+    
     def process_item_node(node, is_secondary=False):
         nonlocal count_orphans, count_updates
+        items_notified[0] += 1
+        _notify_step2(items_notified[0])
         cloud_date = node.get("date")
         meta = node.get("metadataItem")
         
@@ -2579,7 +2647,7 @@ def push_cloud_orphans_to_db():
             except Exception as e:
                 print(f"❌ Error rescuing orphan {guid}: {e}")
 
-    def fetch_show_history_db(show_id, show_title):
+    def fetch_show_history_db(show_id, show_title, notify_fn=None):
         h_next = True
         p_cursor = None
         page_num = 1
@@ -2649,6 +2717,7 @@ def push_cloud_orphans_to_db():
                 break
 
     retries_primary = 0
+    total_nodes_processed = 0
     while has_next:
         payload = {
             "query": query_primary,
@@ -2747,19 +2816,24 @@ def push_cloud_orphans_to_db():
                 
         has_next = page_info.get("hasNextPage", False)
         page_cursor = page_info.get("endCursor")
+        
+        # Commit every page
+        conn.commit()
+        
+        print(f"[Import Cloud] Processed {total_nodes_processed} items from cloud, found {count_orphans} new orphans so far...")
         time.sleep(1)
     conn.close()
     print(f"✅ Smart Extractor V2 completed! Inserted {count_orphans} orphans and updated {count_updates} dates.")
 
 
-def run_sync():
+def run_sync(main_loop=None):
     settings = load_settings()
     last_sync = settings.get("last_sync_date")
     is_first_sync = not last_sync
     
     if is_first_sync:
-        push_all_to_db()
-        push_cloud_orphans_to_db()
+        push_all_to_db(main_loop)
+        push_cloud_orphans_to_db(main_loop)
 
     else:
         push_recent_to_db(last_sync)
@@ -2772,15 +2846,17 @@ def run_sync():
 async def sync_loop():
     while True:
         try:
-            run_sync()
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, lambda: run_sync(loop))
         except Exception as e:
             print(f"Error in sync loop: {e}")
         print(f"Sleeping {SYNC_INTERVAL} seconds...")
         await asyncio.sleep(SYNC_INTERVAL)
 
 async def background_initial_task():
+    global rescan_status
     loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, run_sync)
+    await loop.run_in_executor(None, lambda: run_sync(loop))
     
     # Notificamos que la BD ha terminado de llenarse, pasamos a descargar imágenes
     settings = load_settings()
@@ -2788,7 +2864,12 @@ async def background_initial_task():
     save_settings(settings)
     
     # Once DB loading is finished, download images asynchronously
-    await bulk_download_tmdb_images()
+    # Mark rescan as running so the frontend polling doesn't close step 3 prematurely
+    rescan_status = {"running": True, "done": False}
+    try:
+        await bulk_download_tmdb_images()
+    finally:
+        rescan_status = {"running": False, "done": True}
 
 def start_background_tasks():
     settings = load_settings()
@@ -2851,7 +2932,7 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
         print(f"[DEBUG] manual_add: Triggered for {req.media_type} '{req.title}', sync_remote={req.sync_remote}")
     try:
         # --- PHASE 0: Check for duplicate in local DB ---
-        conn_check = sqlite3.connect(DB_PATH)
+        conn_check = get_db_connection()
         conn_check.row_factory = sqlite3.Row
         cur_check = conn_check.cursor()
         if req.media_type == "movie":
@@ -3041,16 +3122,16 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
                     matched = match_movie({"movie": {"title": ep_title}}, plex_movies, movie_tmdb, year=target_year)
                     if matched:
                         r_key = matched.get("ratingKey")
-                        requests.get(f"{PLEX_URL}/:/scrobble?identifier=com.plexapp.plugins.library&key={r_key}", headers=plex_headers)
+                        requests.get(f"{PLEX_URL}/:/scrobble?identifier=com.plexapp.plugins.library&key={r_key}", headers=plex_headers, timeout=10)
                         print(f"✅ [Local Scrobble] Marked movie in Plex: {ep_title}")
                 elif req.media_type == "episode":
                     s_key = match_show({"show": {"title": req.title}}, plex_shows, show_tmdb, year=target_year)
                     if s_key:
-                        r_eps = requests.get(f"{PLEX_URL}/library/metadata/{s_key}/allLeaves", headers=plex_headers)
+                        r_eps = requests.get(f"{PLEX_URL}/library/metadata/{s_key}/allLeaves", headers=plex_headers, timeout=10)
                         if r_eps.status_code == 200:
                             for pep in r_eps.json().get("MediaContainer", {}).get("Metadata", []):
                                 if pep.get("parentIndex") == s_season and pep.get("index") == s_episode:
-                                    requests.get(f"{PLEX_URL}/:/scrobble?identifier=com.plexapp.plugins.library&key={pep['ratingKey']}", headers=plex_headers)
+                                    requests.get(f"{PLEX_URL}/:/scrobble?identifier=com.plexapp.plugins.library&key={pep['ratingKey']}", headers=plex_headers, timeout=10)
                                     print(f"✅ [Local Scrobble] Marked episode in Plex: {req.title} T{s_season}E{s_episode}")
                                     break
             except Exception as e:
@@ -3074,7 +3155,7 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
         except Exception as e:
             print(f"[manual_add] Error downloading images for '{req.title}': {e}")
 
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         cursor = conn.cursor()
         d_obj = datetime.datetime.fromisoformat(req.watched_at.replace('Z', '+00:00'))
         final_watched_at = d_obj.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -3108,9 +3189,9 @@ def get_ui_config():
     return {
         "fanart_mask_opacity": os.getenv("FANART_MASK_OPACITY", "0.3"),
         "dashboard_language": os.getenv("DASHBOARD_LANGUAGE", "auto"),
-        "ui_poster_w": os.getenv("UI_POSTER_W", "150"),
+        "ui_poster_w": os.getenv("UI_POSTER_W", "108"),
         "ui_poster_h": os.getenv("UI_POSTER_H", "225"),
-        "ui_fanart_w": os.getenv("UI_FANART_W", "300"),
+        "ui_fanart_w": os.getenv("UI_FANART_W", "288"),
         "ui_fanart_h": os.getenv("UI_FANART_H", "168"),
         "ui_grid_gap": os.getenv("UI_GRID_GAP", "15"),
         "ui_card_radius": os.getenv("UI_CARD_RADIUS", "8"),
@@ -3156,9 +3237,9 @@ def get_config():
         "fanart_pref": os.getenv("FANART_PREF", "episode"),
         "poster_quality": os.getenv("POSTER_QUALITY", "w185"),
         "fanart_quality": os.getenv("FANART_QUALITY", "w300"),
-        "ui_poster_w": os.getenv("UI_POSTER_W", "150"),
+        "ui_poster_w": os.getenv("UI_POSTER_W", "108"),
         "ui_poster_h": os.getenv("UI_POSTER_H", "225"),
-        "ui_fanart_w": os.getenv("UI_FANART_W", "300"),
+        "ui_fanart_w": os.getenv("UI_FANART_W", "288"),
         "ui_fanart_h": os.getenv("UI_FANART_H", "168"),
         "ui_grid_gap": os.getenv("UI_GRID_GAP", "15"),
         "ui_card_radius": os.getenv("UI_CARD_RADIUS", "8"),
@@ -3198,9 +3279,9 @@ class ConfigPayload(BaseModel):
     fanart_pref: Optional[str] = "episode"
     poster_quality: Optional[str] = "w185"
     fanart_quality: Optional[str] = "w300"
-    ui_poster_w: Optional[str] = "150"
+    ui_poster_w: Optional[str] = "108"
     ui_poster_h: Optional[str] = "225"
-    ui_fanart_w: Optional[str] = "300"
+    ui_fanart_w: Optional[str] = "288"
     ui_fanart_h: Optional[str] = "168"
     ui_grid_gap: Optional[str] = "15"
     ui_card_radius: Optional[str] = "8"
@@ -3681,8 +3762,16 @@ def update_trigger():
 os.makedirs(os.path.join(DATA_DIR, "static"), exist_ok=True)
 @app.get("/")
 def serve_index():
-    # We select the file based on whether the .env file exists.
-    target_html = "dashboard.html" if os.path.exists(ENV_PATH) else "setup.html"
+    # We select the file based on the setup state
+    if not os.path.exists(ENV_PATH):
+        target_html = "setup.html"
+    else:
+        settings = load_settings()
+        if not settings.get("last_sync_date"):
+            target_html = "import.html"
+        else:
+            target_html = "dashboard.html"
+            
     file_path = os.path.join("static", target_html)
     
     if not os.path.exists(file_path):
@@ -3696,7 +3785,14 @@ def serve_index():
     inject_script = f"<script>window.DASHBOARD_LANG = '{dashboard_lang}';</script>"
     content = content.replace("<head>", f"<head>\n    {inject_script}", 1)
     
-    return HTMLResponse(content=content)
+    return HTMLResponse(
+        content=content,
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0"
+        }
+    )
 
 # Assemble the static files last for the rest of the resources (CSS, JS, images...)
 os.makedirs(CACHE_PATH, exist_ok=True)

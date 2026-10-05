@@ -1,4 +1,4 @@
-// v10
+﻿// v10
 
 let currentLangData = {};
 let historyData = [];
@@ -11,36 +11,7 @@ let currentFilters = { type: 'all', year: 'all', month: 'all', search: '' };
 let statsCache = { movies: 0, moviesHours: 0, episodes: 0, episodesHours: 0 };
 let logInterval = null;
 let activeLang = navigator.language;
-let syncPollInterval = null;
 
-// Call this function when you first detect that sync_state === 1
-function startSyncPolling() {
-    // Prevent multiple simultaneous polling loops
-    if (syncPollInterval) return;
-
-    // Poll the server every 5 seconds (5000 ms)
-    syncPollInterval = setInterval(async () => {
-        try {
-            // Adjust the route and headers according to your app's fetch setup
-            const response = await fetch('/api/stats');
-            const data = await response.json();
-
-            // If the state changes to 2 (Finished)
-            if (data.sync_state === 2) {
-                // 1. Stop the polling loop
-                clearInterval(syncPollInterval);
-                syncPollInterval = null;
-
-                // 2. Refresh the entire UI (dates, images, messages)
-                // reloadHistory calls loadStats() internally, which will handle the green banner
-                // and the dismiss-sync safely.
-                reloadHistory();
-            }
-        } catch (error) {
-            console.error("Error polling sync state:", error);
-        }
-    }, 5000);
-}
 
 // --- TOAST NOTIFICATION SYSTEM ---
 function showToast(message, type = 'info', duration = 4000) {
@@ -115,7 +86,7 @@ function showProcessingOverlay(title, subtitle) {
     document.getElementById('overlay-subtitle').textContent = subtitle || currentLangData.overlay_wait || 'Please wait...';
 
     const icon = document.getElementById('overlay-icon');
-    // Restaurar spinner inicial
+    // Restore initial spinner
     const iconContainer = document.getElementById('loading-overlay-icon');
     if (iconContainer) {
         iconContainer.innerHTML = '<div class="spinner-premium"></div>';
@@ -214,8 +185,6 @@ async function init() {
     await loadUIConfig();
 
     // Check for updates
-    checkUpdates();
-
     // Check if session is valid via HttpOnly cookie
     try {
         const res = await apiFetch('/api/config');
@@ -366,6 +335,7 @@ function setupEventListeners() {
 
 function openLogViewer() {
     document.getElementById('log-modal').classList.remove('hidden');
+    if (logInterval) clearInterval(logInterval);
     fetchLogs();
     logInterval = setInterval(fetchLogs, 5000); // 5 seconds auto-refresh
 }
@@ -739,41 +709,7 @@ async function loadStats() {
             document.getElementById('stat-episodes-hours').textContent = estEpisodesHours + 'h';
             document.getElementById('stat-total-hours').textContent = (estMoviesHours + estEpisodesHours) + 'h';
 
-            // Handle sync banner
-            let banner = document.getElementById('sync-banner');
-            isSyncing = (data.sync_state === 1); // Solo true durante la inserción de BD
 
-            if (data.sync_state === 1 || data.sync_state === 2 || data.sync_state === 3) {
-                if (!banner) {
-                    banner = document.createElement('div');
-                    banner.id = 'sync-banner';
-                    let feed = document.getElementById('history-feed');
-                    feed.parentNode.insertBefore(banner, feed);
-                }
-
-                if (data.sync_state === 1 || data.sync_state === 3) {
-                    banner.style.cssText = "background-color: rgba(255, 152, 0, 0.2); color: #ffb74d; border: 1px solid #ffb74d; padding: 15px 20px; text-align: center; font-weight: bold; margin-bottom: 20px; border-radius: 8px; display: flex; justify-content: center; align-items: center; gap: 20px; flex-wrap: wrap;";
-                    let msg = currentLangData.sync_in_progress_msg || 'The server is still performing the initial load. Some images or metadata might not be available.';
-                    if (data.sync_state === 3) {
-                        msg = currentLangData.sync_state_3 || "Database is ready. Downloading artwork in the background...";
-                    }
-                    let btnText = currentLangData.btn_view_logs || "View Terminal";
-                    banner.innerHTML = `<span>${msg}</span><button id="btn-view-logs" style="padding: 6px 12px; background: #ffb74d; color: #000; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; font-family: 'Inter', sans-serif;">${btnText}</button>`;
-
-                    document.getElementById('btn-view-logs').addEventListener('click', openLogViewer);
-
-                    // Start the polling loop while in state 1 or 3
-                    startSyncPolling();
-                } else if (data.sync_state === 2) {
-                    banner.style.cssText = "background-color: rgba(76, 175, 80, 0.2); color: #81c784; border: 1px solid #81c784; padding: 15px 20px; text-align: center; font-weight: bold; margin-bottom: 20px; border-radius: 8px;";
-                    banner.textContent = currentLangData.sync_done_msg || 'Initial load complete! You can now configure webhooks.';
-
-                    // Mark as seen on server so it doesn't show on next refresh
-                    apiFetch('/api/dismiss-sync', { method: 'POST' }).catch(e => console.error(e));
-                }
-            } else {
-                if (banner) banner.remove();
-            }
         }
     } catch (e) { console.error(e); }
 }
@@ -1369,12 +1305,12 @@ function setupConfigModal() {
                     configModal.dataset.originalPoster = data.poster_pref || 'show';
                     configModal.dataset.originalFanart = data.fanart_pref || 'episode';
 
-                    document.getElementById('config-poster-w').value = data.ui_poster_w || 150;
-                    document.getElementById('val-poster-w').innerText = (data.ui_poster_w || 150) + 'px';
+                    document.getElementById('config-poster-w').value = data.ui_poster_w || 108;
+                    document.getElementById('val-poster-w').innerText = (data.ui_poster_w || 108) + 'px';
                     document.getElementById('config-poster-h').value = data.ui_poster_h || 225;
                     document.getElementById('val-poster-h').innerText = (data.ui_poster_h || 225) + 'px';
-                    document.getElementById('config-fanart-w').value = data.ui_fanart_w || 300;
-                    document.getElementById('val-fanart-w').innerText = (data.ui_fanart_w || 300) + 'px';
+                    document.getElementById('config-fanart-w').value = data.ui_fanart_w || 288;
+                    document.getElementById('val-fanart-w').innerText = (data.ui_fanart_w || 288) + 'px';
                     document.getElementById('config-fanart-h').value = data.ui_fanart_h || 168;
                     document.getElementById('val-fanart-h').innerText = (data.ui_fanart_h || 168) + 'px';
                     document.getElementById('config-grid-gap').value = data.ui_grid_gap || 15;
@@ -1988,7 +1924,7 @@ function initPickers() {
     window.pickrTextSecondary = createPickr('pickr-text-secondary', 'config-text-secondary', '#8b949e');
 }
 
-initPickers();
+
 
 
 // WebSocket for live updates
@@ -2061,3 +1997,24 @@ function connectWebSocket() {
 document.addEventListener('DOMContentLoaded', () => {
     connectWebSocket();
 });
+window.copyWebhookUrl = function (inputId) {
+    let el = document.getElementById(inputId);
+    if (!el || !el.value) return;
+    let url = el.value;
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(url).then(() => {
+            showToast(currentLangData.config_copied || "Copied to clipboard", "success");
+        }).catch(err => {
+            console.error("Clipboard API error:", err);
+        });
+    } else {
+        el.select();
+        try {
+            document.execCommand('copy');
+            showToast(currentLangData.config_copied || "Copied to clipboard", "success");
+        } catch (err) {
+            console.error("Fallback copy error:", err);
+        }
+    }
+};
+

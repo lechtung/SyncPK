@@ -405,7 +405,7 @@
       setup_sys_autoupdate: 'Automatic Updates', setup_sys_autoupdate_desc: 'Apply updates automatically when available.',
       setup_sys_debug: 'Debug Logging', setup_sys_debug_desc: 'Enable verbose backend logs.',
       setup_summary_title: 'Review & Complete', setup_summary_sub: 'Review your configuration before finishing.',
-      setup_finish_title: 'Setup Complete!', setup_finish_msg: 'Redirecting to your dashboard...',
+      setup_finish_title: 'Setup Complete!', setup_finish_msg: 'Starting data import...',
       setup_finish_error: 'An error occurred. Please try again.',
       setup_test_checking: 'Checking...', setup_test_plex_success: 'Connection successful!', setup_test_plex_fail: 'Connection failed. Check URL.',
       setup_test_tmdb_success: 'Valid API Key!', setup_test_tmdb_fail: 'Invalid API Key.', setup_test_error: 'Network error.',
@@ -419,7 +419,7 @@
     };
     function t(k, r) { let s = i18n[k] || FB[k] || k; if (r) for (const [a, b] of Object.entries(r)) s = s.replace('{' + a + '}', b); return s; }
     async function loadLocale(lang) {
-      try { const r = await fetch('/locales/' + lang + '.json'); i18n = r.ok ? await r.json() : {}; } catch { i18n = {}; }
+      try { const r = await fetch('/locales/' + lang + '.json?v=' + Date.now()); i18n = r.ok ? await r.json() : {}; } catch { i18n = {}; }
       applyI18n();
     }
     function applyI18n() {
@@ -705,7 +705,19 @@
         }
       } catch { }
     }
-    function copyAuthLink() { if (_authUrl) navigator.clipboard.writeText(_authUrl).catch(() => { }); }
+    function copyAuthLink() { 
+        if (!_authUrl) return;
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(_authUrl).catch(() => { });
+        } else {
+            let temp = document.createElement("input");
+            temp.value = _authUrl;
+            document.body.appendChild(temp);
+            temp.select();
+            try { document.execCommand("copy"); } catch (err) {}
+            document.body.removeChild(temp);
+        }
+    }
     function cancelPlexAuth() {
       if (_pinPollTimer) { clearInterval(_pinPollTimer); _pinPollTimer = null; }
       document.getElementById('plex-auth-box').style.display = 'block';

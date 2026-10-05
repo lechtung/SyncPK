@@ -3,13 +3,22 @@ FROM python:3.12-slim
 # Create unprivileged user for security
 RUN useradd -m -u 1000 syncpkuser
 
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV DATA_DIR=/app/data
+
 # Set working directory
 WORKDIR /app
 
-# Install necessary system packages
+# Install necessary system packages (added su-exec/gosu equivalent, using gosu or just installing su-exec if available on debian slim)
+# Debian no tiene su-exec oficial, usa gosu.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
+
+# Alias su-exec to gosu for our script
+RUN ln -s /usr/sbin/gosu /usr/local/bin/su-exec
 
 # Copy python dependencies (from server directory)
 COPY server/requirements.txt .
@@ -21,11 +30,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY server/main.py .
 COPY server/static/ static/
 
-# Create data and cache directories, then set ownership
+# Create cache directories and set ownership of /app (data is handled by entrypoint)
 RUN mkdir -p /app/data/cache/posters /app/data/cache/fanarts && chown -R syncpkuser:syncpkuser /app
 
-# Switch to non-root user
-USER syncpkuser
+# Copy entrypoint script and make it executable
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # Configure Healthcheck using the time API endpoint
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
@@ -33,5 +43,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 EXPOSE 8000
 
-# Start the application
+# Start the application via entrypoint
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

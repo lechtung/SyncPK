@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SyncPK Setup</title>
+  <meta name="description" content="SyncPK initial configuration wizard." />
+  <link rel="icon" href="/favicon.ico" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="setup.css" />
+  <link rel="stylesheet" href="import.css" />
+</head>
+
+<body>
+  <div id="setup-progress-wrap">
+    <div id="setup-progress-bar" style="width:0%"></div>
+  </div>
+  <div id="setup-step-indicator"></div>
+  <div id="finish-overlay">
+    <div id="finish-status-icon">
+      <svg class="svg-anim" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52"><circle class="circle" cx="26" cy="26" r="25" stroke="#4ade80"/><path class="check" stroke="#4ade80" d="M14 27 l 7 7 17 -17"/></svg>
+    </div>
+    <div id="finish-title" data-i18n="import_complete_title">Import Complete!</div>
+    <div id="finish-msg" data-i18n="import_complete_msg">Redirecting to dashboard...</div>
+  </div>
+  <div id="setup-shell">
+    <div id="setup-logo">
+      <img src="/logo.png" alt="SyncPK" onerror="this.style.display='none'" />
+      <span>Sync<em>PK</em></span>
+    </div>
+    <div class="wizard-card glass-panel">
+      <!-- STEP 1: PLEX LOCAL DATA & ACTIVITY -->
+      <div class="wizard-step active" id="step-plex-local">
+        <div class="step-icon"><i class="fa-solid fa-server fa-beat-fade"></i></div>
+        <div class="step-title" data-i18n="import_step1_title">Importing Local Data & Activity</div>
+        <div class="step-subtitle" data-i18n="import_step1_subtitle">Scanning libraries and extracting activity history. This might take a few moments.</div>
+        
+        <div class="import-progress-container">
+          <div class="import-status-text">
+            <span id="import-current-item" data-i18n="import_step1_text">Processing library...</span>
+            <span id="import-percentage">0%</span>
+          </div>
+          <div class="import-progress-track">
+            <div class="import-progress-bar" id="import-bar-fill" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 2: CLOUD ACTIVITY -->
+      <div class="wizard-step" id="step-cloud-activity">
+        <div class="step-icon"><i class="fa-solid fa-cloud-arrow-down"></i></div>
+        <div class="step-title" data-i18n="import_step2_title">Syncing Cloud Activity</div>
+        <div class="step-subtitle" data-i18n="import_step2_subtitle">Downloading cross-server activity from your Plex account.</div>
+        
+        <div class="import-progress-container">
+          <div class="import-status-text">
+            <span id="import-cloud-status" data-i18n="import_step2_text">Fetching batches...</span>
+            <span id="import-cloud-count">0 items</span>
+          </div>
+          <div class="import-progress-track">
+            <div class="import-progress-bar indeterminate" id="import-cloud-fill"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 3: TMDB COVERS -->
+      <div class="wizard-step" id="step-tmdb-covers">
+        <div class="step-icon"><i class="fa-solid fa-image"></i></div>
+        <div class="step-title" data-i18n="import_step3_title">Downloading Posters</div>
+        <div class="step-subtitle" data-i18n="import_step3_subtitle">Fetching high quality metadata and artwork from TMDB.</div>
+        
+        <div class="import-progress-container">
+          <div class="import-status-text">
+            <span id="import-tmdb-current" data-i18n="import_step3_text">Downloading poster...</span>
+            <span id="import-tmdb-percentage">0%</span>
+          </div>
+          <div class="import-progress-track">
+            <div class="import-progress-bar" id="import-tmdb-fill" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STEPS = ['step-plex-local', 'step-cloud-activity', 'step-tmdb-covers'];
+    let currentStepIdx = 0;
+    let currentLangData = {};
+    let currentTmdbCount = 0;
+    
+    async function initI18n() {
+        let lang = window.DASHBOARD_LANG || 'auto';
+        if (lang === 'auto') {
+            const sup = ['en', 'es', 'de', 'fr', 'it', 'pt', 'zh', 'ja'];
+            const n = (navigator.language || 'en').split('-')[0].toLowerCase();
+            lang = sup.includes(n) ? n : 'en';
+        }
+        
+        try {
+            let r = await fetch('/locales/' + lang + '.json?v=' + Date.now());
+            if (r.ok) {
+                currentLangData = await r.json();
+                applyI18n();
+            }
+        } catch(e) {}
+    }
+
+    function applyI18n() {
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const k = el.getAttribute('data-i18n');
+            if (currentLangData[k]) {
+                el.textContent = currentLangData[k];
+            }
+        });
+        updateStepText(); // Re-apply variables to the active step text
+    }
+
+    function t(key, vars = {}) {
+        let str = currentLangData[key] || key;
+        for (const [k, v] of Object.entries(vars)) {
+            str = str.replace('{' + k + '}', v);
+        }
+        return str;
+    }
+    
+    // UI state data
+    const uiState = {
+        0: { cur: 0, tot: 0, lib: '', done: false },
+        1: { cur: 0, done: false },
+        2: { cur: 0, tot: 0, done: false }
+    };
+    let step3StartTime = 0; // timestamp when step 3 became visually active
+
+    function updateStepText() {
+        if (currentStepIdx === 0 && !uiState[0].done) {
+            document.getElementById('import-current-item').textContent = t('import_step1_text', {
+                lib: uiState[0].lib,
+                cur: uiState[0].cur,
+                tot: uiState[0].tot
+            });
+        } else if (currentStepIdx === 2 && !uiState[2].done) {
+            document.getElementById('import-tmdb-current').textContent = t('import_step3_text', {
+                cur: uiState[2].cur,
+                tot: uiState[2].tot
+            });
+        }
+    }
+
+    function finishStep(idx) {
+        uiState[idx].done = true;
+        const stepEl = document.getElementById(STEPS[idx]);
+        const icon = stepEl.querySelector('.step-icon i');
+        
+        if (idx === 0) {
+            document.getElementById('import-current-item').textContent = t('import_step1_done');
+            document.getElementById('import-bar-fill').style.width = '100%';
+            document.getElementById('import-percentage').textContent = '100%';
+        } else if (idx === 1) {
+            document.getElementById('import-cloud-status').textContent = t('import_step2_done');
+            document.getElementById('import-cloud-count').textContent = uiState[1].cur + " items" + t('import_step2_complete_text');
+            document.getElementById('import-cloud-fill').classList.remove('indeterminate');
+            document.getElementById('import-cloud-fill').style.width = '100%';
+            icon.classList.remove('fa-cloud-arrow-down', 'fa-beat-fade');
+            icon.classList.add('fa-check', 'success-text');
+        } else if (idx === 2) {
+            document.getElementById('import-tmdb-current').textContent = t('import_step3_done');
+            document.getElementById('import-tmdb-fill').style.width = '100%';
+            document.getElementById('import-tmdb-percentage').textContent = '100%';
+        }
+        
+        if (idx !== 1) {
+            icon.className = 'fa-solid fa-check success-text';
+        }
+        
+        // Wait 2.5 seconds before moving to the next step
+        setTimeout(() => {
+            if (idx < STEPS.length - 1) {
+                showStep(idx + 1);
+            } else {
+                completeImport();
+            }
+        }, 2500);
+    }
+
+    function showStep(idx) {
+        const curEl = document.getElementById(STEPS[currentStepIdx]);
+        curEl.classList.add('step-out');
+        
+        setTimeout(() => {
+            curEl.classList.remove('active', 'step-out');
+            const icon = curEl.querySelector('.step-icon i');
+            if(icon && icon.classList.contains('fa-beat-fade')) {
+                icon.classList.remove('fa-beat-fade');
+            }
+            
+            currentStepIdx = idx;
+            if (idx === 2) step3StartTime = Date.now(); // track when step 3 is shown
+            const nextEl = document.getElementById(STEPS[currentStepIdx]);
+            nextEl.classList.add('active');
+            
+            const nextIcon = nextEl.querySelector('.step-icon i');
+            if(nextIcon && !nextIcon.classList.contains('fa-check')) {
+                nextIcon.classList.add('fa-beat-fade');
+            }
+            
+            document.getElementById('setup-progress-bar').style.width = ((idx + 1) * 33.33) + '%';
+        }, 250);
+    }
+
+    function completeImport() {
+        const ov = document.getElementById('finish-overlay');
+        ov.classList.add('active');
+        setTimeout(() => {
+            window.location.href = '/';
+        }, 3000);
+    }
+    
+    function connectWebSocket() {
+        let protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        let wsUrl = protocol + '//' + window.location.host + '/ws/updates';
+        let ws = new WebSocket(wsUrl);
+
+        ws.onmessage = function(event) {
+            try {
+                let msg = JSON.parse(event.data);
+                if (msg.type === 'import_progress') {
+                    if (msg.step === 0 && !uiState[0].done) {
+                        uiState[0].lib = msg.library || '';
+                        uiState[0].cur = msg.current;
+                        uiState[0].tot = msg.total;
+                        updateStepText();
+                        let pct = Math.floor((msg.current / msg.total) * 100);
+                        document.getElementById('import-bar-fill').style.width = pct + '%';
+                        document.getElementById('import-percentage').textContent = pct + '%';
+                        
+                        if (msg.current >= msg.total) {
+                            finishStep(0);
+                        }
+                    } 
+                    else if (msg.step === 1 && !uiState[1].done) {
+                        uiState[1].cur = msg.count;
+                        document.getElementById('import-cloud-count').textContent = msg.count + " items";
+                        
+                        if (currentStepIdx < 1 && !uiState[0].done) {
+                             finishStep(0);
+                        }
+                    }
+                } 
+                else if (msg.type === 'step3_init') {
+                    // Backend announced the total before downloading starts → show "0 de X"
+                    if (!uiState[1].done) finishStep(1);
+                    uiState[2].tot = msg.total;
+                    uiState[2].cur = 0;
+                    updateStepText();
+                    document.getElementById('import-tmdb-fill').style.width = '0%';
+                    document.getElementById('import-tmdb-percentage').textContent = '0%';
+                }
+                else if (msg.type === 'batch_update') {
+                    if (!uiState[1].done) {
+                        finishStep(1);
+                    }
+                    if (!uiState[2].done) {
+                        currentTmdbCount += (msg.items ? msg.items.length : 0);
+                        uiState[2].cur = currentTmdbCount;
+                        uiState[2].tot = msg.total || uiState[0].tot;
+                        
+                        updateStepText();
+                        let pct = uiState[2].tot ? Math.floor((uiState[2].cur / uiState[2].tot) * 100) : 0;
+                        document.getElementById('import-tmdb-fill').style.width = pct + '%';
+                        document.getElementById('import-tmdb-percentage').textContent = pct + '%';
+
+                        // Same logic as step 1: close when counter reaches total
+                        if (uiState[2].tot > 0 && currentTmdbCount >= uiState[2].tot) {
+                            finishStep(2);
+                        }
+                    }
+                }
+                else if (msg.type === 'import_done') {
+                    // Disable the polling safety net (primary close is handled by batch_update above)
+                    document.dispatchEvent(new Event('import_done_received'));
+                }
+            } catch (e) {
+                console.error("WS Parse error", e);
+            }
+        };
+
+        ws.onclose = function() {
+            setTimeout(connectWebSocket, 3000); // Reconnect
+        };
+    }
+
+    // Initialize
+    initI18n().then(() => {
+        document.getElementById('setup-progress-bar').style.width = '33.33%';
+        connectWebSocket();
+        
+        // SAFETY NET ONLY: if WebSocket disconnected and import_done was missed,
+        // wait a generous 30 seconds after rescan stops before closing step 3.
+        // This NEVER fires during a normal run where import_done arrives via WS.
+        let pollingClosedByImportDone = false;
+        document.addEventListener('import_done_received', () => { pollingClosedByImportDone = true; });
+        
+        setInterval(async () => {
+            if (pollingClosedByImportDone || uiState[2].done) return;
+            try {
+                let res = await fetch('/api/rescan/status');
+                if (res.ok) {
+                    let data = await res.json();
+                    // Only act if truly stopped AND we've been on step 3 for at least 30 seconds
+                    const step3Age = step3StartTime ? Date.now() - step3StartTime : 0;
+                    if (!data.is_running && data.done && currentTmdbCount > 0 && step3Age > 30000 && !uiState[2].done) {
+                        console.warn('[import] Fallback polling closing step 3 after 30s');
+                        if (!uiState[1].done) finishStep(1);
+                        const waitForStep3 = () => {
+                            if (uiState[2].done) return;
+                            if (currentStepIdx < 2) { setTimeout(waitForStep3, 300); return; }
+                            finishStep(2);
+                        };
+                        setTimeout(waitForStep3, 300);
+                    }
+                }
+            } catch(e) {}
+        }, 5000);
+    });
+
+  </script>
+</body>
+</html>

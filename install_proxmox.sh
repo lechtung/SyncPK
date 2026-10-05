@@ -31,7 +31,7 @@ for s in $STORAGES; do
     STORAGE_MENU+=("$s" "")
 done
 
-TARGET_STORAGE=\((whiptail --title "SyncPK - Storage Selection" --menu "Select the storage drive for the new LXC container:" 15 50 4 "\){STORAGE_MENU[@]}" 3>&1 1>&2 2>&3)
+TARGET_STORAGE=$(whiptail --title "SyncPK - Storage Selection" --menu "Select the storage drive for the new LXC container:" 15 50 4 "${STORAGE_MENU[@]}" 3>&1 1>&2 2>&3)
 if [ $? -ne 0 ]; then exit 1; fi
 
 while true; do
@@ -41,7 +41,7 @@ while true; do
     ROOT_PASSWORD_CONFIRM=$(whiptail --passwordbox "Confirm the root password:" 10 60 --title "SyncPK - Security" 3>&1 1>&2 2>&3)
     if [ $? -ne 0 ]; then exit 1; fi
 
-    if [ "\(ROOT_PASSWORD" == "\)ROOT_PASSWORD_CONFIRM" ]; then
+    if [ "$ROOT_PASSWORD" == "$ROOT_PASSWORD_CONFIRM" ]; then
         break
     else
         whiptail --msgbox "Passwords do not match. Please try again." 8 45 --title "Error"
@@ -64,18 +64,21 @@ if [ -z "$LATEST_TEMPLATE" ]; then
 fi
 
 echo "[Info] Downloading/Checking template..."
-if ! pvesm list \(TEMPLATE_STORAGE --content vztmpl | grep -q "\)LATEST_TEMPLATE"; then
-    pveam download \(TEMPLATE_STORAGE\)LATEST_TEMPLATE &>/dev/null || error "Failed to download the template."
+if ! pvesm list $TEMPLATE_STORAGE --content vztmpl | grep -q "$LATEST_TEMPLATE"; then
+    pveam download $TEMPLATE_STORAGE $LATEST_TEMPLATE &>/dev/null || error "Failed to download the template."
 fi
 
 echo "[Info] Creating CT container $CTID..."
-pct create \(CTID\)TEMPLATE_STORAGE:vztmpl/\(LATEST_TEMPLATE -storage\)TARGET_STORAGE -password "$ROOT_PASSWORD" -arch amd64 -hostname syncpk -cores 1 -memory 512 -net0 name=eth0,bridge=vmbr0,ip=dhcp -unprivileged 1 -features nesting=1 -timezone host
+pct create $CTID $TEMPLATE_STORAGE:vztmpl/$LATEST_TEMPLATE -storage $TARGET_STORAGE -rootfs $TARGET_STORAGE:8 -password "$ROOT_PASSWORD" -arch amd64 -hostname syncpk -cores 1 -memory 512 -net0 name=eth0,bridge=vmbr0,ip=dhcp -unprivileged 1 -features nesting=1 -timezone host -onboot 1
 pct start $CTID
 
-echo "[Info] Waiting for the container to boot and get an IP..."
-sleep 10
-CT_IP=\((pct exec\)CTID -- ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+echo "[Info] Waiting for the container to get network access..."
+while ! pct exec $CTID -- ping -c 1 -W 1 raw.githubusercontent.com &>/dev/null; do
+    sleep 2
+done
+
+CT_IP=$(pct exec $CTID -- ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
 echo "[Info] Assigned IP: $CT_IP"
 
 echo "[Info] Launching automated system installer inside LXC..."
-pct exec \(CTID -- bash -c "apt-get update >/dev/null 2>&1 && apt-get install -y curl ca-certificates >/dev/null 2>&1 && curl -s https://raw.githubusercontent.com/\)GITHUB_USER/\(GITHUB_REPO/\)GITHUB_BRANCH/install.sh | bash"
+pct exec $CTID -- bash -c "apt-get update >/dev/null 2>&1 && apt-get install -y curl ca-certificates >/dev/null 2>&1 && curl -fsSL https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/install.sh | bash"

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
 if [ "$EUID" -ne 0 ]; then
     echo -e "\e[31m[ERROR] This script must be run as root (use sudo).\e[0m"
@@ -26,39 +27,40 @@ apt-get update &>/dev/null
 apt-get install -y curl python3 python3-venv python3-pip &>/dev/null
 
 echo "[Info] Preparing directories..."
-mkdir -p $CODE_DIR/static/locales
+mkdir -p $CODE_DIR
 mkdir -p $DATA_DIR
 
-echo "[Info] Downloading application files from GitHub..."
-curl -s https://raw.githubusercontent.com/\(GITHUB_USER/\)GITHUB_REPO/\(GITHUB_BRANCH/server/main.py -o\)CODE_DIR/main.py
-curl -s https://raw.githubusercontent.com/\(GITHUB_USER/\)GITHUB_REPO/\(GITHUB_BRANCH/server/.env.example -o\)CODE_DIR/.env.example
-curl -s https://raw.githubusercontent.com/\(GITHUB_USER/\)GITHUB_REPO/\(GITHUB_BRANCH/.ver -o\)CODE_DIR/.ver
-curl -s https://raw.githubusercontent.com/\(GITHUB_USER/\)GITHUB_REPO/\(GITHUB_BRANCH/server/static/dashboard.html -o\)CODE_DIR/static/dashboard.html
-curl -s https://raw.githubusercontent.com/\(GITHUB_USER/\)GITHUB_REPO/\(GITHUB_BRANCH/server/static/setup.html -o\)CODE_DIR/static/setup.html
-curl -s https://raw.githubusercontent.com/\(GITHUB_USER/\)GITHUB_REPO/\(GITHUB_BRANCH/server/static/style.css -o\)CODE_DIR/static/style.css
-curl -s https://raw.githubusercontent.com/\(GITHUB_USER/\)GITHUB_REPO/\(GITHUB_BRANCH/server/static/setup.css -o\)CODE_DIR/static/setup.css
-curl -s https://raw.githubusercontent.com/\(GITHUB_USER/\)GITHUB_REPO/\(GITHUB_BRANCH/server/static/app.js -o\)CODE_DIR/static/app.js
-curl -s https://raw.githubusercontent.com/\(GITHUB_USER/\)GITHUB_REPO/\(GITHUB_BRANCH/server/static/favicon.ico -o\)CODE_DIR/static/favicon.ico
-curl -s https://raw.githubusercontent.com/\(GITHUB_USER/\)GITHUB_REPO/\(GITHUB_BRANCH/server/requirements.txt -o\)CODE_DIR/requirements.txt
+echo "[Info] Obteniendo la última versión de GitHub..."
+LATEST_TAR_URL=$(curl -fsSL https://api.github.com/repos/$GITHUB_USER/$GITHUB_REPO/releases/latest | grep "tarball_url" | cut -d '"' -f 4 || true)
 
-echo "[Info] Downloading language files..."
-LANGS=("en" "es" "de" "fr" "it" "pt" "ja" "zh")
-for l in "${LANGS[@]}"; do
-    curl -s https://raw.githubusercontent.com/\(GITHUB_USER/\)GITHUB_REPO/\(GITHUB_BRANCH/server/static/locales/\){l}.json -o \(CODE_DIR/static/locales/\){l}.json
-done
+if [ -z "$LATEST_TAR_URL" ]; then
+    echo -e "\e[31m[ERROR] No se pudo obtener la última release de GitHub.\e[0m"
+    exit 1
+fi
 
-if [ ! -f \(CODE_DIR/requirements.txt ] || ! grep -q "fastapi"\)CODE_DIR/requirements.txt; then
+echo "[Info] Descargando y extrayendo código fuente..."
+TMP_DIR=$(mktemp -d)
+curl -fsSL "$LATEST_TAR_URL" | tar -xz -C "$TMP_DIR" --strip-components=1
+
+# Copiar el contenido de la carpeta server al directorio principal
+cp -r "$TMP_DIR/server/"* "$CODE_DIR/"
+# Copiar .ver al código principal
+cp "$TMP_DIR/.ver" "$CODE_DIR/.ver"
+
+rm -rf "$TMP_DIR"
+
+if [ ! -f $CODE_DIR/requirements.txt ] || ! grep -q "fastapi" $CODE_DIR/requirements.txt; then
     echo -e "fastapi\nuvicorn\nrequests\npython-dotenv\npython-multipart\nhttpx" > $CODE_DIR/requirements.txt
 fi
 
 echo "[Info] Configuring Python virtual environment..."
 python3 -m venv $CODE_DIR/venv
-\(CODE_DIR/venv/bin/pip install -r\)CODE_DIR/requirements.txt
+$CODE_DIR/venv/bin/pip install -r $CODE_DIR/requirements.txt
 
 echo "[Info] Applying security permissions..."
 # El usuario root es dueño del código, los demás solo pueden leer/ejecutar
 chown -R root:root $CODE_DIR
-chmod -R 755 $CODE_DIR
+chmod -R u=rwX,go=rX $CODE_DIR
 # El usuario syncpk es el dueño absoluto de los datos
 chown -R syncpk:syncpk $DATA_DIR
 chmod -R 750 $DATA_DIR
@@ -77,6 +79,10 @@ Environment="DATA_DIR=$DATA_DIR"
 ExecStart=$CODE_DIR/venv/bin/python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=$DATA_DIR
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target
@@ -120,7 +126,7 @@ Description=Actualizador root de SyncPK
 Type=oneshot
 User=root
 ExecStartPre=/bin/rm -f $DATA_DIR/.trigger_update
-ExecStart=/bin/bash -c "curl -s -L https://raw.githubusercontent.com/\(GITHUB_USER/\)GITHUB_REPO/$GITHUB_BRANCH/update.sh | bash"
+ExecStart=/bin/bash -c "curl -fsSL https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/update.sh | bash"
 EOF
 
 # 4. The vigilante who shoots the executioner

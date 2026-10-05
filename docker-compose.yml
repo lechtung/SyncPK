@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   syncpk-server:
     image: ghcr.io/lechtung/syncpk:latest

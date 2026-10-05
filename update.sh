@@ -1,33 +1,39 @@
 #!/bin/bash
+set -euo pipefail
+
+CODE_DIR="/opt/syncpk"
+cd "$CODE_DIR" || exit 1
 
 systemctl stop syncpk-server
 
-curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/main.py
+echo "[Info] Obteniendo la última versión de GitHub..."
+LATEST_TAR_URL=$(curl -fsSL https://api.github.com/repos/lechtung/SyncPK/releases/latest | grep "tarball_url" | cut -d '"' -f 4)
 
-# Download .env.example if it doesn't exist to ensure we have the template
-if [ ! -f server/.env.example ]; then
-    curl -s https://raw.githubusercontent.com/lechtung/SyncPK/main/server/.env.example -o server/.env.example
+if [ -z "$LATEST_TAR_URL" ]; then
+    echo "[Error] No se pudo obtener la última release."
+    systemctl start syncpk-server
+    exit 1
 fi
 
-curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/requirements.txt
-curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/.ver
+echo "[Info] Descargando y extrayendo..."
+TMP_DIR=$(mktemp -d)
+curl -fsSL "$LATEST_TAR_URL" | tar -xz -C "$TMP_DIR" --strip-components=1
 
-mkdir -p static/locales
-cd static
-curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/index.html
-curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/app.js
-curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/style.css
-curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/setup.css
-curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/favicon.ico
-cd locales
-curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/en.json
-curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/es.json
-curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/de.json
-curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/fr.json
-curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/it.json
-curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/pt.json
-curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/ja.json
-curl -s -O https://raw.githubusercontent.com/lechtung/SyncPK/main/server/static/locales/zh.json
-cd ../..
+echo "[Info] Actualizando archivos..."
+# Copiar el contenido de la carpeta server al directorio principal
+cp -r "$TMP_DIR/server/"* "$CODE_DIR/"
+# Si no existe .env.example, lo copiamos (ahora bajará directo de server/.env.example)
+
+echo "[Info] Instalando dependencias de Python..."
+"$CODE_DIR/venv/bin/pip" install -r "$CODE_DIR/requirements.txt"
+
+echo "[Info] Actualizando versión local..."
+cp "$TMP_DIR/.ver" "$CODE_DIR/.ver"
+
+rm -rf "$TMP_DIR"
+
+chown -R root:root "$CODE_DIR"
+chmod -R u=rwX,go=rX "$CODE_DIR"
 
 systemctl start syncpk-server
+echo "[Info] Actualización completada con éxito."

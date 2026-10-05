@@ -1,4 +1,24 @@
 :root {
+    --color-58a6ff: #58a6ff;
+    --color-000000: #000;
+    --color-cccccc: #ccc;
+    --color-0d1117: #0d1117;
+    --color-3182ce: #3182ce;
+    --color-2d333b: #2d333b;
+    --color-8b949e: #8b949e;
+    --color-2568a8: #2568a8;
+    --color-f85149: #f85149;
+    --color-3fb950: #3fb950;
+    --color-c9d1d9: #c9d1d9;
+    --color-888888: #888;
+    --color-ffffff: #fff;
+    --border-light: #444;
+    --text-muted: #aaa;
+    --hover-bg: #333;
+    --grid-gap: var(--grid-gap, 16px);
+    --card-radius: 12px;
+    --poster-w: 108px;
+    --fanart-w: 288px;
     --bg-color: #0d1117;
     --glass-bg: rgba(22, 27, 34, 0.7);
     --glass-border: rgba(255, 255, 255, 0.1);
@@ -9,9 +29,12 @@
     --accent-dark: #2568a8;
     --danger: #f85149;
     /* nuevos colores UI */
-    --edit-bg: rgba(22, 27, 34, 0.85); /* fondo de componentes de edición */
-    --combo-bg: rgba(13, 17, 23, 0.95); /* fondo de combos / dropdowns */
-    --panel-bg: rgba(255, 255, 255, 0.03); /* fondo de paneles de cada pestaña */
+    --edit-bg: rgba(22, 27, 34, 0.85);
+    /* fondo de componentes de edición */
+    --combo-bg: rgba(13, 17, 23, 0.95);
+    /* fondo de combos / dropdowns */
+    --panel-bg: rgba(255, 255, 255, 0.03);
+    /* fondo de paneles de cada pestaña */
 }
 
 * {
@@ -41,7 +64,7 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
-    color: #fff;
+    color: var(--color-ffffff);
     font-size: 0.9rem;
     font-weight: 500;
     cursor: pointer;
@@ -57,7 +80,7 @@ body {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border: 1px solid var(--glass-border);
-    border-radius: 12px;
+    border-radius: var(--card-radius, 12px);
 }
 
 /* --- OVERLAYS & MODALS --- */
@@ -85,7 +108,7 @@ body {
 .login-box h2,
 .login-box h3 {
     margin-bottom: 8px;
-    color: #fff;
+    color: var(--color-ffffff);
 }
 
 .login-box p {
@@ -105,7 +128,7 @@ select {
     background: rgba(22, 27, 34, 0.85);
     border: 1px solid var(--glass-border);
     border-radius: 8px;
-    color: #fff;
+    color: var(--color-ffffff);
     font-family: 'Inter', sans-serif;
     font-size: 0.9rem;
     font-weight: 500;
@@ -230,7 +253,7 @@ button {
     width: 100%;
     padding: 12px;
     background: var(--accent);
-    color: #fff;
+    color: var(--color-ffffff);
     border: none;
     border-radius: 6px;
     font-weight: 600;
@@ -291,7 +314,7 @@ button:disabled {
 .header-right {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: var(--grid-gap, 16px);
 }
 
 .logo-icon {
@@ -304,7 +327,7 @@ button:disabled {
 .logo {
     font-size: 1.5rem;
     font-weight: 700;
-    color: #fff;
+    color: var(--color-ffffff);
     margin-right: 24px;
     margin-left: -4px;
 }
@@ -338,7 +361,7 @@ button:disabled {
 
 .day-btn.active {
     background: rgba(255, 255, 255, 0.1);
-    color: #fff;
+    color: var(--color-ffffff);
     border-color: var(--glass-border);
 }
 
@@ -362,7 +385,7 @@ button:disabled {
 .day-btn .d-num {
     font-size: 1.1rem;
     font-weight: 700;
-    color: #fff;
+    color: var(--color-ffffff);
 }
 
 .day-btn .d-dot {
@@ -428,7 +451,7 @@ button:disabled {
 .c-dropdown-value {
     font-size: 0.9rem;
     font-weight: 500;
-    color: #fff;
+    color: var(--color-ffffff);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -538,7 +561,7 @@ button:disabled {
 /* --- STATS SECTION --- */
 .stats-container {
     display: flex;
-    gap: 16px;
+    gap: var(--grid-gap, 16px);
     padding: 0 24px;
     margin-bottom: 32px;
     flex-wrap: wrap;
@@ -560,7 +583,7 @@ button:disabled {
 .stat-value {
     font-size: 1.8rem;
     font-weight: 700;
-    color: #fff;
+    color: var(--color-ffffff);
 }
 
 .stat-label {
@@ -583,7 +606,7 @@ button:disabled {
 .history-group-title {
     font-size: 1.2rem;
     font-weight: 600;
-    color: #fff;
+    color: var(--color-ffffff);
     margin-bottom: 16px;
     border-bottom: 1px solid var(--glass-border);
     padding-bottom: 8px;
@@ -591,20 +614,20 @@ button:disabled {
 
 .cards-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, 400px);
+    grid-template-columns: repeat(auto-fill, calc(var(--poster-w) + var(--fanart-w) + 4px));
     justify-content: flex-start;
-    gap: 16px;
+    gap: var(--grid-gap, 16px);
 }
 
 .c-card {
     position: relative;
-    width: 396px;
+    width: calc(var(--poster-w) + var(--fanart-w));
     /* Ancho fijo y estricto (108 + 288 = 396) */
-    height: 162px;
+    height: calc(var(--poster-w) * 1.5);
     /* Alto fijo y estricto */
-    border-radius: 12px;
+    border-radius: var(--card-radius, 12px);
     overflow: hidden;
-    background-color: #000;
+    background-color: var(--color-000000);
     border: 1px solid var(--glass-border);
     display: flex;
     flex-direction: row;
@@ -620,9 +643,9 @@ button:disabled {
 
 /* Left Poster */
 .c-poster {
-    flex: 0 0 108px;
-    /* No crece, no encoje, exactamente 108px */
-    height: 162px;
+    flex: 0 0 var(--poster-w, 108px);
+    /* No crece, no encoje, dinámico según --poster-w */
+    height: calc(var(--poster-w) * 1.5);
     background-size: cover;
     background-position: center top;
     box-shadow: 4px 0 10px rgba(0, 0, 0, 0.5);
@@ -631,9 +654,9 @@ button:disabled {
 
 /* Right Content (Fanart Background) */
 .c-fanart-content {
-    flex: 0 0 288px;
-    /* Exactamente 288px */
-    height: 162px;
+    flex: 0 0 var(--fanart-w, 288px);
+    /* Exactamente dinámico según --fanart-w */
+    height: calc(var(--poster-w) * 1.5);
     background-size: cover;
     background-position: center;
     position: relative;
@@ -672,7 +695,7 @@ button:disabled {
 .card-title {
     font-size: 1.1rem;
     font-weight: 600;
-    color: #fff;
+    color: var(--color-ffffff);
     margin-bottom: 4px;
     padding-right: 24px;
     display: -webkit-box;
@@ -683,7 +706,7 @@ button:disabled {
 
 .card-subtitle {
     font-size: 0.9rem;
-    color: #ccc;
+    color: var(--color-cccccc);
     margin-bottom: 8px;
 }
 
@@ -701,7 +724,7 @@ button:disabled {
     z-index: 3;
     background: transparent;
     border: none;
-    color: #fff;
+    color: var(--color-ffffff);
     width: 32px;
     height: 32px;
     border-radius: 50%;
@@ -732,7 +755,7 @@ button:disabled {
 
 .dropdown-item {
     padding: 8px 16px;
-    color: #fff;
+    color: var(--color-ffffff);
     cursor: pointer;
     font-size: 0.9rem;
     white-space: nowrap;
@@ -786,7 +809,7 @@ button:disabled {
     height: 64px;
     border-radius: 50%;
     background: var(--accent);
-    color: #000;
+    color: var(--color-000000);
     border: none;
     cursor: pointer;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
@@ -808,9 +831,9 @@ button:disabled {
 
 /* Estado activo del FAB */
 .fab-container.active .fab-main {
-    background: #2d333b;
+    background: var(--color-2d333b);
     /* Gris oscuro neutro */
-    color: #fff;
+    color: var(--color-ffffff);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
@@ -841,7 +864,7 @@ button:disabled {
     border-radius: 50%;
     background: rgba(30, 30, 30, 0.9);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    color: #fff;
+    color: var(--color-ffffff);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -854,7 +877,7 @@ button:disabled {
 
 .fab-action:hover {
     background: var(--accent);
-    color: #000;
+    color: var(--color-000000);
     transform: scale(1.1);
 }
 
@@ -864,7 +887,7 @@ button:disabled {
     position: absolute;
     right: 60px;
     background: rgba(0, 0, 0, 0.8);
-    color: #fff;
+    color: var(--color-ffffff);
     padding: 6px 12px;
     border-radius: 6px;
     font-size: 0.85rem;
@@ -907,7 +930,7 @@ button:disabled {
     height: 60px;
     object-fit: cover;
     border-radius: 4px;
-    background: #333;
+    background: var(--hover-bg);
 }
 
 /* --- TOAST NOTIFICATIONS --- */
@@ -935,7 +958,7 @@ button:disabled {
     -webkit-backdrop-filter: blur(16px);
     border: 1px solid rgba(88, 166, 255, 0.4);
     border-left: 4px solid var(--accent);
-    color: #fff;
+    color: var(--color-ffffff);
     font-size: 0.9rem;
     font-weight: 500;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
@@ -961,7 +984,7 @@ button:disabled {
 
 .toast.toast-success {
     border-color: rgba(63, 185, 80, 0.4);
-    border-left: 4px solid #3fb950;
+    border-left: 4px solid var(--color-3fb950);
 }
 
 .toast.toast-info {
@@ -974,7 +997,7 @@ button:disabled {
 }
 
 .toast.toast-success .toast-icon {
-    color: #3fb950;
+    color: var(--color-3fb950);
 }
 
 .toast.toast-info .toast-icon {
@@ -1026,7 +1049,7 @@ button:disabled {
 .spinner-premium.success {
     border: none;
     animation: none;
-    color: #3fb950;
+    color: var(--color-3fb950);
     font-size: 60px;
     display: flex;
     align-items: center;
@@ -1111,7 +1134,7 @@ button:disabled {
     flex: 1;
     background: transparent;
     border: none;
-    color: #888;
+    color: var(--color-888888);
     padding: 8px;
     font-size: 0.85rem;
     border-radius: 6px;
@@ -1125,12 +1148,12 @@ button:disabled {
 
 .segmented-btn.active {
     background: rgba(255, 255, 255, 0.1);
-    color: #fff;
+    color: var(--color-ffffff);
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
 }
 
 .segmented-btn:hover {
-    color: #fff;
+    color: var(--color-ffffff);
 }
 
 .tab-content {
@@ -1161,7 +1184,7 @@ button:disabled {
 }
 
 .inner-panel-title {
-    color: #fff;
+    color: var(--color-ffffff);
     font-size: 0.95rem;
     font-weight: 600;
     margin-bottom: 16px;
@@ -1184,7 +1207,7 @@ button:disabled {
     gap: 8px;
     margin-bottom: 10px;
     cursor: pointer;
-    color: #fff;
+    color: var(--color-ffffff);
     font-size: 0.9rem;
 }
 
@@ -1222,7 +1245,7 @@ button:disabled {
     border-radius: 6px;
     padding: 0 16px;
     cursor: pointer;
-    color: #fff;
+    color: var(--color-ffffff);
     transition: all 0.2s ease;
 }
 
@@ -1250,7 +1273,7 @@ button:disabled {
     justify-content: space-between;
     align-items: center;
     gap: 10px;
-    color: #fff;
+    color: var(--color-ffffff);
     font-weight: 500;
     font-size: 0.9rem;
     background: rgba(0, 0, 0, 0.1);
@@ -1262,7 +1285,7 @@ button:disabled {
 }
 
 .accordion-header i {
-    color: #888;
+    color: var(--color-888888);
 }
 
 .accordion-body {
@@ -1296,4 +1319,36 @@ button:disabled {
 .pcr-app input,
 .pcr-app button {
     box-shadow: 0 0 0 1px hsla(0, 0%, 50%, 0.6), 0 0 0 3px var(--pcr-color);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .cards-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100%, 1fr));
+    }
+
+    .history-card {
+        width: 100%;
+        flex-direction: column;
+        height: auto;
+    }
+
+    .history-card .poster-container {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 2/3;
+    }
+
+    .history-card .fanart-container {
+        width: 100%;
+        height: 200px;
+    }
+
+    .header-controls {
+        flex-wrap: wrap;
+    }
+
+    .c-modal-content {
+        min-width: 90%;
+    }
 }

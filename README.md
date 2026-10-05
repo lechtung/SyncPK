@@ -74,6 +74,7 @@ For the standard self-hosted stack, SyncPK can be deployed seamlessly using Dock
 3. **Next step:** Open your browser and go to `http://<YOUR_SERVER_IP>:8000` to start the Web Setup.
 
 *(Note: If you do not have an active Plex Pass subscription, the server will automatically enable background polling to compensate for the lack of native Plex Webhooks).*
+
 ---
 
 ## 🎬 Plex Webhook Setup
@@ -136,8 +137,8 @@ If you wish to remove SyncPK completely:
 
 **For Baremetal**: 
 ```bash
-sudo systemctl stop syncpk-server syncpk-updater.timer syncpk-updater.path
-sudo systemctl disable syncpk-server syncpk-updater.timer syncpk-updater.path
+sudo systemctl stop syncpk-server syncpk-checker.timer syncpk-updater.path
+sudo systemctl disable syncpk-server syncpk-checker.timer syncpk-updater.path
 sudo rm -rf /opt/syncpk /var/lib/syncpk /etc/systemd/system/syncpk*
 sudo systemctl daemon-reload
 sudo userdel syncpk
