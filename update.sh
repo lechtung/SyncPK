@@ -20,9 +20,13 @@ trap cleanup EXIT
 
 echo "[Info] Fetching latest version from GitHub..."
 # Point 1: API Check, atomic download.
-curl -fsSL --max-time 30 "$API_URL" | "$PYTHON_BIN" -c 'import json,sys; print(json.load(sys.stdin)["tarball_url"])' > "$TMP_DIR/url" || { echo "[Error] Could not fetch download URL"; exit 1; }
+curl -fsSL --max-time 30 "$API_URL" > "$TMP_DIR/api_resp.json" || { echo "[Error] Could not fetch release info"; exit 1; }
+TAR_URL=$("$PYTHON_BIN" -c 'import json,sys; print(json.load(sys.stdin).get("tarball_url", ""))' < "$TMP_DIR/api_resp.json")
+RELEASE_TAG=$("$PYTHON_BIN" -c 'import json,sys; print(json.load(sys.stdin).get("tag_name", "unknown"))' < "$TMP_DIR/api_resp.json")
 
-TAR_URL=$(cat "$TMP_DIR/url")
+echo "[Info] Found release: $RELEASE_TAG"
+
+
 if [ -z "$TAR_URL" ]; then
     echo "[Error] Download URL is empty."
     exit 1
