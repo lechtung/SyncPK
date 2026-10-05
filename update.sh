@@ -89,8 +89,8 @@ fi
 # Point 6: Permisos
 echo "[Info] Configuring permissions..."
 chown -R root:root "$CODE_DIR"
-find "$CODE_DIR" -type d -exec chmod 755 {} +
-find "$CODE_DIR" -type f -exec chmod 644 {} +
+find "$CODE_DIR" -type d ! -path "*/venv/*" ! -path "*/.git/*" -exec chmod 755 {} +
+find "$CODE_DIR" -type f ! -path "*/venv/*" ! -path "*/.git/*" -exec chmod 644 {} +
 chmod +x "$CODE_DIR/update.sh"
 if [ -f "$CODE_DIR/check_update.sh" ]; then
     chmod +x "$CODE_DIR/check_update.sh"

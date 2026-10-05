@@ -85,8 +85,8 @@ $CODE_DIR/venv/bin/pip install -q -r $CODE_DIR/requirements.txt || {
 echo "[Info] Applying security permissions..."
 # Propietario del código es root
 chown -R root:root $CODE_DIR
-find $CODE_DIR -type d -exec chmod 755 {} +
-find $CODE_DIR -type f -exec chmod 644 {} +
+find $CODE_DIR -type d ! -path "*/venv/*" ! -path "*/.git/*" -exec chmod 755 {} +
+find $CODE_DIR -type f ! -path "*/venv/*" ! -path "*/.git/*" -exec chmod 644 {} +
 chmod +x $CODE_DIR/update.sh
 if [ -f "$CODE_DIR/check_update.sh" ]; then
     chmod +x $CODE_DIR/check_update.sh
