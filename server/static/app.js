@@ -1052,12 +1052,15 @@ document.getElementById('edit-save-btn').addEventListener('click', async () => {
         }
     }
 
-    // Use new load overlay
+    // Use new Bulk Progress modal
     document.getElementById('edit-modal').classList.add('hidden');
-    showProcessingOverlay(
-        currentLangData.overlay_processing || 'Processing request',
-        currentLangData.updating_msg || 'Updating, this may take a few minutes...'
-    );
+    document.getElementById('bulk-progress-modal').classList.remove('hidden');
+    document.getElementById('bulk-progress-title').textContent = currentLangData.overlay_processing || 'Calculating...';
+    document.getElementById('bulk-progress-bar').style.width = "0%";
+    document.getElementById('bulk-progress-bar').classList.add('indeterminate');
+    document.getElementById('bulk-progress-warning').classList.add('hidden');
+    document.getElementById('bulk-progress-current').textContent = "0";
+    document.getElementById('bulk-progress-total').textContent = "0";
 
     try {
         let res = await apiFetch(`/api/history/${currentEditId}`, {
@@ -1070,26 +1073,18 @@ document.getElementById('edit-save-btn').addEventListener('click', async () => {
         try { data = await res.json(); } catch (e) { }
 
         if (res.ok && data && data.status === 'success') {
-            reloadHistory(); // Reload to sort properly
-            updateOverlayResult('success', currentLangData.history_saved || 'Saved successfully', '');
-            hideOverlay(2000);
-        } else if (res.ok && data && data.status === 'partial') {
-            reloadHistory();
-            let errText = (data.errors || []).join(', ');
-            updateOverlayResult('error', currentLangData.manual_save_error || 'Error (Parcial)', errText);
-            hideOverlay(4000);
-            setTimeout(() => document.getElementById('edit-modal').classList.remove('hidden'), 4000);
+            // Background task started, WebSockets will take over
         } else {
+            document.getElementById('bulk-progress-modal').classList.add('hidden');
             let errText = (data && data.errors) ? data.errors.join(', ') : '';
-            updateOverlayResult('error', currentLangData.manual_save_error || 'Error saving.', errText);
-            hideOverlay(4000);
-            setTimeout(() => document.getElementById('edit-modal').classList.remove('hidden'), 4000);
+            showToast(errText || currentLangData.manual_save_error || 'Error saving.', 'error');
+            document.getElementById('edit-modal').classList.remove('hidden');
         }
     } catch (e) {
         console.error(e);
-        updateOverlayResult('error', currentLangData.network_error || 'Network error.', '');
-        hideOverlay(3000);
-        setTimeout(() => document.getElementById('edit-modal').classList.remove('hidden'), 3000);
+        document.getElementById('bulk-progress-modal').classList.add('hidden');
+        showToast(currentLangData.network_error || 'Network error.', 'error');
+        document.getElementById('edit-modal').classList.remove('hidden');
     }
 });
 
@@ -1484,17 +1479,17 @@ function setupConfigModal() {
         const origFanartQ = configModal.dataset.originalFanartQ;
         const origPosterW = parseInt(configModal.dataset.originalPosterW) || 108;
         const origFanartW = parseInt(configModal.dataset.originalFanartW) || 288;
-        
+
         const newLang = document.getElementById('configLang-dd').dataset.currentValue || 'es';
         const newDashLang = document.getElementById('configDashboardLang-dd').dataset.currentValue || 'auto';
         const newPoster = document.getElementById('configPosterPref-dd').dataset.currentValue || 'show';
         const newFanart = document.getElementById('configFanartPref-dd').dataset.currentValue || 'episode';
         const newPosterQ = document.getElementById('configPosterQuality-dd').dataset.currentValue || 'w185';
         const newFanartQ = document.getElementById('configFanartQuality-dd').dataset.currentValue || 'w300';
-        
+
         const newPosterW = parseInt(document.getElementById('config-poster-w').value);
         const newFanartW = parseInt(document.getElementById('config-fanart-w').value);
-        
+
         const pwd = pwdInput.value;
 
         const payload = {
@@ -1540,7 +1535,7 @@ function setupConfigModal() {
 
         let needsPoster = (newLang !== origLang) || (newPoster !== origPoster) || (newPosterQ !== origPosterQ);
         let needsFanart = (newLang !== origLang) || (newFanart !== origFanart) || (newFanartQ !== origFanartQ);
-        
+
         if (newPosterQ === 'dynamic') {
             const getPBucket = (w) => w > 500 ? 780 : w > 342 ? 500 : w > 185 ? 342 : w > 154 ? 185 : 154;
             if (getPBucket(newPosterW) > getPBucket(origPosterW)) needsPoster = true;
@@ -1571,29 +1566,14 @@ function setupConfigModal() {
                 if (data.status === 'success') {
 
                     if (data.rescan_started) {
-                        // Show rescan-started feedback, then poll until done
-                        updateOverlayResult('success', currentLangData.config_saved_rescan || 'Settings saved. Rescan running in background...');
-                        hideOverlay(2500);
-
-                        const pollRescan = setInterval(async () => {
-                            try {
-                                let sr = await apiFetch('/api/rescan/status');
-                                if (sr.ok) {
-                                    let sd = await sr.json();
-                                    if (sd.done) {
-                                        clearInterval(pollRescan);
-                                        let successMsg = currentLangData.rescan_done || 'Rescan completed!';
-                                        let hintMsg = currentLangData.rescan_reload_hint || 'Click anywhere to reload.';
-                                        updateOverlayResult('success', successMsg, hintMsg);
-                                        const overlay = document.getElementById('loading-overlay');
-                                        overlay.onclick = function () {
-                                            window.location.reload(true);
-                                        };
-                                        overlay.classList.remove('hidden');
-                                    }
-                                }
-                            } catch (e) { /* network hiccup, keep polling */ }
-                        }, 10000);
+                        hideOverlay(0);
+                        document.getElementById('bulk-progress-modal').classList.remove('hidden');
+                        document.getElementById('bulk-progress-title').textContent = currentLangData.bulk_progress_scraping || 'Downloading images...';
+                        document.getElementById('bulk-progress-bar').style.width = "0%";
+                        document.getElementById('bulk-progress-bar').classList.add('indeterminate');
+                        document.getElementById('bulk-progress-warning').classList.add('hidden');
+                        document.getElementById('bulk-progress-current').textContent = "0";
+                        document.getElementById('bulk-progress-total').textContent = "0";
 
                     } else {
                         let successTitle = currentLangData.config_saved || 'Settings saved.';
@@ -1629,7 +1609,7 @@ function setupConfigModal() {
             let msg = currentLangData.config_cache_confirm || "¿Estás seguro de que deseas eliminar todas las imágenes que ya no están asociadas a ninguna tarjeta de la base de datos?";
             let confirmed = await window.customConfirm(msg);
             if (!confirmed) return;
-            
+
             showProcessingOverlay(currentLangData.overlay_processing || 'Processing request', currentLangData.overlay_wait || 'Please wait...');
             try {
                 let res = await apiFetch('/api/cache/clean', { method: 'POST' });
@@ -1984,11 +1964,104 @@ function connectWebSocket() {
     ws.onmessage = function (event) {
         try {
             const data = JSON.parse(event.data);
+            if (data.type === 'bulk_update_start') {
+                let title = currentLangData.bulk_progress_default || 'Updating...';
+                if (data.scope === 'season') {
+                    let tmpl = currentLangData.bulk_progress_season || 'Updating Season {season}...';
+                    title = tmpl.replace('{season}', data.season);
+                } else if (data.scope === 'show') {
+                    title = currentLangData.bulk_progress_show || 'Updating Show...';
+                } else if (data.scope === 'onwards' || data.scope === 'backwards') {
+                    title = currentLangData.bulk_progress_episodes || 'Updating episodes...';
+                }
+
+                document.getElementById('bulk-progress-show-title').textContent = data.show_title || "";
+                document.getElementById('bulk-progress-title').textContent = title;
+                document.getElementById('bulk-progress-total').textContent = data.total;
+                document.getElementById('bulk-progress-current').textContent = "0";
+                document.getElementById('bulk-progress-item-name').textContent = "";
+                document.getElementById('bulk-progress-show-title').style.display = data.show_title ? 'block' : 'none';
+
+                document.getElementById('bulk-progress-bar').classList.remove('indeterminate');
+                document.getElementById('bulk-progress-bar').style.width = "0%";
+                return;
+            }
+            if (data.type === 'bulk_update_progress') {
+                document.getElementById('bulk-progress-current').textContent = data.current;
+                let percent = (data.total > 0) ? (data.current / data.total) * 100 : 0;
+                document.getElementById('bulk-progress-bar').style.width = `${percent}%`;
+
+                let itemName = data.item_title || "";
+                if (data.season && data.episode) {
+                    itemName = `S${String(data.season).padStart(2, '0')}-E${String(data.episode).padStart(2, '0')}: ${itemName}`;
+                }
+                document.getElementById('bulk-progress-item-name').textContent = itemName;
+                return;
+            }
+            if (data.type === 'bulk_update_wait') {
+                const warningEl = document.getElementById('bulk-progress-warning');
+                const warningText = document.getElementById('bulk-progress-warning-text');
+                const updateWarn = (s) => warningText.textContent = (currentLangData.bulk_progress_rate_limit || '⚠️ Waiting {seconds} seconds (Plex Rate Limit)').replace('{seconds}', s);
+                updateWarn(data.seconds);
+                warningEl.classList.remove('hidden');
+                if (window.bulkWaitInterval) clearInterval(window.bulkWaitInterval);
+                let timeLeft = data.seconds;
+                window.bulkWaitInterval = setInterval(() => {
+                    timeLeft--;
+                    if (timeLeft <= 0) {
+                        clearInterval(window.bulkWaitInterval);
+                        warningEl.classList.add('hidden');
+                    } else updateWarn(timeLeft);
+                }, 1000);
+                return;
+            }
+            if (data.type === 'bulk_update_resume') {
+                if (window.bulkWaitInterval) clearInterval(window.bulkWaitInterval);
+                document.getElementById('bulk-progress-warning').classList.add('hidden');
+                return;
+            }
             if (data.type === 'reload_history') {
+                document.getElementById('bulk-progress-modal').classList.add('hidden');
                 reloadHistory();
                 return;
             }
+            if (data.type === 'step3_init') {
+                window.rescrapeTotal = data.total;
+                window.rescrapeCurrent = 0;
+                document.getElementById('bulk-progress-modal').classList.remove('hidden');
+                document.getElementById('bulk-progress-show-title').textContent = currentLangData.config_tab_scraping || 'Scraping';
+                document.getElementById('bulk-progress-show-title').style.display = 'block';
+                document.getElementById('bulk-progress-title').textContent = currentLangData.bulk_progress_scraping || 'Downloading images...';
+                document.getElementById('bulk-progress-item-name').textContent = "";
+                document.getElementById('bulk-progress-total').textContent = data.total || "0";
+                document.getElementById('bulk-progress-current').textContent = "0";
+                document.getElementById('bulk-progress-bar').classList.remove('indeterminate');
+                document.getElementById('bulk-progress-bar').style.width = "0%";
+                return;
+            }
+            if (data.type === 'import_done') {
+                document.getElementById('bulk-progress-modal').classList.add('hidden');
+                updateOverlayResult('success', currentLangData.rescan_done || 'Rescan completed!', currentLangData.rescan_reload_hint || 'Click anywhere to reload.');
+                const overlay = document.getElementById('loading-overlay');
+                overlay.onclick = function () { window.location.reload(true); };
+                overlay.classList.remove('hidden');
+                return;
+            }
             if (data.type === 'batch_update' && data.items) {
+                if (window.rescrapeTotal) {
+                    window.rescrapeCurrent = (window.rescrapeCurrent || 0) + (data.items ? data.items.length : 0);
+                    document.getElementById('bulk-progress-current').textContent = window.rescrapeCurrent;
+                    let pct = window.rescrapeTotal > 0 ? (window.rescrapeCurrent / window.rescrapeTotal) * 100 : 0;
+                    document.getElementById('bulk-progress-bar').style.width = `${pct}%`;
+                    if (data.items && data.items.length > 0) {
+                        let last = data.items[data.items.length - 1];
+                        let displayText = last.title || "";
+                        if (last.show_title && last.season && last.episode) {
+                            displayText = `S${String(last.season).padStart(2, '0')}-E${String(last.episode).padStart(2, '0')}: ${last.show_title}`;
+                        }
+                        document.getElementById('bulk-progress-item-name').textContent = displayText;
+                    }
+                }
                 let hasNewItems = false;
                 data.items.forEach(item => {
                     // Actualizar las tarjetas si existen en el DOM

@@ -1352,3 +1352,72 @@ button:disabled {
         min-width: 90%;
     }
 }
+
+/* --- UNIVERSAL PROGRESS BAR --- */
+.import-progress-track {
+    width: 100%;
+    height: 8px;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.import-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-1, #e5a00d), var(--accent-2, #17b2e7));
+    border-radius: 4px;
+    transition: width 0.3s ease-out;
+    position: relative;
+}
+
+/* Add a subtle shine effect moving across the progress bar */
+.import-progress-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    background: linear-gradient(90deg,
+            rgba(255, 255, 255, 0) 0%,
+            rgba(255, 255, 255, 0.3) 50%,
+            rgba(255, 255, 255, 0) 100%);
+    animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        transform: translateX(-100%);
+    }
+
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+.success-text {
+    color: #4ade80 !important;
+}
+
+/* Indeterminate progress bar for unknown totals (like Cloud Sync) */
+.import-progress-bar.indeterminate {
+    width: 30%;
+    animation: indeterminate 2s infinite ease-in-out;
+}
+
+/* Disable the internal shimmer when indeterminate so it doesn't fight the movement */
+.import-progress-bar.indeterminate::after {
+    display: none;
+}
+
+@keyframes indeterminate {
+    0% {
+        left: -30%;
+    }
+
+    100% {
+        left: 100%;
+    }
+}

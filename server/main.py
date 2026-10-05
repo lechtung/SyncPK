@@ -1435,7 +1435,7 @@ def get_plex_activity_nodes(metadata_id, types=None, max_timeout=600):
         
         time.sleep(5)
 
-def mutate_plex_activity(node_id, action, watched_at_graphql=None, title="", max_timeout=600):
+def mutate_plex_activity(node_id, action, watched_at_graphql=None, title="", max_timeout=600, main_loop=None):
     import requests, time
     url = "https://community.plex.tv/api"
     headers = {
@@ -1477,7 +1477,19 @@ def mutate_plex_activity(node_id, action, watched_at_graphql=None, title="", max
                         if code in FATAL_CODES:
                             print(f"❌ [{action}] Error definitivo GraphQL ({code}) para '{title}'. Abortando.")
                             return False
+                        if code == "RATE_LIMITED":
+                            retry_s = int(e.get("extensions", {}).get("retryAfter", 10))
+                            print(f"⚠️ [{action}] Rate Limit GraphQL. Esperando {retry_s}s...")
+                            if main_loop:
+                                try: asyncio.run_coroutine_threadsafe(manager.broadcast(json.dumps({"type": "bulk_update_wait", "seconds": retry_s})), main_loop)
+                                except: pass
+                            time.sleep(retry_s)
+                            if main_loop:
+                                try: asyncio.run_coroutine_threadsafe(manager.broadcast(json.dumps({"type": "bulk_update_resume"})), main_loop)
+                                except: pass
+                    
                     print(f"⚠️ [{action}] Error GraphQL transitorio, reintentando: {resp_json['errors']}", flush=True)
+                    time.sleep(2) # Default delay if other transient error
                 else:
                     print(f"{msg} para '{title}': HTTP 200", flush=True)
                     return True
@@ -1488,7 +1500,13 @@ def mutate_plex_activity(node_id, action, watched_at_graphql=None, title="", max
                 if (time.time() - start_time) >= max_timeout:
                     return False
                 retry_after = int(r.headers.get("Retry-After", 5))
+                if main_loop:
+                    try: asyncio.run_coroutine_threadsafe(manager.broadcast(json.dumps({"type": "bulk_update_wait", "seconds": retry_after})), main_loop)
+                    except: pass
                 time.sleep(retry_after)
+                if main_loop:
+                    try: asyncio.run_coroutine_threadsafe(manager.broadcast(json.dumps({"type": "bulk_update_resume"})), main_loop)
+                    except: pass
                 continue
         except Exception:
             pass
@@ -1632,7 +1650,7 @@ class UpdateHistoryRequest(BaseModel):
     end_date: Optional[str] = None
     dist_between_type: Optional[str] = "fixed"
 
-def perform_plex_surgery(item: dict, watched_at_local: str):
+def perform_plex_surgery(item: dict, watched_at_local: str, main_loop=None):
     plex_guid = item.get("plex_guid")
     if not plex_guid: return False
     metadata_id = plex_guid.split("/")[-1]
@@ -1651,18 +1669,37 @@ def perform_plex_surgery(item: dict, watched_at_local: str):
             "x-plex-client-identifier": PLEX_CLIENT_ID, "x-plex-token": PLEX_TOKEN
         }
         scrobble_url = f"https://metadata.provider.plex.tv/actions/scrobble?key={metadata_id}&identifier=tv.plex.provider.metadata"
-        try:
-            s_res = requests.get(scrobble_url, headers=cloud_headers, timeout=10)
-            if s_res.status_code == 200:
-                print(f"  ✅ Cloud Scrobble executed for {item.get('title')}")
-        except Exception as e:
-            print(f"  ❌ Cloud Scrobble error: {e}")
-            return False
-            
-        print(f"  Waiting for Plex Cloud to process scrobble...")
+        scrobble_sent = False
         start_time = time.time()
         max_wait = 600
+        
         while (time.time() - start_time) < max_wait:
+            if not scrobble_sent:
+                try:
+                    s_res = requests.get(scrobble_url, headers=cloud_headers, timeout=10)
+                    if s_res.status_code == 200:
+                        print(f"  ✅ Cloud Scrobble executed for {item.get('title')}")
+                        scrobble_sent = True
+                    elif s_res.status_code == 429:
+                        print(f"  ⚠️ Rate limited (429) for {item.get('title')}. Response: {s_res.text}. Retrying in 15s...")
+                        if main_loop:
+                            try: asyncio.run_coroutine_threadsafe(manager.broadcast(json.dumps({"type": "bulk_update_wait", "seconds": 15})), main_loop)
+                            except: pass
+                        time.sleep(15)
+                        if main_loop:
+                            try: asyncio.run_coroutine_threadsafe(manager.broadcast(json.dumps({"type": "bulk_update_resume"})), main_loop)
+                            except: pass
+                        continue
+                    else:
+                        print(f"  ❌ Failed with HTTP {s_res.status_code} for {item.get('title')}. Response: {s_res.text}. Retrying in 15s...")
+                        time.sleep(15)
+                        continue
+                except Exception as e:
+                    print(f"  ❌ Exception: {e}. Retrying in 15s...")
+                    time.sleep(15)
+                    continue
+            
+            # If scrobble was sent successfully, just poll for the node
             nodes = get_plex_activity_nodes(metadata_id)
             if nodes:
                 node_id = nodes[0].get("id")
@@ -1671,7 +1708,7 @@ def perform_plex_surgery(item: dict, watched_at_local: str):
     # -------------------------------------------------------------
             
     if node_id:
-        success = mutate_plex_activity(node_id, "update_date", watched_at_graphql=watched_at_graphql, title=item.get("title"))
+        success = mutate_plex_activity(node_id, "update_date", watched_at_graphql=watched_at_graphql, title=item.get("title"), main_loop=main_loop)
         if success:
             print(f"💉 Surgery success in Plex Cloud for {item.get('title')} -> {watched_at_local}")
             return True
@@ -1831,6 +1868,10 @@ def _update_in_background(item_id: int, req: UpdateHistoryRequest, main_loop=Non
     # Sort chronologically (S1E1, S1E2...)
     sorted_items = sorted(items_to_modify, key=lambda x: (x.get("season", 0), x.get("episode", 0)))
     
+    if main_loop:
+        try: asyncio.run_coroutine_threadsafe(manager.broadcast(json.dumps({"type": "bulk_update_start", "total": total_items, "scope": scope, "season": item.get('season', ''), "show_title": item.get('show_title', item.get('title', ''))})), main_loop)
+        except: pass
+    
     # 2. Perform Plex Cloud Surgery and Update DB with new watched_at & created_at
     now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     
@@ -1936,7 +1977,7 @@ def _update_in_background(item_id: int, req: UpdateHistoryRequest, main_loop=Non
         
         should_update_db = True
         if req.sync_remote:
-            success = perform_plex_surgery(item, watched_str)
+            success = perform_plex_surgery(item, watched_str, main_loop=main_loop)
             if not success:
                 should_update_db = False
                 error_msg = f"Fallo en Plex Cloud para: {item.get('title')}"
@@ -1974,6 +2015,13 @@ def _update_in_background(item_id: int, req: UpdateHistoryRequest, main_loop=Non
             
             conn_update.commit()
             conn_update.close()
+            
+        # Short 0.75s delay to prevent rate-limiting the Plex Cloud GraphQL API
+        time.sleep(0.75)
+        
+        if main_loop:
+            try: asyncio.run_coroutine_threadsafe(manager.broadcast(json.dumps({"type": "bulk_update_progress", "current": success_count, "total": total_items, "item_title": item.get("title"), "season": item.get("season", ""), "episode": item.get("episode", "")})), main_loop)
+            except: pass
         
     if success_count == total_items:
         print("[background] Update success")
