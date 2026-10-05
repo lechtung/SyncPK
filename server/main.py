@@ -162,8 +162,8 @@ async def websocket_endpoint(websocket: WebSocket):
 async def setup_guard(request, call_next):
     path = request.url.path
     if not os.path.exists(ENV_PATH):
-        # Allow: setup endpoint, static assets, and the root HTML route
-        if path.startswith("/api/") and not path.startswith("/api/setup"):
+        # Allow: setup endpoint, time healthcheck, static assets, and the root HTML route
+        if path.startswith("/api/") and not path.startswith("/api/setup") and path != "/api/time":
             from fastapi.responses import JSONResponse
             return JSONResponse(
                 status_code=403,
