@@ -1833,10 +1833,7 @@ def _update_in_background(item_id: int, req: UpdateHistoryRequest):
     items_to_modify = []
     
     if os.getenv("DEBUG") == "true":
-        desc_title = item.get("title")
-        if item.get("media_type") == "episode" and item.get("show_title"):
-            desc_title = f"{item['show_title']} S{item.get('season', 0):02d}E{item.get('episode', 0):02d} - {item.get('title')}"
-        print(f"[DEBUG] update_history_item: Modifying {desc_title}, Scope: {scope}, Dist: {getattr(req, 'dist_mode', 'same')}")
+        print(f"[DEBUG] update_history_item: Modifying {item['title']}, Scope: {scope}, Dist: {getattr(req, 'dist_mode', 'same')}")
         print(f"[DEBUG] plex_show_guid of the source item: {item.get('plex_show_guid')}")
     
     items_to_modify = get_items_for_scope(item, scope, cursor)

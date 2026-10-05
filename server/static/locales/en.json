@@ -107,7 +107,7 @@
   "action_cancel": "Cancel",
   "action_save": "Save",
   "config_saved": "Settings saved.",
-  "history_saved": "Modification saved and synchronized successfully.",
+  "history_saved": "Modification successfully saved and synchronized.",
   "manual_saved": "Entry added successfully.",
   "manual_duplicate": "This entry already exists in the history.",
   "delete_success": "Entry deleted successfully.",
@@ -246,15 +246,15 @@
   "setup_btn_finish": "Finish Setup",
   "setup_plex_url_title": "Plex Server URL",
   "setup_plex_url_sub": "Enter the local address of your Plex Media Server. Needed for webhook communication.",
-  "setup_plex_url_note": "Example: http://192.168.1.100:32400. Find it in Plex â†’ Settings â†’ Remote Access.",
+  "setup_plex_url_note": "Example: http://192.168.1.100:32400. Find it in Plex → Settings → Remote Access.",
   "setup_plex_url_label": "PLEX SERVER URL",
   "setup_plex_url_err": "Please enter a valid Plex URL (must start with http:// or https://).",
   "setup_plex_auth_title": "Plex Authentication",
   "setup_plex_auth_sub": "Click the button to open Plex login in a new tab. Once you authorize, this page will continue automatically.",
-  "setup_plex_auth_desc": "We use Plex's secure PIN system â€” no password is stored, only the access token.",
+  "setup_plex_auth_desc": "We use Plex's secure PIN system — no password is stored, only the access token.",
   "setup_plex_auth_btn": "Open Plex Login",
   "setup_plex_auth_waiting": "Waiting for you to authorize in Plex...",
-  "setup_plex_auth_copy": "â†‘ Click to copy the link if the tab did not open",
+  "setup_plex_auth_copy": "↑ Click to copy the link if the tab did not open",
   "setup_pass_title": "Plex Pass Status",
   "setup_pass_sub": "This determines how SyncPK will monitor your Plex activity.",
   "setup_pwd_title": "Create Master Password",
@@ -337,4 +337,3 @@
   "import_complete_btn": "Go to Dashboard",
   "import_step2_complete_text": " (Completed)"
 }
-
