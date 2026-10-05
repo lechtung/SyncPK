@@ -1,4 +1,4 @@
-﻿// v10
+// v10
 
 let currentLangData = {};
 let historyData = [];
@@ -612,7 +612,7 @@ async function loadMoreHistory() {
     document.getElementById('loading-spinner').classList.remove('hidden');
 
     try {
-        let url = `/api/history?limit=${limit}&offset=${offset}&type=${currentFilters.type}&year=${currentFilters.year}&month=${currentFilters.month}&search=${encodeURIComponent(currentFilters.search)}`;
+        let url = `/api/history?limit=${limit}&offset=${offset}&type=${currentFilters.type}&year=${currentFilters.year}&month=${currentFilters.month}&search=${encodeURIComponent(currentFilters.search)}&_cb=${Date.now()}`;
         let res = await apiFetch(url);
         if (res.status === 401) { logout(); return; }
         if (!res.ok) throw new Error("API returned status " + res.status);
@@ -1071,7 +1071,7 @@ document.getElementById('edit-save-btn').addEventListener('click', async () => {
 
         if (res.ok && data && data.status === 'success') {
             reloadHistory(); // Reload to sort properly
-            updateOverlayResult('success', currentLangData.config_saved || 'Saved successfully', '');
+            updateOverlayResult('success', currentLangData.history_saved || 'Saved successfully', '');
             hideOverlay(2000);
         } else if (res.ok && data && data.status === 'partial') {
             reloadHistory();
