@@ -489,11 +489,43 @@
       const next = document.getElementById(STEP_IDS[n - 1]);
       if (!next) return;
       if (prev) { prev.classList.add('step-out'); setTimeout(() => prev.classList.remove('active', 'step-out'), 250); }
-      setTimeout(() => next.classList.add('active'), prev ? 200 : 0);
+      setTimeout(() => {
+        next.classList.add('active');
+        if (n === 2) document.getElementById('plex-url-input').focus();
+        else if (n === 5) document.getElementById('pwd-input').focus();
+        else if (n === 6) document.getElementById('tmdb-input').focus();
+      }, prev ? 200 : 0);
       state._step = n; updateProgress(n); updateStepIndicator();
       if (n === 4) renderPlexPassBadge();
       if (n === 9) renderSummary();
     }
+    
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        switch(state._step) {
+          case 1: goNext(); break;
+          case 2: validatePlexUrl(); break;
+          case 3: startPlexAuth(); break;
+          case 4: 
+            const nxtBtn = document.getElementById('btn-plex-auth-next');
+            if (!nxtBtn.disabled) nxtBtn.click();
+            break;
+          case 5:
+            if (document.activeElement.id === 'pwd-input') {
+              document.getElementById('pwd-confirm-input').focus();
+            } else {
+              validatePassword();
+            }
+            break;
+          case 6: validateTmdb(); break;
+          case 7: goNext(); break;
+          case 8: goNext(); break;
+          case 9: finishSetup(); break;
+        }
+      }
+    });
+
     function goNext() { if (state._step < TOTAL_STEPS) showStep(state._step + 1); }
     function goBack() { if (state._step > 1) showStep(state._step - 1); }
     function updateProgress(s) { document.getElementById('setup-progress-bar').style.width = Math.round(((s - 1) / (TOTAL_STEPS - 1)) * 100) + '%'; }
@@ -514,13 +546,18 @@
       }
       try {
         const cleanUrl = input.replace(/\/+$/, "");
-        const res = await fetch(cleanUrl + '/identity', { method: 'GET' });
-        if (res.ok) {
+        const res = await fetch('/api/setup/test-plex', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: cleanUrl })
+        });
+        const data = await res.json();
+        if (data.success) {
           msgBox.className = 'test-feedback success';
           msgBox.innerHTML = '<i class="fa-solid fa-circle-check"></i> ' + t('setup_test_plex_success');
         } else {
           msgBox.className = 'test-feedback error';
-          msgBox.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + t('setup_test_plex_fail') + ' (HTTP ' + res.status + ')';
+          msgBox.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + t('setup_test_plex_fail') + ' (' + (data.status || data.error) + ')';
         }
       } catch (e) {
         msgBox.className = 'test-feedback error';
@@ -553,8 +590,13 @@
 
       try {
         const cleanUrl = input.replace(/\/+$/, "");
-        const res = await fetch(cleanUrl + '/identity', { method: 'GET' });
-        if (res.ok) {
+        const res = await fetch('/api/setup/test-plex', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: cleanUrl })
+        });
+        const data = await res.json();
+        if (data.success) {
           state.plexUrl = cleanUrl;
           _plexWarnedVal = null;
           msgBox.className = 'test-feedback success';
@@ -562,7 +604,7 @@
           setTimeout(goNext, 400);
         } else {
           msgBox.className = 'test-feedback error';
-          msgBox.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + t('setup_test_plex_fail') + ' (HTTP ' + res.status + ')<br><small data-i18n="setup_bypass_hint">Click Continue again to proceed anyway.</small>';
+          msgBox.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + t('setup_test_plex_fail') + ' (' + (data.status || data.error) + ')<br><small data-i18n="setup_bypass_hint">Click Continue again to proceed anyway.</small>';
           _plexWarnedVal = input;
           applyI18n();
         }
@@ -588,22 +630,19 @@
         return;
       }
       try {
-        let url = 'https://api.themoviedb.org/3/authentication';
-        let options = { headers: { accept: 'application/json' } };
-        // TMDB supports v4 Bearer or v3 query param
-        if (key.length > 40) {
-          options.headers['Authorization'] = 'Bearer ' + key;
-        } else {
-          url += '?api_key=' + key;
-        }
-
-        const res = await fetch(url, options);
-        if (res.ok) {
+        const res = await fetch('/api/setup/test-tmdb', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ api_key: key })
+        });
+        const data = await res.json();
+        
+        if (data.success) {
           msgBox.className = 'test-feedback success';
           msgBox.innerHTML = '<i class="fa-solid fa-circle-check"></i> ' + t('setup_test_tmdb_success');
         } else {
           msgBox.className = 'test-feedback error';
-          msgBox.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + t('setup_test_tmdb_fail');
+          msgBox.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + t('setup_test_tmdb_fail') + ' (' + (data.status || data.error) + ')';
         }
       } catch (e) {
         msgBox.className = 'test-feedback error';
@@ -615,7 +654,11 @@
       const p1 = document.getElementById('pwd-input').value;
       const p2 = document.getElementById('pwd-confirm-input').value;
       const e = document.getElementById('pwd-error');
-      if (!p1 || p1 !== p2) { e.classList.add('visible'); return; }
+      if (!p1 || p1 !== p2) { 
+        e.classList.add('visible'); 
+        document.getElementById('pwd-input').focus();
+        return; 
+      }
       e.classList.remove('visible'); state.password = p1; goNext();
     }
 
@@ -643,13 +686,14 @@
       msgBox.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ' + t('setup_test_checking');
 
       try {
-        let url = 'https://api.themoviedb.org/3/authentication';
-        let options = { headers: { accept: 'application/json' } };
-        if (key.length > 40) options.headers['Authorization'] = 'Bearer ' + key;
-        else url += '?api_key=' + key;
-
-        const res = await fetch(url, options);
-        if (res.ok) {
+        const res = await fetch('/api/setup/test-tmdb', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ api_key: key })
+        });
+        const data = await res.json();
+        
+        if (data.success) {
           state.tmdbKey = key;
           _tmdbWarnedVal = null;
           msgBox.className = 'test-feedback success';
@@ -657,7 +701,7 @@
           setTimeout(goNext, 400);
         } else {
           msgBox.className = 'test-feedback error';
-          msgBox.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + t('setup_test_tmdb_fail') + '<br><small data-i18n="setup_bypass_hint">Click Continue again to proceed anyway.</small>';
+          msgBox.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + t('setup_test_tmdb_fail') + ' (' + (data.status || data.error) + ')<br><small data-i18n="setup_bypass_hint">Click Continue again to proceed anyway.</small>';
           _tmdbWarnedVal = key;
           applyI18n();
         }

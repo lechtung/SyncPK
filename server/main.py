@@ -163,7 +163,7 @@ async def setup_guard(request, call_next):
     path = request.url.path
     if not os.path.exists(ENV_PATH):
         # Allow: setup endpoint, static assets, and the root HTML route
-        if path.startswith("/api/") and path != "/api/setup":
+        if path.startswith("/api/") and not path.startswith("/api/setup"):
             from fastapi.responses import JSONResponse
             return JSONResponse(
                 status_code=403,
@@ -3549,6 +3549,44 @@ class SetupData(BaseModel):
     fanart_quality: str = "w300"
     auto_update: bool = True
     debug: bool = False
+
+class TestPlexRequest(BaseModel):
+    url: str
+
+@app.post("/api/setup/test-plex")
+async def test_plex(req: TestPlexRequest):
+    import httpx
+    try:
+        clean_url = req.url.rstrip("/")
+        async with httpx.AsyncClient(verify=False, timeout=5.0) as client:
+            res = await client.get(f"{clean_url}/identity")
+            if res.status_code == 200:
+                return {"success": True}
+            return {"success": False, "status": res.status_code}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+class TestTmdbRequest(BaseModel):
+    api_key: str
+
+@app.post("/api/setup/test-tmdb")
+async def test_tmdb(req: TestTmdbRequest):
+    import httpx
+    try:
+        url = "https://api.themoviedb.org/3/authentication"
+        headers = {"accept": "application/json"}
+        if len(req.api_key) > 40:
+            headers["Authorization"] = f"Bearer {req.api_key}"
+        else:
+            url += f"?api_key={req.api_key}"
+            
+        async with httpx.AsyncClient(verify=False, timeout=5.0) as client:
+            res = await client.get(url, headers=headers)
+            if res.status_code == 200:
+                return {"success": True}
+            return {"success": False, "status": res.status_code}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 @app.post("/api/setup")
 async def process_setup(data: SetupData):
