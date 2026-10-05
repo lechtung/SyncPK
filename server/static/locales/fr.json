@@ -335,5 +335,10 @@
   "import_complete_kodi_desc": "Configurez cette IP et votre clé API dans les paramètres de l'extension Kodi.",
   "import_complete_note": "Remarque : Vous pouvez consulter et modifier ces Webhooks à tout moment depuis les paramètres du tableau de bord.",
   "import_complete_btn": "Aller au tableau de bord",
-  "import_step2_complete_text": " (Terminé)"
+  "import_step2_complete_text": " (Terminé)",
+  "config_rescan_smart_confirm": "Vous avez modifié des options nécessitant une résolution supérieure ou une autre langue. Voulez-vous télécharger les nouvelles images avec ces paramètres ?",
+  "config_cache_title": "Cache d'images :",
+  "btn_clean_cache": "Nettoyer les images inutilisées",
+  "config_cache_confirm": "Êtes-vous sûr de vouloir supprimer toutes les images qui ne sont plus associées à aucune carte dans la base de données ?",
+  "config_cache_success": "Cache nettoyé avec succès. Fichiers supprimés : "
 }

@@ -335,5 +335,10 @@
   "import_complete_kodi_desc": "Configura esta IP y tu API Token en los ajustes del Add-on de Kodi.",
   "import_complete_note": "Nota: Podrás consultar y modificar estos Webhooks en cualquier momento desde los ajustes del Panel de Control.",
   "import_complete_btn": "Entrar al Panel de Control",
-  "import_step2_complete_text": " (Completado)"
+  "import_step2_complete_text": " (Completado)",
+  "config_rescan_smart_confirm": "Has modificado opciones que requieren mayor resolución o distinto idioma. ¿Deseas descargar el nuevo arte con estos ajustes?",
+  "config_cache_title": "Caché de Imágenes:",
+  "btn_clean_cache": "Limpiar Imágenes No Usadas",
+  "config_cache_confirm": "¿Estás seguro de que deseas eliminar todas las imágenes que ya no están asociadas a ninguna tarjeta de la base de datos?",
+  "config_cache_success": "Caché limpiada con éxito. Archivos eliminados: "
 }

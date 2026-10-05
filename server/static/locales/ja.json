@@ -335,5 +335,10 @@
   "import_complete_kodi_desc": "Kodiアドオン設定でこのIPとAPIトークンを設定してください。",
   "import_complete_note": "注意：ダッシュボード設定からいつでもこれらのWebhookを表示および変更できます。",
   "import_complete_btn": "ダッシュボードへ",
-  "import_step2_complete_text": " (完了)"
+  "import_step2_complete_text": " (完了)",
+  "config_rescan_smart_confirm": "高解像度または異なる言語を必要とするオプションが変更されました。これらの設定で新しい画像をダウンロードしますか？",
+  "config_cache_title": "画像キャッシュ:",
+  "btn_clean_cache": "未使用の画像を消去",
+  "config_cache_confirm": "データベース内のどのカードにも関連付けられていないすべての画像を削除してもよろしいですか？",
+  "config_cache_success": "キャッシュが正常に消去されました。削除されたファイル数: "
 }

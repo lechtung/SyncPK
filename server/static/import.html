@@ -21,7 +21,7 @@
     <div id="setup-progress-bar" style="width:0%"></div>
   </div>
   <div id="setup-step-indicator"></div>
-  <div class="wizard-card glass-panel" id="webhooks-card-container" style="display: none; animation: fadeIn 0.5s ease; max-width: 550px;">
+  <div class="wizard-card glass-panel" id="webhooks-card-container" style="display: none; animation: fadeIn 0.5s ease; max-width: 550px; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; z-index: 1000;">
     <!-- Header de Éxito -->
     <div style="text-align: center; margin-bottom: 30px;">
         <div style="display:inline-block; margin-bottom: 15px;">
@@ -30,8 +30,8 @@
                 <path class="check" stroke="#4ade80" fill="none" stroke-width="2" d="M14 27 l 7 7 17 -17"/>
             </svg>
         </div>
-        <h2 style="font-size: 1.8rem; font-weight: 600; margin-bottom: 10px; background: linear-gradient(90deg, #fff, #aaa); -webkit-background-clip: text; -webkit-text-fill-color: transparent;" data-i18n="import_complete_title">¡Importación Completada!</h2>
-        <p style="color: #aaa; font-size: 0.95rem; line-height: 1.5;" id="import_complete_subtitle_container">Tu servidor ya está completamente sincronizado.<br>Para mantenerlo actualizado en tiempo real, configura estos webhooks:</p>
+        <h2 style="font-size: 1.8rem; font-weight: 600; margin-bottom: 10px; background: linear-gradient(90deg, #fff, #aaa); -webkit-background-clip: text; -webkit-text-fill-color: transparent;" data-i18n="import_complete_title">Import Complete!</h2>
+        <p style="color: #aaa; font-size: 0.95rem; line-height: 1.5;" id="import_complete_subtitle_container" data-i18n="import_complete_subtitle">Your server is now fully synchronized.<br>To keep it updated in real-time, configure these webhooks:</p>
     </div>
 
     <!-- Contenedor Webhooks -->
@@ -46,7 +46,7 @@
             
             <!-- Vista CON Plex Pass -->
             <div id="plex-webhook-active">
-                <p style="font-size: 0.8rem; color: #888; margin-bottom: 10px; line-height: 1.4;" data-i18n="import_complete_plex_desc">Añade esta URL en los ajustes de tu cuenta de Plex.</p>
+                <p style="font-size: 0.8rem; color: #888; margin-bottom: 10px; line-height: 1.4;" data-i18n="import_complete_plex_desc">Add this URL in your Plex account settings.</p>
                 <div style="display: flex; gap: 10px;">
                     <input type="text" id="final-plex-webhook" class="config-input" readonly style="flex: 1; margin: 0; font-family: monospace; font-size: 0.8rem; background: rgba(0,0,0,0.5); padding: 10px 12px; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #aaa;">
                     <button class="icon-action-btn" onclick="copyWebhook('final-plex-webhook')" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0 15px; cursor: pointer; color: #fff; transition: all 0.2s;" title="Copiar"><i class="fa-solid fa-copy"></i></button>
@@ -56,7 +56,7 @@
             <!-- Vista SIN Plex Pass -->
             <div id="plex-webhook-fallback" style="display: none;">
                 <p style="font-size: 0.85rem; color: #aaa; margin-bottom: 0; line-height: 1.5; background: rgba(255,255,255,0.05); padding: 12px; border-radius: 8px; border-left: 3px solid #e5a00d;" data-i18n="import_complete_plex_no_pass">
-                    Como no dispones de Plex Pass, SyncPK utilizará sincronización periódica en segundo plano en lugar de webhooks. No necesitas configurar nada adicional.
+                    Since you don't have a Plex Pass, SyncPK will use periodic background synchronization instead of webhooks. You don't need to configure anything else.
                 </p>
             </div>
         </div>
@@ -67,7 +67,7 @@
                 <i class="fa-solid fa-tv" style="color: #17B2E7;"></i>
                 <span style="font-weight: 500; font-size: 0.95rem;" data-i18n="import_complete_kodi_webhook">Kodi Webhook</span>
             </div>
-            <p style="font-size: 0.8rem; color: #888; margin-bottom: 10px; line-height: 1.4;" data-i18n="import_complete_kodi_desc">Configura esta IP y tu API Token en los ajustes del Add-on de Kodi.</p>
+            <p style="font-size: 0.8rem; color: #888; margin-bottom: 10px; line-height: 1.4;" data-i18n="import_complete_kodi_desc">Configure this IP and your API Token in the Kodi Add-on settings.</p>
             <div style="display: flex; gap: 10px;">
                 <input type="text" id="final-kodi-webhook" class="config-input" readonly style="flex: 1; margin: 0; font-family: monospace; font-size: 0.8rem; background: rgba(0,0,0,0.5); padding: 10px 12px; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #aaa;">
                 <button class="icon-action-btn" onclick="copyWebhook('final-kodi-webhook')" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0 15px; cursor: pointer; color: #fff; transition: all 0.2s;" title="Copiar"><i class="fa-solid fa-copy"></i></button>
@@ -78,18 +78,18 @@
     <!-- Nota recordatoria -->
     <p style="font-size: 0.8rem; color: #888; text-align: center; margin-top: -15px; margin-bottom: 25px;">
         <i class="fa-solid fa-circle-info" style="margin-right: 5px;"></i>
-        <span data-i18n="import_complete_note">Nota: Podrás consultar y modificar estos Webhooks en cualquier momento desde los ajustes del Panel de Control.</span>
+        <span data-i18n="import_complete_note">Note: You can view and modify these Webhooks at any time from the Dashboard settings.</span>
     </p>
 
     <!-- Acción Final -->
     <button class="btn-next" onclick="window.location.href='/'" style="width: 100%; display: flex; align-items: center; justify-content: center;">
-        <span data-i18n="import_complete_btn">Entrar al Panel de Control</span> <i class="fa-solid fa-arrow-right" style="margin-left: 8px;"></i>
+        <span data-i18n="import_complete_btn">Go to Dashboard</span> <i class="fa-solid fa-arrow-right" style="margin-left: 8px;"></i>
     </button>
   </div>
   <div id="setup-shell">
     <div id="setup-logo">
       <img src="/logo.png" alt="SyncPK" onerror="this.style.display='none'" />
-      <span>Sync<em>PK</em></span>
+      <span>Sync<span style="color:#e5a00d; font-style:normal;">P</span><span style="color:#17B2E7; font-style:normal;">K</span></span>
     </div>
     <div class="wizard-card glass-panel">
       <!-- STEP 1: PLEX LOCAL DATA & ACTIVITY -->

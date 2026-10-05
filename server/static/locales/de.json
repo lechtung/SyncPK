@@ -335,5 +335,10 @@
   "import_complete_kodi_desc": "Konfigurieren Sie diese IP und Ihr API-Token in den Einstellungen des Kodi-Add-ons.",
   "import_complete_note": "Hinweis: Sie können diese Webhooks jederzeit in den Dashboard-Einstellungen einsehen und ändern.",
   "import_complete_btn": "Zum Dashboard",
-  "import_step2_complete_text": " (Abgeschlossen)"
+  "import_step2_complete_text": " (Abgeschlossen)",
+  "config_rescan_smart_confirm": "Sie haben Optionen geändert, die eine höhere Auflösung oder eine andere Sprache erfordern. Möchten Sie die neuen Bilder mit diesen Einstellungen herunterladen?",
+  "config_cache_title": "Bilder-Cache:",
+  "btn_clean_cache": "Nicht verwendete Bilder bereinigen",
+  "config_cache_confirm": "Sind Sie sicher, dass Sie alle Bilder löschen möchten, die keiner Karte mehr in der Datenbank zugeordnet sind?",
+  "config_cache_success": "Cache erfolgreich bereinigt. Gelöschte Dateien: "
 }

@@ -361,123 +361,159 @@ import os
 os.makedirs(os.path.join(CACHE_PATH, "posters"), exist_ok=True)
 os.makedirs(os.path.join(CACHE_PATH, "fanarts"), exist_ok=True)
 
-def download_tmdb_images_sync(tmdb_id, media_type):
-    import re
-    if not TMDB_API_KEY or not tmdb_id or not re.match(r'^[0-9]+$', str(tmdb_id)):
-        return None, None
-        
-    poster_local_path = os.path.join(CACHE_PATH, f"posters/{tmdb_id}.jpg")
-    fanart_local_path = os.path.join(CACHE_PATH, f"fanarts/{tmdb_id}.jpg")
-    
-    poster_local = f"{tmdb_id}.jpg" if os.path.exists(poster_local_path) else None
-    fanart_local = f"{tmdb_id}.jpg" if os.path.exists(fanart_local_path) else None
+# --- UNIFIED ARTWORK LOGIC ---
+def _get_tmdb_size(desired_px, valid_sizes):
+    for size in valid_sizes:
+        if size == 'original': return size
+        try:
+            px = int(size[1:])
+            if px >= desired_px: return size
+        except: pass
+    return 'original'
 
-    if poster_local and fanart_local:
-        return poster_local, fanart_local
+def _get_artwork_sizes(poster_pref, fanart_pref, is_episode):
+    poster_q = os.getenv("POSTER_QUALITY", "w185")
+    fanart_q = os.getenv("FANART_QUALITY", "w300")
+    ui_poster_w = int(os.getenv("UI_POSTER_W", "108"))
+    ui_fanart_w = int(os.getenv("UI_FANART_W", "288"))
 
-    lang = os.getenv("SYNC_LANGUAGE", "en")
-    url = f"https://api.themoviedb.org/3/{media_type}/{tmdb_id}?api_key={TMDB_API_KEY}&language={lang}"
-    import requests
-    try:
-        resp = requests.get(url, timeout=10)
-        if resp.status_code != 200:
-            resp = requests.get(url.replace(f"&language={lang}", "", timeout=10), timeout=10)
-            if resp.status_code != 200: 
-                print(f"❌ Error TMDB ({resp.status_code}) para {tmdb_id}: {resp.text}", flush=True)
-                return poster_local, fanart_local
-            
-        data = resp.json()
-        poster = data.get("poster_path")
-        backdrop = data.get("backdrop_path")
-        
-        if poster and not poster_local:
-            img_url = f"https://image.tmdb.org/t/p/w185{poster}"
-            img_resp = requests.get(img_url, timeout=15)
-            if img_resp.status_code == 200:
-                with open(poster_local_path, "wb") as f:
-                    f.write(img_resp.content)
-                poster_local = f"{tmdb_id}.jpg"
-        
-        if backdrop and not fanart_local:
-            img_url = f"https://image.tmdb.org/t/p/w300{backdrop}"
-            img_resp = requests.get(img_url, timeout=15)
-            if img_resp.status_code == 200:
-                with open(fanart_local_path, "wb") as f:
-                    f.write(img_resp.content)
-                fanart_local = f"{tmdb_id}.jpg"
-                
-    except Exception as e:
-        print(f"Error descargando imágenes sincrónicas TMDB para {tmdb_id}: {e}")
-        
-    return poster_local, fanart_local
+    p_size = poster_q
+    if poster_q == "dynamic":
+        p_size = _get_tmdb_size(ui_poster_w, ['w92', 'w154', 'w185', 'w342', 'w500', 'w780', 'original'])
 
-def download_episode_fanart_sync(thumb_url, metadata_id):
-    import re
-    if not thumb_url or not metadata_id or not re.match(r'^[0-9]+$', str(metadata_id)): return None
-    
-    # Prefix validation
-    valid_prefixes = ("http://localhost", "https://localhost", "http://127.0.0.1", "https://127.0.0.1", PLEX_URL)
-    if thumb_url.startswith("http") and not thumb_url.startswith(valid_prefixes):
-        return None
-        
-    fanart_local_path = os.path.join(CACHE_PATH, f"fanarts/ep_{metadata_id}.jpg")
-    fanart_local = f"ep_{metadata_id}.jpg" if os.path.exists(fanart_local_path) else None
-    
-    if fanart_local:
-        return fanart_local
-        
-    # Arreglar URLs relativas de Plex y usar transcodificador
-    if thumb_url.startswith("/"):
-        if "/photo/:/transcode" not in thumb_url:
-            import urllib.parse
-            encoded_url = urllib.parse.quote_plus(thumb_url)
-            thumb_url = f"{PLEX_URL}/photo/:/transcode?width=300&height=169&minSize=1&upscale=1&url={encoded_url}&X-Plex-Token={PLEX_TOKEN}"
+    f_size = fanart_q
+    if fanart_q == "dynamic":
+        if is_episode:
+            f_size = _get_tmdb_size(ui_fanart_w, ['w92', 'w185', 'w300', 'original'])
         else:
-            thumb_url = f"{PLEX_URL}{thumb_url}&X-Plex-Token={PLEX_TOKEN}" if "?" in thumb_url else f"{PLEX_URL}{thumb_url}?X-Plex-Token={PLEX_TOKEN}"
+            f_size = _get_tmdb_size(ui_fanart_w, ['w300', 'w780', 'w1280', 'original'])
             
-    # Replace /original/ with /w300/ or similar if it's a tmdb url
-    if "/original/" in thumb_url:
-        thumb_url = thumb_url.replace("/original/", "/w300/")
-        
-    import requests
-    try:
-        img_resp = requests.get(thumb_url, timeout=15)
-        if img_resp.status_code == 200:
-            with open(fanart_local_path, "wb") as f:
-                f.write(img_resp.content)
-            return f"ep_{metadata_id}.jpg"
-    except Exception as e:
-        print(f"Error downloading episode fanart for {metadata_id}: {e}")
-        
-    return None
+    return p_size, f_size
 
-def download_episode_fanart_tmdb_sync(show_tmdb_id, season, episode):
-    if not TMDB_API_KEY or not show_tmdb_id or season is None or episode is None:
-        return None
-        
-    filename = f"tmdb_ep_{show_tmdb_id}_s{season}e{episode}.jpg"
-    local_path = os.path.join(CACHE_PATH, f"fanarts/{filename}")
+def _extract_filename(tmdb_id, is_poster, media_type, show_tmdb_id, season, episode, p_size, f_size):
+    sync_lang = os.getenv("SYNC_LANGUAGE", "en")
+    poster_pref = os.getenv("POSTER_PREFERENCE", "show")
+    fanart_pref = os.getenv("FANART_PREFERENCE", "episode")
+    pref_tag = poster_pref if is_poster else fanart_pref
     
-    if os.path.exists(local_path):
-        return f"{filename}"
+    if media_type == "movie": 
+        size_str = p_size if is_poster else f_size
+        return f"movie_{tmdb_id}_{sync_lang}_{size_str}.jpg"
         
-    url = f"https://api.themoviedb.org/3/tv/{show_tmdb_id}/season/{season}/episode/{episode}?api_key={TMDB_API_KEY}"
-    import requests
-    try:
-        r = requests.get(url, timeout=10)
-        if r.status_code == 200:
-            still = r.json().get("still_path")
-            if still:
-                img_url = f"https://image.tmdb.org/t/p/w300{still}"
-                img_resp = requests.get(img_url, timeout=15)
-                if img_resp.status_code == 200:
-                    os.makedirs(os.path.join(CACHE_PATH, "fanarts"), exist_ok=True)
+    if is_poster:
+        return f"show_{show_tmdb_id}_s{season}_poster_{pref_tag}_{sync_lang}_{p_size}.jpg" if pref_tag == "season" else f"show_{show_tmdb_id}_poster_{pref_tag}_{sync_lang}_{p_size}.jpg"
+        
+    if fanart_pref == "episode": 
+        return f"show_{show_tmdb_id}_s{season}e{episode}_fanart_{pref_tag}_{sync_lang}_{f_size}.jpg"
+        
+    return f"show_{show_tmdb_id}_fanart_{pref_tag}_{sync_lang}_{f_size}.jpg"
+
+# Global semaphore for downloads to prevent rate limits
+artwork_semaphore = asyncio.Semaphore(15)
+
+async def _download_single_image(client, url_suffix, local_filename, folder, target_size):
+    if not url_suffix: return False
+    local_path = os.path.join(CACHE_PATH, folder, local_filename)
+    if os.path.exists(local_path): return True
+    img_url = f"https://image.tmdb.org/t/p/{target_size}{url_suffix}"
+    async with artwork_semaphore:
+        for attempt in range(4):
+            try:
+                resp = await client.get(img_url, timeout=15)
+                if resp.status_code == 429:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                if resp.status_code == 200:
+                    os.makedirs(os.path.join(CACHE_PATH, folder), exist_ok=True)
                     with open(local_path, "wb") as f:
-                        f.write(img_resp.content)
-                    return f"{filename}"
-    except Exception as e:
-        print(f"Error fetching TMDB episode fanart: {e}", flush=True)
-    return None
+                        f.write(resp.content)
+                    return True
+                return False
+            except Exception:
+                await asyncio.sleep(2 ** attempt)
+        return False
+
+async def fetch_json(client, url):
+    async with artwork_semaphore:
+        for attempt in range(4):
+            try:
+                resp = await client.get(url, timeout=15)
+                if resp.status_code == 429:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                if resp.status_code == 200:
+                    return resp.json()
+                return None
+            except Exception:
+                await asyncio.sleep(2 ** attempt)
+        return None
+
+async def download_artwork_async(client, media_type, tmdb_id, show_tmdb_id, season, episode, title, show_title):
+    # Determine sizes and filenames
+    sync_lang = os.getenv("SYNC_LANGUAGE", "en")
+    poster_pref = os.getenv("POSTER_PREFERENCE", "show")
+    fanart_pref = os.getenv("FANART_PREFERENCE", "episode")
+    
+    is_episode = (media_type == "episode" and fanart_pref == "episode")
+    p_size, f_size = _get_artwork_sizes(poster_pref, fanart_pref, is_episode)
+    
+    p_filename = _extract_filename(tmdb_id, True, media_type, show_tmdb_id, season, episode, p_size, f_size)
+    f_filename = _extract_filename(tmdb_id, False, media_type, show_tmdb_id, season, episode, p_size, f_size)
+    
+    updated_info = {"title": title, "show_title": show_title, "poster_path": p_filename, "fanart_path": f_filename}
+    
+    has_poster = os.path.exists(os.path.join(CACHE_PATH, "posters", p_filename))
+    has_fanart = os.path.exists(os.path.join(CACHE_PATH, "fanarts", f_filename))
+    
+    if has_poster and has_fanart:
+        return updated_info
+        
+    lang_param = f"&language={sync_lang}"
+    if not TMDB_API_KEY:
+        return updated_info
+        
+    if media_type == "movie" and tmdb_id:
+        data = await fetch_json(client, f"https://api.themoviedb.org/3/movie/{tmdb_id}?api_key={TMDB_API_KEY}{lang_param}")
+        if data:
+            updated_info["title"] = data.get("title", title)
+            await _download_single_image(client, data.get("poster_path"), p_filename, "posters", p_size)
+            await _download_single_image(client, data.get("backdrop_path"), f_filename, "fanarts", f_size)
+
+    elif media_type == "episode" and show_tmdb_id:
+        ep_data, show_data, season_data = await asyncio.gather(
+            fetch_json(client, f"https://api.themoviedb.org/3/tv/{show_tmdb_id}/season/{season}/episode/{episode}?api_key={TMDB_API_KEY}{lang_param}"),
+            fetch_json(client, f"https://api.themoviedb.org/3/tv/{show_tmdb_id}?api_key={TMDB_API_KEY}{lang_param}"),
+            fetch_json(client, f"https://api.themoviedb.org/3/tv/{show_tmdb_id}/season/{season}?api_key={TMDB_API_KEY}{lang_param}") if poster_pref == "season" else asyncio.sleep(0)
+        )
+        
+        if show_data:
+            updated_info["show_title"] = show_data.get("name", show_title)
+            
+        if ep_data:
+            updated_info["title"] = ep_data.get("name", title)
+            f_url = ep_data.get("still_path")
+            if fanart_pref == "show" and show_data: f_url = show_data.get("backdrop_path")
+            await _download_single_image(client, f_url, f_filename, "fanarts", f_size)
+            
+        if poster_pref == "season" and season_data:
+            await _download_single_image(client, season_data.get("poster_path"), p_filename, "posters", p_size)
+        elif poster_pref == "show" and show_data:
+            await _download_single_image(client, show_data.get("poster_path"), p_filename, "posters", p_size)
+
+    return updated_info
+
+def download_artwork_sync(media_type, tmdb_id, show_tmdb_id, season, episode, title, show_title):
+    import httpx
+    async def wrapper():
+        async with httpx.AsyncClient() as client:
+            return await download_artwork_async(client, media_type, tmdb_id, show_tmdb_id, season, episode, title, show_title)
+            
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(wrapper())
+    finally:
+        loop.close()
+# --- END UNIFIED ARTWORK LOGIC ---
 
 async def execute_full_rescan(sync_lang, tmdb_key, poster_pref, fanart_pref, is_debug=False, main_loop=None):
     print(f"[rescan] Starting full library rescan for language: {sync_lang}")
@@ -495,123 +531,17 @@ async def execute_full_rescan(sync_lang, tmdb_key, poster_pref, fanart_pref, is_
         # Announce total immediately so frontend shows "0 de X" before first batch arrives
         await manager.broadcast(json.dumps({"type": "step3_init", "total": total}))
 
-        lang_param = f"&language={sync_lang}"
-        poster_q = os.getenv("POSTER_QUALITY", "w185")
-        fanart_q = os.getenv("FANART_QUALITY", "w300")
-        ui_poster_w = int(os.getenv("UI_POSTER_W", "108"))
-        ui_fanart_w = int(os.getenv("UI_FANART_W", "288"))
-
-        def _get_tmdb_size(desired_px, valid_sizes, default):
-            for size in valid_sizes:
-                if size == 'original': return size
-                try:
-                    px = int(size[1:])
-                    if px >= desired_px: return size
-                except: pass
-            return 'original'
-            
-        def _get_poster_size():
-            if poster_q != "dynamic": return poster_q
-            return _get_tmdb_size(ui_poster_w, ['w92', 'w154', 'w185', 'w342', 'w500', 'w780', 'original'], 'w185')
-
-        def _get_fanart_size(is_episode):
-            if fanart_q != "dynamic": return fanart_q
-            if is_episode: return _get_tmdb_size(ui_fanart_w, ['w92', 'w185', 'w300', 'original'], 'w300')
-            else: return _get_tmdb_size(ui_fanart_w, ['w300', 'w780', 'w1280', 'original'], 'w300')
-
-        def _extract_filename(tmdb_id, is_poster, media_type, show_tmdb_id, season, episode):
-            pref_tag = poster_pref if is_poster else fanart_pref
-            if media_type == "movie": return f"movie_{tmdb_id}_{sync_lang}.jpg"
-            if is_poster:
-                return f"show_{show_tmdb_id}_s{season}_poster_{pref_tag}_{sync_lang}.jpg" if pref_tag == "season" else f"show_{show_tmdb_id}_poster_{pref_tag}_{sync_lang}.jpg"
-            if fanart_pref == "episode": return f"show_{show_tmdb_id}_s{season}e{episode}_fanart_{pref_tag}.jpg"
-            return f"show_{show_tmdb_id}_fanart_{pref_tag}_{sync_lang}.jpg"
-
-        semaphore = asyncio.Semaphore(15)
-
-        async def fetch_json(client, url):
-            async with semaphore:
-                for attempt in range(4):
-                    try:
-                        resp = await client.get(url, timeout=15)
-                        if resp.status_code == 429:
-                            await asyncio.sleep(2 ** attempt)
-                            continue
-                        if resp.status_code == 200:
-                            return resp.json()
-                        return None
-                    except Exception:
-                        await asyncio.sleep(2 ** attempt)
-                return None
-
-        async def download_image(client, url_suffix, local_filename, folder, target_size):
-            if not url_suffix: return False
-            local_path = os.path.join(CACHE_PATH, folder, local_filename)
-            if os.path.exists(local_path): return True
-            img_url = f"https://image.tmdb.org/t/p/{target_size}{url_suffix}"
-            async with semaphore:
-                for attempt in range(4):
-                    try:
-                        resp = await client.get(img_url, timeout=15)
-                        if resp.status_code == 429:
-                            await asyncio.sleep(2 ** attempt)
-                            continue
-                        if resp.status_code == 200:
-                            os.makedirs(os.path.join(CACHE_PATH, folder), exist_ok=True)
-                            with open(local_path, "wb") as f:
-                                f.write(resp.content)
-                            return True
-                        return False
-                    except Exception:
-                        await asyncio.sleep(2 ** attempt)
-                return False
-
         async def process_item(client, idx, row):
             h_id, m_tmdb_id, s_tmdb_id, m_type, s_season, s_ep, db_title, db_show_title, db_poster, db_fanart = row
-            p_size = _get_poster_size()
-            f_size = _get_fanart_size(is_episode=(m_type == "episode" and fanart_pref == "episode"))
-            p_filename = _extract_filename(m_tmdb_id, True, m_type, s_tmdb_id, s_season, s_ep)
-            f_filename = _extract_filename(m_tmdb_id, False, m_type, s_tmdb_id, s_season, s_ep)
+            target_tmdb = m_tmdb_id if m_type == "movie" else s_tmdb_id
             
-            updated_info = {"id": h_id, "title": db_title, "show_title": db_show_title, "poster_path": db_poster, "fanart_path": db_fanart, "m_type": m_type}
-            
-            if m_type == "movie" and m_tmdb_id:
-                has_poster = os.path.exists(os.path.join(CACHE_PATH, "posters", p_filename))
-                has_fanart = os.path.exists(os.path.join(CACHE_PATH, "fanarts", f_filename))
-                if not (has_poster and has_fanart):
-                    data = await fetch_json(client, f"https://api.themoviedb.org/3/movie/{m_tmdb_id}?api_key={tmdb_key}{lang_param}")
-                    if data:
-                        updated_info["title"] = data.get("title", db_title)
-                        await download_image(client, data.get("poster_path"), p_filename, "posters", p_size)
-                        await download_image(client, data.get("backdrop_path"), f_filename, "fanarts", f_size)
-                updated_info["poster_path"] = p_filename
-                updated_info["fanart_path"] = f_filename
-
-            elif m_type == "episode" and s_tmdb_id:
-                has_poster = os.path.exists(os.path.join(CACHE_PATH, "posters", p_filename))
-                has_fanart = os.path.exists(os.path.join(CACHE_PATH, "fanarts", f_filename))
-                
-                if not (has_poster and has_fanart):
-                    ep_data, show_data, season_data = await asyncio.gather(
-                        fetch_json(client, f"https://api.themoviedb.org/3/tv/{s_tmdb_id}/season/{s_season}/episode/{s_ep}?api_key={tmdb_key}{lang_param}"),
-                        fetch_json(client, f"https://api.themoviedb.org/3/tv/{s_tmdb_id}?api_key={tmdb_key}{lang_param}"),
-                        fetch_json(client, f"https://api.themoviedb.org/3/tv/{s_tmdb_id}/season/{s_season}?api_key={tmdb_key}{lang_param}") if poster_pref == "season" else asyncio.sleep(0)
-                    )
-                    
-                    if ep_data: updated_info["title"] = ep_data.get("name", db_title)
-                    if show_data: updated_info["show_title"] = show_data.get("name", db_show_title)
-                    
-                    p_suffix = season_data.get("poster_path") if poster_pref == "season" and season_data and hasattr(season_data, "get") else (show_data.get("poster_path") if show_data else None)
-                    f_suffix = ep_data.get("still_path") if fanart_pref == "episode" and ep_data else (show_data.get("backdrop_path") if show_data else None)
-                    
-                    await download_image(client, p_suffix, p_filename, "posters", p_size)
-                    await download_image(client, f_suffix, f_filename, "fanarts", f_size)
-                
-                updated_info["poster_path"] = p_filename
-                updated_info["fanart_path"] = f_filename
-                
+            # Use unified logic!
+            updated_info = await download_artwork_async(
+                client, m_type, target_tmdb, s_tmdb_id, s_season, s_ep, db_title, db_show_title
+            )
+            updated_info["id"] = h_id
+            updated_info["m_type"] = m_type
             return updated_info
-
         def _notify_frontend(batch_data):
             """Schedule a batch_update WS broadcast (non-blocking, called from sync context inside async)."""
             if not main_loop or not batch_data: return
@@ -829,22 +759,18 @@ def process_plex_payload(payload, cursor, is_bulk=False):
         
         # Download show poster/fanart or movie poster/fanart
         if not is_bulk:
-            if target_tmdb:
-                p_path, f_path = download_tmdb_images_sync(target_tmdb, "tv" if media_type == "episode" else "movie")
-                if p_path or f_path:
-                    cursor.execute("UPDATE watch_history SET poster_path=COALESCE(?, poster_path), fanart_path=COALESCE(?, fanart_path) WHERE id=?", (p_path, f_path, db_id))
+            target_movie = tmdb_id if media_type == "movie" else None
+            target_show = target_tmdb if media_type == "episode" else None
             
-            # Download specific episode fanart (try Plex thumb first, fallback to TMDB)
-            if media_type == "episode":
-                ep_fanart = None
-                if metadata.get("thumb"):
-                    ep_metadata_id = plex_guid.split("/")[-1] if plex_guid else str(db_id)
-                    ep_fanart = download_episode_fanart_sync(metadata.get("thumb"), ep_metadata_id)
-                if not ep_fanart and target_tmdb:
-                    ep_fanart = download_episode_fanart_tmdb_sync(target_tmdb, season, episode)
-                    
-                if ep_fanart:
-                    cursor.execute("UPDATE watch_history SET fanart_path=? WHERE id=?", (ep_fanart, db_id))
+            # Use unified logic!
+            updated_info = download_artwork_sync(
+                media_type, target_movie, target_show, season, episode, title, show_title
+            )
+            p_path = updated_info.get("poster_path")
+            f_path = updated_info.get("fanart_path")
+            
+            if p_path or f_path:
+                cursor.execute("UPDATE watch_history SET poster_path=COALESCE(?, poster_path), fanart_path=COALESCE(?, fanart_path) WHERE id=?", (p_path, f_path, db_id))
                 
     except Exception as e:
         print(f"Error asignando carátulas Plex: {e}")
@@ -1052,10 +978,18 @@ def process_kodi_payload(payload, cursor, is_bulk=False):
         db_id = existing_id if existing_id else cursor.lastrowid
         target_tmdb = tmdb_id if media_type == "movie" else show_tmdb_id
         if not target_tmdb and media_type == "episode": target_tmdb = tmdb_id # Fallback
-        if target_tmdb:
-            p_path, f_path = download_tmdb_images_sync(target_tmdb, "tv" if media_type == "episode" else "movie")
-            if p_path or f_path:
-                cursor.execute("UPDATE watch_history SET poster_path=COALESCE(?, poster_path), fanart_path=COALESCE(?, fanart_path) WHERE id=?", (p_path, f_path, db_id))
+        
+        target_movie = tmdb_id if media_type == "movie" else None
+        target_show = target_tmdb if media_type == "episode" else None
+        
+        updated_info = download_artwork_sync(
+            media_type, target_movie, target_show, season, episode, title, show_title
+        )
+        p_path = updated_info.get("poster_path")
+        f_path = updated_info.get("fanart_path")
+        
+        if p_path or f_path:
+            cursor.execute("UPDATE watch_history SET poster_path=COALESCE(?, poster_path), fanart_path=COALESCE(?, fanart_path) WHERE id=?", (p_path, f_path, db_id))
     except Exception as e:
         print(f"Error asignando carátulas Kodi: {e}")
             
@@ -1398,6 +1332,22 @@ def delete_history_item(item_id: int, scope: str = "episode", sync_remote: bool 
             elif d_item.get("plex_guid"):
                 cursor.execute("DELETE FROM watch_history WHERE plex_guid = ?", (d_item.get("plex_guid"),))
                 
+            # Clean up images if no longer used by any other row
+            p_path = d_item.get("poster_path")
+            f_path = d_item.get("fanart_path")
+            if p_path:
+                cursor.execute("SELECT COUNT(*) FROM watch_history WHERE poster_path = ?", (p_path,))
+                if cursor.fetchone()[0] == 0:
+                    try:
+                        os.remove(os.path.join(CACHE_PATH, "posters", p_path))
+                    except: pass
+            if f_path:
+                cursor.execute("SELECT COUNT(*) FROM watch_history WHERE fanart_path = ?", (f_path,))
+                if cursor.fetchone()[0] == 0:
+                    try:
+                        os.remove(os.path.join(CACHE_PATH, "fanarts", f_path))
+                    except: pass
+                
     conn.commit()
     conn.close()
     
@@ -1407,6 +1357,37 @@ def delete_history_item(item_id: int, scope: str = "episode", sync_remote: bool 
         return {"success": True, "status": "partial", "errors": errors}
     else:
         return {"success": False, "status": "error", "errors": errors}
+
+@app.post("/api/cache/clean")
+def clean_image_cache(authorization: str = Depends(verify_api_key)):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT poster_path FROM watch_history WHERE poster_path IS NOT NULL")
+    used_posters = {row[0] for row in cursor.fetchall()}
+    cursor.execute("SELECT DISTINCT fanart_path FROM watch_history WHERE fanart_path IS NOT NULL")
+    used_fanarts = {row[0] for row in cursor.fetchall()}
+    conn.close()
+
+    deleted_count = 0
+    posters_dir = os.path.join(CACHE_PATH, "posters")
+    if os.path.exists(posters_dir):
+        for filename in os.listdir(posters_dir):
+            if filename.endswith(".jpg") and filename not in used_posters:
+                try:
+                    os.remove(os.path.join(posters_dir, filename))
+                    deleted_count += 1
+                except: pass
+
+    fanarts_dir = os.path.join(CACHE_PATH, "fanarts")
+    if os.path.exists(fanarts_dir):
+        for filename in os.listdir(fanarts_dir):
+            if filename.endswith(".jpg") and filename not in used_fanarts:
+                try:
+                    os.remove(os.path.join(fanarts_dir, filename))
+                    deleted_count += 1
+                except: pass
+
+    return {"status": "success", "deleted": deleted_count}
 
 # --- UNIFIED PLEX ACTIVITY FEED FUNCTION ---
 def get_plex_activity_nodes(metadata_id, types=None, max_timeout=600):
@@ -1815,7 +1796,7 @@ def get_items_for_scope(item: dict, scope: str, cursor) -> list:
             
     return items_to_modify
 
-def _update_in_background(item_id: int, req: UpdateHistoryRequest):
+def _update_in_background(item_id: int, req: UpdateHistoryRequest, main_loop=None):
     conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -2000,10 +1981,18 @@ def _update_in_background(item_id: int, req: UpdateHistoryRequest):
         print(f"[background] Update partial errors: {errors}")
     else:
         print(f"[background] Update error: {errors}")
+        
+    if main_loop:
+        try:
+            msg = json.dumps({"type": "reload_history"})
+            asyncio.run_coroutine_threadsafe(manager.broadcast(msg), main_loop)
+        except Exception as e:
+            print(f"[background] Error broadcasting reload: {e}")
 
 @app.put("/api/history/{item_id}")
-def update_history_item(item_id: int, req: UpdateHistoryRequest, background_tasks: BackgroundTasks, authorization: str = Depends(verify_api_key)):
-    background_tasks.add_task(_update_in_background, item_id, req)
+async def update_history_item(item_id: int, req: UpdateHistoryRequest, background_tasks: BackgroundTasks, authorization: str = Depends(verify_api_key)):
+    loop = asyncio.get_running_loop()
+    background_tasks.add_task(_update_in_background, item_id, req, loop)
     return {"success": True, "status": "success", "message": "Procesando en segundo plano..."}
 
 
@@ -3148,16 +3137,15 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
         poster_path = None
         fanart_path = None
         try:
-            p_path, f_path = download_tmdb_images_sync(req.tmdb_id, "tv" if req.media_type == "episode" else "movie")
-            poster_path = p_path
-            fanart_path = f_path
+            target_tmdb = None if req.media_type == "episode" else req.tmdb_id
+            show_tmdb = req.tmdb_id if req.media_type == "episode" else None
             
-            # If it's an episode and we found its thumb in Plex Cloud, use that instead of the TV show fanart
-            if req.media_type == "episode" and found_thumb and plex_guid:
-                ep_meta_id = plex_guid.split("/")[-1]
-                ep_fanart = download_episode_fanart_sync(found_thumb, ep_meta_id)
-                if ep_fanart:
-                    fanart_path = ep_fanart
+            # Use unified logic!
+            updated_info = download_artwork_sync(
+                req.media_type, target_tmdb, show_tmdb, req.season, req.episode, req.title, req.title
+            )
+            poster_path = updated_info.get("poster_path")
+            fanart_path = updated_info.get("fanart_path")
                     
         except Exception as e:
             print(f"[manual_add] Error downloading images for '{req.title}': {e}")
@@ -3493,7 +3481,7 @@ def save_config(payload: ConfigPayload):
                 except RuntimeError:
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
-                execute_full_rescan(_sync_lang, _tmdb_key, _poster_pref, _fanart_pref, _is_debug, loop)
+                loop.run_until_complete(execute_full_rescan(_sync_lang, _tmdb_key, _poster_pref, _fanart_pref, _is_debug, loop))
                 rescan_status = {"running": False, "done": True}
 
             threading.Thread(target=rescan_task_wrapper, daemon=True).start()

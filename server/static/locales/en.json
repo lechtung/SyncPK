@@ -335,5 +335,10 @@
   "import_complete_kodi_desc": "Configure this IP and your API Token in the Kodi Add-on settings.",
   "import_complete_note": "Note: You can view and modify these Webhooks at any time from the Dashboard settings.",
   "import_complete_btn": "Go to Dashboard",
-  "import_step2_complete_text": " (Completed)"
+  "import_step2_complete_text": " (Completed)",
+  "config_rescan_smart_confirm": "You have modified options that require higher resolution or a different language. Do you want to download the new art with these settings?",
+  "config_cache_title": "Image Cache:",
+  "btn_clean_cache": "Clean Unused Images",
+  "config_cache_confirm": "Are you sure you want to delete all images that are no longer associated with any card in the database?",
+  "config_cache_success": "Cache successfully cleaned. Files deleted: "
 }

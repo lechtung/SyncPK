@@ -1304,6 +1304,10 @@ function setupConfigModal() {
                     configModal.dataset.originalDashLang = dashLangValue;
                     configModal.dataset.originalPoster = data.poster_pref || 'show';
                     configModal.dataset.originalFanart = data.fanart_pref || 'episode';
+                    configModal.dataset.originalPosterQ = data.poster_quality || 'w185';
+                    configModal.dataset.originalFanartQ = data.fanart_quality || 'w300';
+                    configModal.dataset.originalPosterW = data.ui_poster_w || 108;
+                    configModal.dataset.originalFanartW = data.ui_fanart_w || 288;
 
                     document.getElementById('config-poster-w').value = data.ui_poster_w || 108;
                     document.getElementById('val-poster-w').innerText = (data.ui_poster_w || 108) + 'px';
@@ -1476,12 +1480,21 @@ function setupConfigModal() {
         const origDashLang = configModal.dataset.originalDashLang || 'auto';
         const origPoster = configModal.dataset.originalPoster;
         const origFanart = configModal.dataset.originalFanart;
+        const origPosterQ = configModal.dataset.originalPosterQ;
+        const origFanartQ = configModal.dataset.originalFanartQ;
+        const origPosterW = parseInt(configModal.dataset.originalPosterW) || 108;
+        const origFanartW = parseInt(configModal.dataset.originalFanartW) || 288;
+        
         const newLang = document.getElementById('configLang-dd').dataset.currentValue || 'es';
         const newDashLang = document.getElementById('configDashboardLang-dd').dataset.currentValue || 'auto';
         const newPoster = document.getElementById('configPosterPref-dd').dataset.currentValue || 'show';
         const newFanart = document.getElementById('configFanartPref-dd').dataset.currentValue || 'episode';
         const newPosterQ = document.getElementById('configPosterQuality-dd').dataset.currentValue || 'w185';
         const newFanartQ = document.getElementById('configFanartQuality-dd').dataset.currentValue || 'w300';
+        
+        const newPosterW = parseInt(document.getElementById('config-poster-w').value);
+        const newFanartW = parseInt(document.getElementById('config-fanart-w').value);
+        
         const pwd = pwdInput.value;
 
         const payload = {
@@ -1496,9 +1509,9 @@ function setupConfigModal() {
             dashboard_language: newDashLang,
             poster_pref: newPoster,
             fanart_pref: newFanart, poster_quality: newPosterQ, fanart_quality: newFanartQ,
-            ui_poster_w: document.getElementById('config-poster-w').value,
+            ui_poster_w: newPosterW,
             ui_poster_h: document.getElementById('config-poster-h').value,
-            ui_fanart_w: document.getElementById('config-fanart-w').value,
+            ui_fanart_w: newFanartW,
             ui_fanart_h: document.getElementById('config-fanart-h').value,
             ui_grid_gap: document.getElementById('config-grid-gap').value,
             ui_card_radius: document.getElementById('config-card-radius').value,
@@ -1525,15 +1538,23 @@ function setupConfigModal() {
 
         configModal.classList.add('hidden');
 
-        if (newLang !== origLang || newPoster !== origPoster || newFanart !== origFanart) {
-            let rescanConfirmMsg = currentLangData.config_rescan_confirm || 'You have changed language or art preferences. Do you want to rescan your ENTIRE library (Titles and Posters) to apply the new settings? (This may take a few minutes)';
+        let needsPoster = (newLang !== origLang) || (newPoster !== origPoster) || (newPosterQ !== origPosterQ);
+        let needsFanart = (newLang !== origLang) || (newFanart !== origFanart) || (newFanartQ !== origFanartQ);
+        
+        if (newPosterQ === 'dynamic') {
+            const getPBucket = (w) => w > 500 ? 780 : w > 342 ? 500 : w > 185 ? 342 : w > 154 ? 185 : 154;
+            if (getPBucket(newPosterW) > getPBucket(origPosterW)) needsPoster = true;
+        }
+        if (newFanartQ === 'dynamic') {
+            const getFBucket = (w) => w > 780 ? 1280 : w > 300 ? 780 : 300;
+            if (getFBucket(newFanartW) > getFBucket(origFanartW)) needsFanart = true;
+        }
+
+        if (needsPoster || needsFanart) {
+            let rescanConfirmMsg = currentLangData.config_rescan_smart_confirm || 'You have modified options that require higher resolution or a different language. Do you want to download the new art with these settings?';
             let confirmed = await window.customConfirm(rescanConfirmMsg);
             if (confirmed) {
                 payload.force_rescan = true;
-                let clearConfirmed = await window.customConfirm("¿Deseas borrar la caché de imágenes para forzar la descarga con la nueva calidad?");
-                if (clearConfirmed) {
-                    payload.clear_cache = true;
-                }
             }
         }
 
@@ -1601,6 +1622,33 @@ function setupConfigModal() {
             setTimeout(() => configModal.classList.remove('hidden'), 3000);
         }
     });
+
+    const btnCleanCache = document.getElementById('btn-clean-cache');
+    if (btnCleanCache) {
+        btnCleanCache.addEventListener('click', async () => {
+            let msg = currentLangData.config_cache_confirm || "¿Estás seguro de que deseas eliminar todas las imágenes que ya no están asociadas a ninguna tarjeta de la base de datos?";
+            let confirmed = await window.customConfirm(msg);
+            if (!confirmed) return;
+            
+            showProcessingOverlay(currentLangData.overlay_processing || 'Processing request', currentLangData.overlay_wait || 'Please wait...');
+            try {
+                let res = await apiFetch('/api/cache/clean', { method: 'POST' });
+                if (res.ok) {
+                    let data = await res.json();
+                    let successTitle = (currentLangData.config_cache_success || "Caché limpiada con éxito. Archivos eliminados: ") + data.deleted;
+                    updateOverlayResult('success', successTitle);
+                    hideOverlay(3000);
+                } else {
+                    updateOverlayResult('error', 'Error clearing cache.');
+                    hideOverlay(3000);
+                }
+            } catch (e) {
+                console.error(e);
+                updateOverlayResult('error', currentLangData.network_error || 'Network error.');
+                hideOverlay(3000);
+            }
+        });
+    }
 }
 document.addEventListener('DOMContentLoaded', setupConfigModal);
 
@@ -1936,6 +1984,10 @@ function connectWebSocket() {
     ws.onmessage = function (event) {
         try {
             const data = JSON.parse(event.data);
+            if (data.type === 'reload_history') {
+                reloadHistory();
+                return;
+            }
             if (data.type === 'batch_update' && data.items) {
                 let hasNewItems = false;
                 data.items.forEach(item => {

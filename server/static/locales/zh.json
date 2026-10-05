@@ -335,5 +335,10 @@
   "import_complete_kodi_desc": "在 Kodi 插件设置中配置此 IP 和您的 API 令牌。",
   "import_complete_note": "注意：您可以随时从仪表板设置中查看和修改这些 Webhook。",
   "import_complete_btn": "转到仪表板",
-  "import_step2_complete_text": " (已完成)"
+  "import_step2_complete_text": " (已完成)",
+  "config_rescan_smart_confirm": "您修改了需要更高分辨率或不同语言的选项。您想使用这些设置下载新图片吗？",
+  "config_cache_title": "图像缓存：",
+  "btn_clean_cache": "清理未使用的图像",
+  "config_cache_confirm": "您确定要删除所有不再与数据库中任何卡片关联的图像吗？",
+  "config_cache_success": "缓存成功清理。删除的文件数："
 }
