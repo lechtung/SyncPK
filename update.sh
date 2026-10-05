@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+{
 set -euo pipefail
 
 CODE_DIR="/opt/syncpk"
@@ -123,3 +124,4 @@ if [ "$HEALTH_OK" -eq 0 ]; then
 fi
 
 echo "[Info] Update completed successfully."
+}
