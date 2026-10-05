@@ -68,37 +68,45 @@ DOWNLOADED_TEMPLATES=$(pvesm list $TEMPLATE_STORAGE --content vztmpl | awk 'NR>1
 AVAILABLE_TEMPLATES=$(pveam available | grep -E 'system.*(debian-12-standard|ubuntu-24\.04-standard|ubuntu-22\.04-standard)' | awk '{print $2}')
 
 TEMPLATE_MENU=()
+declare -A TPL_MAP
+idx=1
 DEFAULT_ITEM=""
 
 for t in $DOWNLOADED_TEMPLATES; do
     filename=$(basename "$t")
     shortname=$(echo "$filename" | sed -E 's/(-standard|_amd64.*\.tar\.[a-z]+)//g')
-    TEMPLATE_MENU+=("$filename" "[Local] $shortname")
+    TEMPLATE_MENU+=("$idx" "[Local] $shortname")
+    TPL_MAP[$idx]="$filename"
     if [[ "$filename" == *"debian-12-standard"* ]]; then
-        DEFAULT_ITEM="$filename"
+        DEFAULT_ITEM="$idx"
     fi
+    ((idx++))
 done
 
 for t in $AVAILABLE_TEMPLATES; do
     if ! echo "$DOWNLOADED_TEMPLATES" | grep -q "$t"; then
         shortname=$(echo "$t" | sed -E 's/(-standard|_amd64.*\.tar\.[a-z]+)//g')
-        TEMPLATE_MENU+=("$t" "[Download] $shortname")
+        TEMPLATE_MENU+=("$idx" "[Download] $shortname")
+        TPL_MAP[$idx]="$t"
         if [ -z "$DEFAULT_ITEM" ] && [[ "$t" == *"debian-12-standard"* ]]; then
-            DEFAULT_ITEM="$t"
+            DEFAULT_ITEM="$idx"
         fi
+        ((idx++))
     fi
 done
 
 if [ -z "$DEFAULT_ITEM" ] && [ ${#TEMPLATE_MENU[@]} -gt 0 ]; then
-    DEFAULT_ITEM="${TEMPLATE_MENU[0]}"
+    DEFAULT_ITEM="1"
 fi
 
 if [ ${#TEMPLATE_MENU[@]} -eq 0 ]; then
     error "No templates found locally or remotely."
 fi
 
-LATEST_TEMPLATE_FILE=$(whiptail --title "SyncPK - Template Selection" --default-item "$DEFAULT_ITEM" --menu "Select the base image for the LXC container (Debian 12 recommended):" 18 70 8 "${TEMPLATE_MENU[@]}" 3>&1 1>&2 2>&3)
+CHOICE=$(whiptail --title "SyncPK - Template Selection" --default-item "$DEFAULT_ITEM" --menu "Select the base image for the LXC container (Debian 12 recommended):" 18 60 8 "${TEMPLATE_MENU[@]}" 3>&1 1>&2 2>&3)
 if [ $? -ne 0 ]; then exit 1; fi
+
+LATEST_TEMPLATE_FILE="${TPL_MAP[$CHOICE]}"
 
 if echo "$LATEST_TEMPLATE_FILE" | grep -q "^debian-\|^ubuntu-"; then
     echo "[Info] Downloading selected template ($LATEST_TEMPLATE_FILE)..."
