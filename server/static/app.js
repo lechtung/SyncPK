@@ -1219,12 +1219,14 @@ function setupConfigModal() {
     repeatInput.addEventListener('input', checkPasswords);
 
     // Open Config Modal
-    if (fabConfig) {
-        fabConfig.addEventListener('click', async () => {
-            document.querySelector('.fab-container').classList.remove('active');
-            configModal.classList.remove('hidden');
+    const mobileSettingsBtn = document.getElementById('settings-menu-btn');
+    
+    const openConfigHandler = async () => {
+        document.querySelector('.fab-container').classList.remove('active');
+        document.getElementById('header-right').classList.remove('open');
+        configModal.classList.remove('hidden');
 
-            try {
+        try {
                 let res = await apiFetch('/api/config');
                 if (res.ok) {
                     let data = await res.json();
@@ -1382,8 +1384,13 @@ function setupConfigModal() {
                     saveBtn.disabled = false;
                 }
             } catch (e) { console.error(e); }
-        });
-    }
+        };
+        if (fabConfig) {
+            fabConfig.addEventListener('click', openConfigHandler);
+        }
+        if (mobileSettingsBtn) {
+            mobileSettingsBtn.addEventListener('click', openConfigHandler);
+        }
 
     // Cancel Config
     cancelBtn.addEventListener('click', () => {
@@ -1634,6 +1641,31 @@ document.addEventListener('DOMContentLoaded', setupConfigModal);
 
 // --- FLOATING ACTION BUTTON & MANUAL ADD ---
 document.addEventListener('DOMContentLoaded', () => {
+
+    // --- Auto close mobile menu ---
+    document.addEventListener("click", (e) => {
+        const headerRight = document.getElementById("header-right");
+        const mobileMenuBtn = document.getElementById("mobile-menu-btn");
+        if (headerRight && headerRight.classList.contains("open") && mobileMenuBtn) {
+            // Check if click was outside both the menu and the hamburger button
+            if (!headerRight.contains(e.target) && !mobileMenuBtn.contains(e.target)) {
+                headerRight.classList.remove("open");
+            }
+        }
+    });
+
+
+    // --- Mobile Menu Toggle ---
+    const mobileMenuBtn = document.getElementById("mobile-menu-btn");
+    if (mobileMenuBtn) {
+        mobileMenuBtn.addEventListener("click", () => {
+            const headerRight = document.getElementById("header-right");
+            if (headerRight) {
+                headerRight.classList.toggle("open");
+            }
+        });
+    }
+
     const fabContainer = document.querySelector('.fab-container');
     const fabMain = document.querySelector('.fab-main');
     const fabAddManual = document.getElementById('fab-add-manual');
@@ -1657,12 +1689,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Open Manual Modal
+    const mobileAddManualBtn = document.getElementById('add-manual-menu-btn');
+    
+    const openManualHandler = () => {
+        fabContainer.classList.remove('active');
+        document.getElementById('header-right').classList.remove('open');
+        manualModal.classList.remove('hidden');
+        resetManualForm();
+    };
+
     if (fabAddManual) {
-        fabAddManual.addEventListener('click', () => {
-            fabContainer.classList.remove('active');
-            manualModal.classList.remove('hidden');
-            resetManualForm();
-        });
+        fabAddManual.addEventListener('click', openManualHandler);
+    }
+    
+    if (mobileAddManualBtn) {
+        mobileAddManualBtn.addEventListener('click', openManualHandler);
     }
 
     // Close Modal
@@ -2120,6 +2161,31 @@ function connectWebSocket() {
 
 // Call on load
 document.addEventListener('DOMContentLoaded', () => {
+
+    // --- Auto close mobile menu ---
+    document.addEventListener("click", (e) => {
+        const headerRight = document.getElementById("header-right");
+        const mobileMenuBtn = document.getElementById("mobile-menu-btn");
+        if (headerRight && headerRight.classList.contains("open") && mobileMenuBtn) {
+            // Check if click was outside both the menu and the hamburger button
+            if (!headerRight.contains(e.target) && !mobileMenuBtn.contains(e.target)) {
+                headerRight.classList.remove("open");
+            }
+        }
+    });
+
+
+    // --- Mobile Menu Toggle ---
+    const mobileMenuBtn = document.getElementById("mobile-menu-btn");
+    if (mobileMenuBtn) {
+        mobileMenuBtn.addEventListener("click", () => {
+            const headerRight = document.getElementById("header-right");
+            if (headerRight) {
+                headerRight.classList.toggle("open");
+            }
+        });
+    }
+
     connectWebSocket();
 });
 window.copyWebhookUrl = function (inputId) {

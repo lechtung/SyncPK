@@ -392,8 +392,8 @@ def _get_artwork_sizes(poster_pref, fanart_pref, is_episode):
 
 def _extract_filename(tmdb_id, is_poster, media_type, show_tmdb_id, season, episode, p_size, f_size):
     sync_lang = os.getenv("SYNC_LANGUAGE", "en")
-    poster_pref = os.getenv("POSTER_PREFERENCE", "show")
-    fanart_pref = os.getenv("FANART_PREFERENCE", "episode")
+    poster_pref = os.getenv("POSTER_PREF", "show")
+    fanart_pref = os.getenv("FANART_PREF", "episode")
     pref_tag = poster_pref if is_poster else fanart_pref
     
     if media_type == "movie": 
@@ -451,8 +451,8 @@ async def fetch_json(client, url):
 async def download_artwork_async(client, media_type, tmdb_id, show_tmdb_id, season, episode, title, show_title):
     # Determine sizes and filenames
     sync_lang = os.getenv("SYNC_LANGUAGE", "en")
-    poster_pref = os.getenv("POSTER_PREFERENCE", "show")
-    fanart_pref = os.getenv("FANART_PREFERENCE", "episode")
+    poster_pref = os.getenv("POSTER_PREF", "show")
+    fanart_pref = os.getenv("FANART_PREF", "episode")
     
     is_episode = (media_type == "episode" and fanart_pref == "episode")
     p_size, f_size = _get_artwork_sizes(poster_pref, fanart_pref, is_episode)
@@ -695,6 +695,37 @@ def process_plex_payload(payload, cursor, is_bulk=False):
             show_imdb_id, show_tmdb_id, show_tvdb_id = extract_ids(grandparent_guids)
         elif grandparent_key:
             show_imdb_id, show_tmdb_id, show_tvdb_id = get_show_ids_from_plex(grandparent_key)
+
+    if is_live_event:
+        today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
+        if media_type == "episode" and tmdb_id:
+            cursor.execute("""
+                SELECT id FROM watch_history
+                WHERE media_type='episode' AND tmdb_id=?
+                AND substr(watched_at, 1, 10) = ?
+            """, (tmdb_id, today))
+        elif media_type == "episode":
+            cursor.execute("""
+                SELECT id FROM watch_history
+                WHERE media_type='episode' AND show_title=? AND season=? AND episode=?
+                AND substr(watched_at, 1, 10) = ?
+            """, (show_title, season, episode, today))
+        elif tmdb_id:
+            cursor.execute("""
+                SELECT id FROM watch_history
+                WHERE media_type='movie' AND tmdb_id=?
+                AND substr(watched_at, 1, 10) = ?
+            """, (tmdb_id, today))
+        else:
+            cursor.execute("""
+                SELECT id FROM watch_history
+                WHERE media_type='movie' AND title=?
+                AND substr(watched_at, 1, 10) = ?
+            """, (title, today))
+            
+        if cursor.fetchone():
+            print(f"🔁 Ignorando duplicado del mismo día (Plex): '{title}'")
+            return False
 
     existing_id = None
     if media_type == "episode":

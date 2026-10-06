@@ -304,6 +304,8 @@ button:disabled {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
     padding: 16px 24px;
     margin-bottom: 32px;
     border-radius: 0 0 12px 12px;
@@ -314,6 +316,7 @@ button:disabled {
 .header-right {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: var(--grid-gap, 16px);
 }
 
@@ -1321,35 +1324,206 @@ button:disabled {
     box-shadow: 0 0 0 1px hsla(0, 0%, 50%, 0.6), 0 0 0 3px var(--pcr-color);
 }
 
-/* Responsive Design */
+/* Mobile Utilities */
+.hidden-desktop {
+    display: none !important;
+}
+
 @media (max-width: 768px) {
-    .cards-grid {
-        grid-template-columns: repeat(auto-fill, minmax(100%, 1fr));
+    .hidden-desktop {
+        display: flex !important;
     }
-
-    .history-card {
-        width: 100%;
+    
+    .mobile-menu-btn {
+        margin-left: auto;
+        font-size: 1.5rem;
+        cursor: pointer;
+        padding: 8px 12px;
+        color: var(--color-ffffff);
+    }
+    
+    .sticky-header {
         flex-direction: column;
-        height: auto;
+        padding: 8px 12px !important;
+        border-radius: 0;
+        margin-bottom: 8px !important; /* Reduce huge space */
     }
-
-    .history-card .poster-container {
+    
+    .header-left {
         width: 100%;
-        height: auto;
-        aspect-ratio: 2/3;
-    }
-
-    .history-card .fanart-container {
-        width: 100%;
-        height: 200px;
-    }
-
-    .header-controls {
+        justify-content: flex-start;
         flex-wrap: wrap;
+        gap: 12px;
     }
 
+    .logo-icon {
+        width: 40px;
+        height: 40px;
+    }
+    .logo {
+        font-size: 1.2rem;
+        margin-right: 0;
+    }
+    
+    /* Day selector disappears behind menu or gets smaller */
+    .day-selector {
+        display: none; /* Hide calendar strip to save space */
+    }
+
+    /* Fix WebKit nested backdrop-filter bug */
+    .sticky-header.glass-panel {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        background: transparent !important;
+    }
+    .sticky-header.glass-panel::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(15, 17, 22, 0.85);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        z-index: -1;
+    }
+
+    .header-right {
+        display: none; /* Hidden by default on mobile */
+        position: absolute;
+        top: 100%; /* Right below header */
+        left: 0;
+        right: 0;
+        background: rgba(15, 17, 22, 0.7); /* More transparent to reveal blur */
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        flex-direction: column;
+        gap: 12px;
+        padding: 16px;
+        z-index: 1000;
+        border-bottom: 1px solid var(--glass-border);
+        box-shadow: 0 20px 40px rgba(0,0,0,0.9); /* Stronger shadow */
+        margin-top: 0;
+    }
+
+    .header-right.open {
+        display: flex;
+    }
+    
+    #settings-menu-btn .c-dropdown-trigger {
+        width: 100% !important;
+    }
+    
+    .header-right .c-dropdown {
+        width: 100%;
+    }
+
+    .stats-container {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+        padding: 0 8px 16px 8px !important;
+        margin-bottom: 16px;
+        border-bottom: 1px solid var(--accent) !important; /* Restore the blue line */
+    }
+
+    .stat-card {
+        padding: 4px 8px;
+        flex-direction: row !important;
+        justify-content: space-between;
+        align-items: center;
+        flex: 1 1 auto;
+        min-width: calc(50% - 8px);
+        max-width: 100%;
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        border-bottom: 1px solid rgba(255,255,255,0.05) !important;
+        border-radius: 0 !important;
+    }
+    
+    .stat-card.highlight {
+        display: none !important;
+    }
+
+    .stat-value {
+        font-size: 0.9rem !important;
+        font-weight: 700 !important;
+    }
+    
+    .stat-label {
+        font-size: 0.65rem !important;
+        opacity: 0.7;
+    }
+
+    .cards-grid {
+        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+        gap: 12px;
+    }
+
+    .c-card {
+        width: 100% !important;
+        flex-direction: row !important;
+        height: auto !important; 
+        aspect-ratio: 396 / 162 !important; /* Strict proportion lock */
+    }
+    
+    .c-poster {
+        width: 27.27% !important; /* 108 / 396 */
+        height: 100% !important;
+        flex: 0 0 27.27% !important;
+        aspect-ratio: auto !important; /* Reset, controlled by parent */
+    }
+
+    .c-fanart-content {
+        flex: 1 !important; 
+        height: 100% !important;
+        width: auto !important;
+    }
+    
+    .card-content {
+        padding: 10px 12px !important;
+    }
+
+    .card-title {
+        font-size: 1rem !important;
+        margin-bottom: 2px !important;
+        -webkit-line-clamp: 2 !important;
+    }
+    
+    .card-subtitle {
+        font-size: 0.85rem !important;
+        margin-bottom: 4px !important;
+    }
+    
+    .kebab-menu-btn {
+        top: 2px !important;
+        right: 4px !important;
+        width: 24px !important;
+        height: 24px !important;
+    }
+    
+    .fab-container {
+        opacity: 0 !important;
+        pointer-events: none !important;
+        position: absolute !important;
+        z-index: -9999 !important;
+    }
+
+    .history-feed {
+        padding: 0 12px 32px 12px;
+    }
+
+    /* Modals max width */
+    .login-box {
+        max-width: 90vw;
+        padding: 20px;
+    }
+    
     .c-modal-content {
-        min-width: 90%;
+        min-width: 90vw;
+        max-width: 95vw;
+        margin: 10px;
     }
 }
 
