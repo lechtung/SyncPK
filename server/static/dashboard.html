@@ -5,11 +5,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SyncPK Dashboard</title>
-    <link rel="stylesheet" href="/style.css?v=43">
+    <link rel="stylesheet" href="/style.css?v=1.10">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/vendor/pickr/nano.min.css">
     <script src="/vendor/pickr/pickr.min.js" defer></script>
-    <script src="/app.js?v=43" defer></script>
+    <script src="/app.js?v=1.10" defer></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -36,9 +36,10 @@
             <div class="header-left">
                 <img src="favicon.ico" class="logo-icon" alt="SyncPK Logo">
                 <h1 class="logo">Sync<span style="color:#e5a00d;">P</span><span style="color:#17B2E7;">K</span></h1>
-                
+
                 <!-- MOBILE MENU TOGGLE -->
-                <div class="mobile-menu-btn hidden-desktop" id="mobile-menu-btn" onclick="document.getElementById('header-right').classList.toggle('open')">
+                <div class="mobile-menu-btn hidden-desktop" id="mobile-menu-btn"
+                    onclick="document.getElementById('header-right').classList.toggle('open')">
                     <i class="fas fa-bars"></i>
                 </div>
                 <!-- DAY SELECTOR STRIP -->
@@ -106,13 +107,16 @@
                         <!-- JS will populate months in browser locale -->
                     </div>
                 </div>
-                
+
                 <div class="hidden-desktop" style="display: flex; gap: 12px; width: 100%;">
-                    <div id="add-manual-menu-btn" style="cursor: pointer; flex: 1; background: var(--panel-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; display: flex; justify-content: center; align-items: center; padding: 12px; transition: background 0.2s;">
+                    <div id="add-manual-menu-btn"
+                        style="cursor: pointer; flex: 1; background: var(--panel-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; display: flex; justify-content: center; align-items: center; padding: 12px; transition: background 0.2s;">
                         <i class="fas fa-plus" style="font-size: 1.2rem; color: var(--text-primary);"></i>
-                        <span style="margin-left: 8px; font-size: 0.9rem;" data-i18n="fab_add_manual">Añadir manual</span>
+                        <span style="margin-left: 8px; font-size: 0.9rem;" data-i18n="fab_add_manual">Añadir
+                            manual</span>
                     </div>
-                    <div id="settings-menu-btn" style="cursor: pointer; flex: 1; background: var(--panel-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; display: flex; justify-content: center; align-items: center; padding: 12px; transition: background 0.2s;">
+                    <div id="settings-menu-btn"
+                        style="cursor: pointer; flex: 1; background: var(--panel-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; display: flex; justify-content: center; align-items: center; padding: 12px; transition: background 0.2s;">
                         <i class="fas fa-cog" style="font-size: 1.2rem; color: var(--text-primary);"></i>
                         <span style="margin-left: 8px; font-size: 0.9rem;" data-i18n="fab_config">Ajustes</span>
                     </div>
@@ -163,7 +167,7 @@
             <p id="overlay-subtitle" style="color:#aaa; font-size:0.9rem; margin:0;">Please wait...</p>
         </div>
     </div>
-    
+
     <!-- UPDATE MODAL (System Update) -->
     <div id="update-modal" class="overlay hidden" style="z-index: 9000;">
         <div class="login-box glass-panel" style="text-align:center; max-width: 450px; width: 90%;">
@@ -171,22 +175,28 @@
                 <i class="fas fa-arrow-alt-circle-up" style="font-size: 3rem;"></i>
             </div>
             <h2 data-i18n="update_available">Update Available</h2>
-            <p id="update-subtitle" style="color:#aaa; font-size:0.95rem; margin-bottom: 24px;">A new version is available.</p>
-            
-            <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; align-items: flex-start; text-align: left; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px;">
+            <p id="update-subtitle" style="color:#aaa; font-size:0.95rem; margin-bottom: 24px;">A new version is
+                available.</p>
+
+            <div
+                style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; align-items: flex-start; text-align: left; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px;">
                 <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
                     <input type="checkbox" id="updateIgnoreVersion">
-                    <span style="font-size: 0.85rem; color: #ccc;" data-i18n="update_ignore_version">Ignore this version completely</span>
+                    <span style="font-size: 0.85rem; color: #ccc;" data-i18n="update_ignore_version">Ignore this version
+                        completely</span>
                 </label>
                 <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
                     <input type="checkbox" id="updateNeverNotify">
-                    <span style="font-size: 0.85rem; color: #ccc;" data-i18n="update_never_notify">Never notify me again</span>
+                    <span style="font-size: 0.85rem; color: #ccc;" data-i18n="update_never_notify">Never notify me
+                        again</span>
                 </label>
             </div>
 
             <div class="modal-buttons" style="justify-content: center;">
-                <button id="update-dismiss-btn" data-i18n="btn_later" style="background: rgba(255,255,255,0.1);">Later</button>
-                <button id="update-now-btn" data-i18n="btn_update_now" style="background: var(--accent);">Update Now</button>
+                <button id="update-dismiss-btn" data-i18n="btn_later"
+                    style="background: rgba(255,255,255,0.1);">Later</button>
+                <button id="update-now-btn" data-i18n="btn_update_now" style="background: var(--accent);">Update
+                    Now</button>
             </div>
         </div>
     </div>
