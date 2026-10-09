@@ -723,9 +723,29 @@ button:disabled {
 }
 
 .card-time {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    z-index: 2;
+    background: rgba(10, 10, 10, 0.7);
+    padding: 3px 8px;
+    border-radius: 6px;
     font-size: 0.8rem;
     color: var(--text-secondary);
-    margin-top: auto;
+    font-weight: 600;
+}
+
+.card-duration {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    z-index: 2;
+    background: rgba(10, 10, 10, 0.7);
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-weight: 600;
 }
 
 /* Kebab Menu (3 dots) */
@@ -1619,4 +1639,17 @@ button:disabled {
     100% {
         left: 100%;
     }
+}
+.pickr button.pcr-button { background: transparent !important; width: 2em !important; height: 2em !important; padding: 0 !important; border-radius: 0.15em !important; }
+
+/* Number input text-like styling focus state */
+
+.config-val-input {
+    margin-bottom: 0 !important;
+}
+
+input[type=number].config-val-input:focus {
+    background: rgba(0,0,0,0.3) !important;
+    border-radius: 4px;
+    padding-right: 2px !important;
 }

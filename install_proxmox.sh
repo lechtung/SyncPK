@@ -3,18 +3,36 @@
 GITHUB_USER="lechtung"
 GITHUB_REPO="SyncPK"
 GITHUB_BRANCH="main"
+CTID=""
 
-function error() {
-    echo -e "\e[31m[ERROR] $1\e[0m"
+function cleanup_on_error() {
+    if [ -n "$CTID" ] && pvesm status &>/dev/null; then
+        echo -e "\n\e[31m[ERROR] Installation failed.\e[0m"
+        if whiptail --title "SyncPK - Installation Failed" --yesno "An error occurred during the installation.\n\nDo you want to destroy the incomplete LXC container ($CTID)?" 10 60; then
+            echo "[Info] Destroying container $CTID..."
+            pct stop $CTID 2>/dev/null || true
+            pct destroy $CTID 2>/dev/null || true
+            echo "[Info] Container destroyed."
+        else
+            echo "[Info] Container $CTID kept as-is."
+        fi
+    fi
     exit 1
 }
 
+function error() {
+    echo -e "\e[31m[ERROR] $1\e[0m"
+    cleanup_on_error
+}
+
 if [ "$EUID" -ne 0 ]; then
-    error "This script must be run as root (administrator privileges)."
+    echo -e "\e[31m[ERROR] This script must be run as root (administrator privileges).\e[0m"
+    exit 1
 fi
 
 if ! command -v pvesm &> /dev/null; then
-    error "This script must be run on the Proxmox HOST, not inside a container."
+    echo -e "\e[31m[ERROR] This script must be run on the Proxmox HOST, not inside a container.\e[0m"
+    exit 1
 fi
 
 if ! command -v whiptail &> /dev/null || ! command -v curl &> /dev/null; then
@@ -49,6 +67,9 @@ while true; do
     if [ $? -ne 0 ]; then exit 1; fi
 
     if [ "$ROOT_PASSWORD" == "$ROOT_PASSWORD_CONFIRM" ]; then
+        BRIDGE=$(whiptail --inputbox "Enter the network bridge to use for the LXC container (usually vmbr0):" 10 60 "vmbr0" --title "SyncPK - Network" 3>&1 1>&2 2>&3)
+        if [ $? -ne 0 ]; then exit 1; fi
+        if [ -z "$BRIDGE" ]; then BRIDGE="vmbr0"; fi
         break
     else
         whiptail --msgbox "Passwords do not match. Please try again." 8 45 --title "Error"
@@ -64,8 +85,8 @@ fi
 
 echo "[Info] Gathering local and available templates..."
 pveam update &>/dev/null
-DOWNLOADED_TEMPLATES=$(pvesm list $TEMPLATE_STORAGE --content vztmpl | awk 'NR>1 {print $1}')
-AVAILABLE_TEMPLATES=$(pveam available | grep -E 'system.*(debian-12-standard|ubuntu-24\.04-standard|ubuntu-22\.04-standard)' | awk '{print $2}')
+DOWNLOADED_TEMPLATES=$(pvesm list $TEMPLATE_STORAGE --content vztmpl | grep -E 'system.*(debian-12-standard|debian-13-standard|ubuntu-24\.04-standard|ubuntu-22\.04-standard)' | awk '{print $1}')
+AVAILABLE_TEMPLATES=$(pveam available | grep -E 'system.*(debian-12-standard|debian-13-standard|ubuntu-24\.04-standard|ubuntu-22\.04-standard)' | awk '{print $2}')
 
 TEMPLATE_MENU=()
 declare -A TPL_MAP
@@ -103,7 +124,7 @@ if [ ${#TEMPLATE_MENU[@]} -eq 0 ]; then
     error "No templates found locally or remotely."
 fi
 
-CHOICE=$(whiptail --title "SyncPK - Template Selection" --default-item "$DEFAULT_ITEM" --menu "Select the base image for the LXC container (Debian 12 recommended):" 18 60 8 "${TEMPLATE_MENU[@]}" 3>&1 1>&2 2>&3)
+CHOICE=$(whiptail --title "SyncPK - Template Selection" --default-item "$DEFAULT_ITEM" --menu "Select the base image for the LXC container (Debian 12/13 recommended):" 18 60 8 "${TEMPLATE_MENU[@]}" 3>&1 1>&2 2>&3)
 if [ $? -ne 0 ]; then exit 1; fi
 
 LATEST_TEMPLATE_FILE="${TPL_MAP[$CHOICE]}"
@@ -115,15 +136,16 @@ fi
 
 LATEST_TEMPLATE="$TEMPLATE_STORAGE:vztmpl/$LATEST_TEMPLATE_FILE"
 
-echo "[Info] Creating CT container $CTID..."
-pct create $CTID $LATEST_TEMPLATE -storage $TARGET_STORAGE -rootfs $TARGET_STORAGE:8 -password "$ROOT_PASSWORD" -arch amd64 -hostname syncpk -cores 1 -memory 512 -net0 name=eth0,bridge=vmbr0,ip=dhcp -unprivileged 1 -features nesting=1 -timezone host -onboot 1 || error "Failed to create LXC container (pct create failed)."
+# Medium Priority: Install with 1024MB to avoid OOM killer during pip compilation
+echo "[Info] Creating CT container $CTID with 1024MB RAM for installation..."
+pct create $CTID $LATEST_TEMPLATE -storage $TARGET_STORAGE -rootfs $TARGET_STORAGE:8 -password "$ROOT_PASSWORD" -arch amd64 -hostname syncpk -cores 1 -memory 1024 -net0 name=eth0,bridge=$BRIDGE,ip=dhcp -unprivileged 1 -features nesting=1 -timezone host -onboot 1 || error "Failed to create LXC container (pct create failed)."
 
 pct start $CTID
 
 echo "[Info] Waiting for the container to get network access..."
 NET_OK=0
 for i in $(seq 1 30); do
-    if pct exec $CTID -- getent hosts raw.githubusercontent.com >/dev/null 2>&1; then
+    if pct exec $CTID -- getent hosts github.com >/dev/null 2>&1; then
         NET_OK=1
         break
     fi
@@ -138,21 +160,38 @@ CT_IP=$(pct exec $CTID -- ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+)
 echo "[Info] Assigned IP: $CT_IP"
 
 echo "[Info] Launching automated system installer inside LXC..."
-pct exec $CTID -- bash -c "set -euo pipefail; apt-get update >/dev/null 2>&1 && apt-get install -y curl ca-certificates >/dev/null 2>&1 && curl -fsSL https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/install.sh > install.sh && bash install.sh" || error "install.sh failed inside LXC."
+# Use GitHub Releases API endpoint for install.sh to fix main vs release desync
+pct exec $CTID -- bash -c "set -euo pipefail; apt-get update && apt-get install -y curl ca-certificates && curl -fsSL https://github.com/$GITHUB_USER/$GITHUB_REPO/releases/latest/download/install.sh > install.sh && bash install.sh" || error "install.sh failed inside LXC."
+
+echo "[Info] Installation successful. Reducing RAM to 512MB..."
+pct set $CTID -memory 512 || true
 
 echo "[Info] Configuring Welcome Message (MOTD)..."
 pct exec $CTID -- bash -c "cat << 'EOF' > /etc/profile.d/syncpk-motd.sh
-#!/bin/bash
-LOCAL_IP=\$(hostname -I | awk '{print \$1}')
-echo \"\"
-echo \"================================================================\"
-echo -e \" \e[32m\e[1mSyncPK - Two-Way Kodi & Plex Sync Server\e[0m\"
-echo \"================================================================\"
-echo -e \" \e[1mWeb Dashboard:\e[0m http://\$LOCAL_IP:8000\"
-echo -e \" \e[1mKodi Webhook:\e[0m  http://\$LOCAL_IP:8000/webhook/kodi\"
-echo -e \" \e[1mPlex Webhook:\e[0m  http://\$LOCAL_IP:8000/webhook/plex\"
-echo \"(Make sure to append your ?token=... in Plex/Kodi if configured)\"
-echo \"================================================================\"
-echo \"\"
+if [[ \$- == *i* ]]; then
+    LOCAL_IP=\$(hostname -I 2>/dev/null | awk '{print \$1}')
+    if [ -z \"\$LOCAL_IP\" ]; then LOCAL_IP=\"127.0.0.1\"; fi
+    echo \"\"
+    echo \"================================================================\"
+    echo -e \" \e[32m\e[1mSyncPK - Two-Way Kodi & Plex Sync Server\e[0m\"
+    echo \"================================================================\"
+    echo -e \" \e[1mWeb Dashboard:\e[0m http://\$LOCAL_IP:8000\"
+    echo -e \" \e[1mKodi Webhook:\e[0m  http://\$LOCAL_IP:8000/webhook/kodi\"
+    echo -e \" \e[1mPlex Webhook:\e[0m  http://\$LOCAL_IP:8000/webhook/plex\"
+    echo \"(Make sure to append your ?token=... in Plex/Kodi if configured)\"
+    echo \"================================================================\"
+    echo \"\"
+fi
 EOF"
 pct exec $CTID -- chmod +x /etc/profile.d/syncpk-motd.sh
+
+echo ""
+echo "================================================================"
+echo -e "\e[32mSyncPK LXC Container Created Successfully!\e[0m"
+echo "----------------------------------------------------------------"
+echo -e "Container ID: \e[1m$CTID\e[0m"
+echo -e "IP Address:   \e[1m$CT_IP\e[0m"
+echo -e "URL:          \e[1mhttp://$CT_IP:8000\e[0m"
+echo "================================================================"
+echo "You can now open the URL in your browser to run the Setup Wizard."
+echo ""

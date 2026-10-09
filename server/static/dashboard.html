@@ -12,7 +12,9 @@
     <script src="/app.js?v=1.10" defer></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="/vendor/inter.css" rel="stylesheet">
+    <link href="/vendor/roboto.css" rel="stylesheet">
+    <link href="/vendor/outfit.css" rel="stylesheet">
 </head>
 
 <body>
@@ -34,8 +36,10 @@
         <!-- STICKY HEADER -->
         <header class="sticky-header glass-panel">
             <div class="header-left">
-                <img src="favicon.ico" class="logo-icon" alt="SyncPK Logo">
-                <h1 class="logo">Sync<span style="color:#e5a00d;">P</span><span style="color:#17B2E7;">K</span></h1>
+                <div id="logo-trigger" style="display: flex; align-items: center; gap: 16px; cursor: pointer;" data-i18n-title="action_about" title="About">
+                    <img src="favicon.ico" class="logo-icon" alt="SyncPK Logo">
+                    <h1 class="logo">Sync<span style="color:#e5a00d;">P</span><span style="color:#17B2E7;">K</span></h1>
+                </div>
 
                 <!-- MOBILE MENU TOGGLE -->
                 <div class="mobile-menu-btn hidden-desktop" id="mobile-menu-btn"
@@ -708,7 +712,7 @@
                             <div class="c-dropdown-trigger" id="configFanartQuality-trigger">
                                 <div class="c-dropdown-bottom">
                                     <span class="c-dropdown-value" id="configFanartQuality-val"
-                                        data-i18n="quality_w300">300px (Medium)</span>
+                                        data-i18n="quality_w342">300px (Medium)</span>
                                     <span class="c-dropdown-arrow">▼</span>
                                 </div>
                             </div>
@@ -718,7 +722,7 @@
                                 <div class="c-dropdown-item" data-value="w92" data-i18n="quality_w92">92px (Min)</div>
                                 <div class="c-dropdown-item" data-value="w185" data-i18n="quality_w185">185px (Low)
                                 </div>
-                                <div class="c-dropdown-item selected" data-value="w300" data-i18n="quality_w300">300px
+                                <div class="c-dropdown-item selected" data-value="w342" data-i18n="quality_w342">300px
                                     (Medium)</div>
                                 <div class="c-dropdown-item" data-value="original" data-i18n="quality_original">Original
                                     (Max)</div>
@@ -798,70 +802,82 @@
                                 style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
                                 <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_poster_w">
                                     Poster Width:</h4>
-                                <span id="val-poster-w"
-                                    style="color:var(--accent); font-size:0.85rem; font-weight:bold;">150px</span>
+                                <div style="display: flex; align-items: center; gap: 2px;">
+                                    <input type="number" id="val-poster-w" style="width: 55px; background: transparent; border: none; color: var(--accent); font-size: 0.85rem; font-weight: bold; text-align: right; outline: none; padding: 0; margin-right: 4px; cursor: pointer; transition: all 0.2s;" class="config-val-input" min="100" max="1920"  oninput="document.getElementById('config-poster-w').value = this.value">
+                                    <span style="color:var(--accent); font-size:0.85rem; font-weight:bold;">px</span>
+                                </div>
                             </div>
                             <input type="range" class="config-input" id="config-poster-w" min="100" max="1920"
                                 value="150"
-                                oninput="document.getElementById('val-poster-w').innerText = this.value + 'px'">
+                                oninput="document.getElementById('val-poster-w').value = this.value">
                         </div>
                         <div class="input-group">
                             <div
                                 style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
                                 <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_poster_h">
                                     Poster Height:</h4>
-                                <span id="val-poster-h"
-                                    style="color:var(--accent); font-size:0.85rem; font-weight:bold;">225px</span>
+                                <div style="display: flex; align-items: center; gap: 2px;">
+                                    <input type="number" id="val-poster-h" style="width: 55px; background: transparent; border: none; color: var(--accent); font-size: 0.85rem; font-weight: bold; text-align: right; outline: none; padding: 0; margin-right: 4px; cursor: pointer; transition: all 0.2s;" class="config-val-input" min="150" max="1920"  oninput="document.getElementById('config-poster-h').value = this.value">
+                                    <span style="color:var(--accent); font-size:0.85rem; font-weight:bold;">px</span>
+                                </div>
                             </div>
                             <input type="range" class="config-input" id="config-poster-h" min="150" max="1920"
                                 value="225"
-                                oninput="document.getElementById('val-poster-h').innerText = this.value + 'px'">
+                                oninput="document.getElementById('val-poster-h').value = this.value">
                         </div>
                         <div class="input-group">
                             <div
                                 style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
                                 <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_fanart_w">
                                     Fanart Width:</h4>
-                                <span id="val-fanart-w"
-                                    style="color:var(--accent); font-size:0.85rem; font-weight:bold;">300px</span>
+                                <div style="display: flex; align-items: center; gap: 2px;">
+                                    <input type="number" id="val-fanart-w" style="width: 55px; background: transparent; border: none; color: var(--accent); font-size: 0.85rem; font-weight: bold; text-align: right; outline: none; padding: 0; margin-right: 4px; cursor: pointer; transition: all 0.2s;" class="config-val-input" min="200" max="1920"  oninput="document.getElementById('config-fanart-w').value = this.value">
+                                    <span style="color:var(--accent); font-size:0.85rem; font-weight:bold;">px</span>
+                                </div>
                             </div>
                             <input type="range" class="config-input" id="config-fanart-w" min="200" max="1920"
                                 value="300"
-                                oninput="document.getElementById('val-fanart-w').innerText = this.value + 'px'">
+                                oninput="document.getElementById('val-fanart-w').value = this.value">
                         </div>
                         <div class="input-group">
                             <div
                                 style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
                                 <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_fanart_h">
                                     Fanart Height:</h4>
-                                <span id="val-fanart-h"
-                                    style="color:var(--accent); font-size:0.85rem; font-weight:bold;">168px</span>
+                                <div style="display: flex; align-items: center; gap: 2px;">
+                                    <input type="number" id="val-fanart-h" style="width: 55px; background: transparent; border: none; color: var(--accent); font-size: 0.85rem; font-weight: bold; text-align: right; outline: none; padding: 0; margin-right: 4px; cursor: pointer; transition: all 0.2s;" class="config-val-input" min="100" max="1920"  oninput="document.getElementById('config-fanart-h').value = this.value">
+                                    <span style="color:var(--accent); font-size:0.85rem; font-weight:bold;">px</span>
+                                </div>
                             </div>
                             <input type="range" class="config-input" id="config-fanart-h" min="100" max="1920"
                                 value="168"
-                                oninput="document.getElementById('val-fanart-h').innerText = this.value + 'px'">
+                                oninput="document.getElementById('val-fanart-h').value = this.value">
                         </div>
                         <div class="input-group">
                             <div
                                 style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
                                 <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_grid_gap">
                                     Grid Spacing (Gap):</h4>
-                                <span id="val-gap"
-                                    style="color:var(--accent); font-size:0.85rem; font-weight:bold;">15px</span>
+                                <div style="display: flex; align-items: center; gap: 2px;">
+                                    <input type="number" id="val-gap" style="width: 55px; background: transparent; border: none; color: var(--accent); font-size: 0.85rem; font-weight: bold; text-align: right; outline: none; padding: 0; margin-right: 4px; cursor: pointer; transition: all 0.2s;" class="config-val-input" min="0" max="100"  oninput="document.getElementById('config-grid-gap').value = this.value">
+                                    <span style="color:var(--accent); font-size:0.85rem; font-weight:bold;">px</span>
+                                </div>
                             </div>
                             <input type="range" class="config-input" id="config-grid-gap" min="0" max="100" value="15"
-                                oninput="document.getElementById('val-gap').innerText = this.value + 'px'">
+                                oninput="document.getElementById('val-gap').value = this.value">
                         </div>
                         <div class="input-group">
                             <div
                                 style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
                                 <label style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;"
                                     data-i18n="ui_card_radius" class="field-label">Card Border Radius:</label>
-                                <span id="val-radius"
-                                    style="color:var(--accent); font-size:0.85rem; font-weight:bold;">8px</span>
+                                <div style="display: flex; align-items: center; gap: 2px;">
+                                    <input type="number" id="val-radius" style="width: 55px; background: transparent; border: none; color: var(--accent); font-size: 0.85rem; font-weight: bold; text-align: right; outline: none; padding: 0; margin-right: 4px; cursor: pointer; transition: all 0.2s;" class="config-val-input" min="0" max="100"  oninput="document.getElementById('config-card-radius').value = this.value">
+                                    <span style="color:var(--accent); font-size:0.85rem; font-weight:bold;">px</span>
+                                </div>
                             </div>
                             <input type="range" class="config-input" id="config-card-radius" min="0" max="100" value="8"
-                                oninput="document.getElementById('val-radius').innerText = this.value + 'px'">
+                                oninput="document.getElementById('val-radius').value = this.value">
                         </div>
                     </div>
                 </div>
@@ -958,23 +974,27 @@
                                 style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
                                 <label style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;"
                                     data-i18n="ui_glass_blur" class="field-label">Glassmorphism Blur:</label>
-                                <span id="val-blur"
-                                    style="color:var(--accent); font-size:0.85rem; font-weight:bold;">10px</span>
+                                <div style="display: flex; align-items: center; gap: 2px;">
+                                    <input type="number" id="val-blur" style="width: 55px; background: transparent; border: none; color: var(--accent); font-size: 0.85rem; font-weight: bold; text-align: right; outline: none; padding: 0; margin-right: 4px; cursor: pointer; transition: all 0.2s;" class="config-val-input" min="0" max="50"  oninput="document.getElementById('config-glass-blur').value = this.value">
+                                    <span style="color:var(--accent); font-size:0.85rem; font-weight:bold;">px</span>
+                                </div>
                             </div>
                             <input type="range" class="config-input" id="config-glass-blur" min="0" max="50" value="10"
-                                oninput="document.getElementById('val-blur').innerText = this.value + 'px'">
+                                oninput="document.getElementById('val-blur').value = this.value">
                         </div>
                         <div class="input-group">
                             <div
                                 style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
                                 <label style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;"
                                     data-i18n="ui_fanart_opacity" class="field-label">Fanart Mask Opacity:</label>
-                                <span id="val-mask-opacity"
-                                    style="color:var(--accent); font-size:0.85rem; font-weight:bold;">0.3</span>
+                                <div style="display: flex; align-items: center; gap: 2px;">
+                                    <input type="number" id="val-mask-opacity" style="width: 55px; background: transparent; border: none; color: var(--accent); font-size: 0.85rem; font-weight: bold; text-align: right; outline: none; padding: 0; margin-right: 4px; cursor: pointer; transition: all 0.2s;" class="config-val-input" min="0" max="1" step="0.1" oninput="document.getElementById('config-fanart-opacity').value = this.value">
+                                    <span style="color:var(--accent); font-size:0.85rem; font-weight:bold;"></span>
+                                </div>
                             </div>
                             <input type="range" class="config-input" id="config-fanart-opacity" min="0" max="1"
                                 step="0.1" value="0.3"
-                                oninput="document.getElementById('val-mask-opacity').innerText = this.value">
+                                oninput="document.getElementById('val-mask-opacity').value = this.value">
                         </div>
                     </div>
                 </div>
@@ -1026,6 +1046,8 @@
                     </div>
                     <div class="accordion-body">
                         <div style="margin-top:10px;">
+                            <label class="check-group"><input type="checkbox" id="config-show-watch-time" checked> <span
+                                    data-i18n="config_show_watch_time">Show watch time</span></label>
                             <label class="check-group"><input type="checkbox" id="config-show-duration" checked> <span
                                     data-i18n="config_show_duration">Show duration</span></label>
                             <label class="check-group"><input type="checkbox" id="config-show-title" checked> <span
@@ -1067,7 +1089,14 @@
                     <line x1="12" y1="19" x2="20" y2="19"></line>
                 </svg>
             </div>
-
+            <div class="fab-action" id="fab-about" title="About" data-i18n-title="action_about">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round" style="width:22px;height:22px;">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="16" x2="12" y2="12"></line>
+                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                </svg>
+            </div>
         </div>
         <button class="fab-main">
             <!-- Menu icon -->
@@ -1127,6 +1156,62 @@
     <!-- Toast Notifications -->
     <div id="toast-container"></div>
 
+    <!-- ABOUT MODAL -->
+    <div id="about-modal" class="overlay hidden"
+        style="z-index: 9999; display: flex; align-items: center; justify-content: center;">
+        <div class="login-box glass-panel" style="max-width: 500px; width: 90%; text-align: center; padding: 30px;">
+            <!-- Título y Logo -->
+            <div style="margin-bottom: 20px;">
+                <h2 style="margin: 0; font-size: 2rem; color: #fff;">Sync<span style="color:#e5a00d;">P</span><span
+                        style="color:#17B2E7;">K</span></h2>
+                <div style="color: #aaa; font-size: 0.9rem; margin-top: 5px;">v1.0.0</div>
+            </div>
+
+            <!-- Enlaces del Proyecto -->
+            <div style="display: flex; gap: 15px; justify-content: center; margin-bottom: 30px;">
+                <a href="https://github.com/lechtung/SyncPK" target="_blank"
+                    style="text-decoration: none; color: #fff; background: rgba(255,255,255,0.1); padding: 10px 15px; border-radius: 8px; font-size: 0.9rem; display: flex; align-items: center; gap: 8px; transition: background 0.2s;">
+                    <i class="fab fa-github" style="font-size: 1.2rem;"></i> <span data-i18n="about_github">GitHub
+                        Repo</span>
+                </a>
+                <a href="https://github.com/Simonwep/pickr" target="_blank"
+                    style="text-decoration: none; color: #fff; background: rgba(255,255,255,0.1); padding: 10px 15px; border-radius: 8px; font-size: 0.9rem; display: flex; align-items: center; gap: 8px; transition: background 0.2s;">
+                    <i class="fas fa-palette" style="color: #f85149; font-size: 1.2rem;"></i> <span
+                        data-i18n="about_pickr">Pickr Color</span>
+                </a>
+            </div>
+
+            <div class="modal-separator" style="border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 25px;">
+            </div>
+
+            <!-- TMDB Attribution -->
+            <div
+                style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 20px;">
+                <img src="https://www.themoviedb.org/assets/2/v4/logos/v2/blue_short-8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c.svg"
+                    alt="TMDB Logo" style="height: 18px; opacity: 0.8;">
+                <span style="color: #888; font-size: 0.8rem; line-height: 1.4;" data-i18n="tmdb_attribution">This
+                    product uses the TMDB API but is
+                    not endorsed or certified by TMDB.</span>
+            </div>
+
+            <!-- Font Awesome Attribution -->
+            <div style="background: rgba(0,0,0,0.2); padding: 10px 15px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 20px;">
+                <span style="color: #888; font-size: 0.8rem; line-height: 1.4;"><span data-i18n="about_icons">Icons by</span> <a href="https://fontawesome.com" target="_blank" style="color: #58a6ff; text-decoration: none;">Font Awesome</a> (Creative Commons 4.0)</span>
+            </div>
+
+            <!-- Disclaimer Plex / Kodi -->
+            <div style="color: #666; font-size: 0.75rem; line-height: 1.4; margin-bottom: 25px;"
+                data-i18n="not_affiliated">
+                SyncPK is an independent open-source project and is not affiliated with, funded, or in any way
+                associated with Plex or Kodi.
+            </div>
+
+            <!-- Botón Cerrar -->
+            <div class="modal-buttons">
+                <button id="about-close-btn" style="width: 100%;" data-i18n="btn_close">Close</button>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>

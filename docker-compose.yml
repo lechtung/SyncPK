@@ -3,9 +3,15 @@ services:
     image: ghcr.io/lechtung/syncpk:latest
     container_name: syncpk-server
     restart: unless-stopped
+    # user: "1000:1000" # Uncomment and change to your local UID:GID if you encounter permission issues (e.g., on a NAS)
+    # environment:
+      # - TZ=Europe/Madrid # Uncomment if your system does not support mapping /etc/localtime
     ports:
-      # Si publicas directamente a internet, usa un reverse proxy y cambia a "127.0.0.1:8000:8000" para evitar saltar el firewall ufw.
+      # If you are publishing directly to the internet, use a reverse proxy and switch to "127.0.0.1:8000:8000" to avoid bypassing the ufw firewall.
       - "8000:8000"
     volumes:
-      # Toda la persistencia (db, config json, .env y caché de imágenes) vive en ./data
+      # All persistence (DB, JSON config, .env, and image cache) resides in ./data
       - ./data:/app/data
+      # Automatic time zone mapping from the host (Optional but recommended)
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro

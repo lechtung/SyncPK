@@ -169,3 +169,18 @@ SyncPK uses the following open-source libraries:
 ## 📄 License
 
 This project is licensed under the GNU General Public License v3.0 (GPL-3.0). See the [LICENSE](LICENSE) file for details.
+
+
+### 🪟 Windows Users (Docker / Podman)
+Running SyncPK natively as a service on Windows is not officially supported. However, you can run it perfectly using **Docker Desktop** (Free for personal use) or **Podman Desktop** (Open Source).
+Make sure you use absolute Windows paths for your volumes in your docker-compose.yml or docker run command:
+`yaml
+volumes:
+  - C:\path	o\your\data:/app/data
+`
+
+⚠️ **Important Note about UFW / Firewall in Docker:**
+If you expose the port 8000:8000 in Docker, it will bypass Linux firewalls like UFW. To strictly bind the server to localhost for a reverse proxy, use 127.0.0.1:8000:8000 in your compose file.
+
+⚠️ **Important Note about LXC DHCP:**
+If you installed via LXC (Proxmox) and rely on DHCP, ensure you create a DHCP reservation in your router so the IP doesn't change and break your Kodi/Plex webhook URLs.

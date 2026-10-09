@@ -2,16 +2,17 @@
 Description=SyncPK Central Server
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=30
+StartLimitBurst=5
 
 [Service]
 User=syncpk
 Group=syncpk
 WorkingDirectory=/opt/syncpk
 Environment="DATA_DIR=/var/lib/syncpk"
-ExecStart=/opt/syncpk/venv/bin/python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
+ExecStart=/opt/syncpk/venv/bin/python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --no-access-log
 Restart=on-failure
 RestartSec=5
-StartLimitBurst=5
 NoNewPrivileges=true
 
 [Install]

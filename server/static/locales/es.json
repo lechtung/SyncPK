@@ -348,5 +348,12 @@
     "bulk_progress_scraping": "Descargando imágenes",
     "bulk_progress_rate_limit": "⚠️ Esperando {seconds} segundos (Límite de Plex)",
     "bulk_progress_text": "Progreso:",
-    "bulk_progress_items": "elementos"
+    "bulk_progress_items": "elementos",
+    "about_github": "Repositorio GitHub",
+    "about_pickr": "Color Pickr",
+    "action_about": "Acerca de",
+    "tmdb_attribution": "Este producto utiliza la API de TMDB pero no está respaldado ni certificado por TMDB.",
+    "not_affiliated": "SyncPK es un proyecto independiente de código abierto y no está afiliado, financiado ni asociado de ninguna manera con Plex o Kodi.",
+    "config_show_watch_time": "Mostrar hora de visualización",
+    "about_icons": "Iconos de"
 }

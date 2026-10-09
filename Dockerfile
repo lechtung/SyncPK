@@ -6,6 +6,7 @@ RUN useradd -m -u 1000 syncpkuser
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV DATA_DIR=/app/data
+ENV SYNC_IS_DOCKER=true
 
 # Set working directory
 WORKDIR /app
@@ -25,8 +26,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy all application files to workdir (Punto 14 - copiar todo server/)
 COPY server/ ./
 
-# Copy version file and update checkers even if unused natively by docker, just in case
-COPY check_update.sh update.sh .ver ./ 
+# We do not copy update.sh or check_update.sh because they are useless in Docker.
+
+ARG VERSION=0.0.0
+RUN echo "${VERSION#v}" > .ver
 
 # Create cache directories and set ownership of /app
 RUN mkdir -p /app/data/cache/posters /app/data/cache/fanarts && chown -R syncpkuser:syncpkuser /app
@@ -43,4 +46,4 @@ EXPOSE 8000
 
 # Start the application via entrypoint
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]

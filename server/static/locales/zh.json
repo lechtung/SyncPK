@@ -348,5 +348,12 @@
     "bulk_progress_scraping": "正在下载图片",
     "bulk_progress_rate_limit": "⚠️ 等待 {seconds} 秒 (Plex 速率限制)",
     "bulk_progress_text": "进度：",
-    "bulk_progress_items": "项目"
+    "bulk_progress_items": "项目",
+    "about_github": "GitHub 仓库",
+    "about_pickr": "Pickr 颜色",
+    "action_about": "关于",
+    "config_show_watch_time": "Show watch time",
+    "tmdb_attribution": "本产品使用 TMDB API，但未经 TMDB 认可或认证。",
+    "not_affiliated": "SyncPK 是一个独立的开源项目，不隶属于 Plex 或 Kodi，也未获得其资助或与之有任何关联。",
+    "about_icons": "图标由"
 }

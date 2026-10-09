@@ -348,5 +348,12 @@
     "bulk_progress_scraping": "画像をダウンロード中",
     "bulk_progress_rate_limit": "⚠️ {seconds} 秒待機中 (Plex レート制限)",
     "bulk_progress_text": "進捗:",
-    "bulk_progress_items": "アイテム"
+    "bulk_progress_items": "アイテム",
+    "about_github": "GitHub リポジトリ",
+    "about_pickr": "Pickr カラー",
+    "action_about": "について",
+    "config_show_watch_time": "Show watch time",
+    "tmdb_attribution": "この製品は TMDB API を使用していますが、TMDB によって承認または認定されていません。",
+    "not_affiliated": "SyncPK は独立したオープンソース プロジェクトであり、Plex または Kodi とは一切関係、資金提供、または提携していません。",
+    "about_icons": "アイコン提供:"
 }

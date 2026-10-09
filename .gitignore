@@ -16,6 +16,8 @@ sync.db-journal
 
 # Environment variables and secrets
 server/.env
+server/.env.bak
+*.env.bak
 *.pem
 server/plex_settings.json
 
@@ -27,6 +29,14 @@ server/plex_settings.json
 .idea/
 server/static/cache/
 server/.conf
+server/cache/
 AGENTS.md
 
 
+
+
+# Agent configurations
+.agents/
+
+# Version tracking
+.ver

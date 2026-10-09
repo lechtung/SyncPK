@@ -1,7 +1,6 @@
 fastapi
 uvicorn
 requests
-python-dotenv
 python-multipart
 httpx
 websockets

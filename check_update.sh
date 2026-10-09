@@ -13,29 +13,31 @@ TRIGGER_FILE="$DATA_DIR/.trigger_update"
 TMP=$(mktemp)
 trap 'rm -f "$TMP"' EXIT
 
-# API de Github (Punto 3 y 8)
+# GitHub API
 curl -fsSL --max-time 20 -o "$TMP" "https://api.github.com/repos/lechtung/SyncPK/releases/latest" || {
     echo "Error: Could not check for updates (Network error)."
     exit 1
 }
 
-REMOTE_VER=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tag_name"].lstrip("v"))' "$TMP" 2>/dev/null || true)
+REMOTE_VER=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tag_name"].lstrip("vV"))' "$TMP" 2>/dev/null || true)
 
-if [ -z "$REMOTE_VER" ] || [[ ! "$REMOTE_VER" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+if [ -z "$REMOTE_VER" ]; then
     echo "Error: Invalid remote version ($REMOTE_VER)"
     exit 1
 fi
 
-LOCAL_VER=$(cat "$LOCAL_VER_FILE" 2>/dev/null | tr -d ' \n\r') || LOCAL_VER="0.0.0"
+LOCAL_VER=$(cat "$LOCAL_VER_FILE" 2>/dev/null | tr -d ' \n\r' | sed 's/^[vV]//') || LOCAL_VER="0.0.0"
 
-# Comparamos semánticamente (solo actualiza si remota es mayor)
+# Semantic version comparison (only update if remote is newer)
 if [ "$REMOTE_VER" != "$LOCAL_VER" ] && [ "$(printf '%s\n%s\n' "$LOCAL_VER" "$REMOTE_VER" | sort -V | tail -n1)" = "$REMOTE_VER" ]; then
     echo "New version available: $REMOTE_VER (Local: $LOCAL_VER)"
     
-    # Leer AUTO_UPDATE de .env (Punto 7) - Soporta comillas simples o dobles o sin comillas
+    # Read AUTO_UPDATE from .env - Supports single, double or no quotes
     AUTO_UPDATE="false"
     if [ -f "$ENV_FILE" ]; then
-        if grep -q -i "^AUTO_UPDATE=[\"']\?true[\"']\?" "$ENV_FILE"; then
+        # Clean possible UTF-8 BOM and CRLF to avoid matching issues
+        CLEAN_ENV=$(cat "$ENV_FILE" | sed '1s/^\xef\xbb\xbf//' | tr -d '\r')
+        if echo "$CLEAN_ENV" | grep -q -E -i '^[[:space:]]*(export[[:space:]]+)?AUTO_UPDATE[[:space:]]*=[[:space:]]*["'\'']?true["'\'']?[[:space:]]*$'; then
             AUTO_UPDATE="true"
         fi
     fi
@@ -45,11 +47,11 @@ if [ "$REMOTE_VER" != "$LOCAL_VER" ] && [ "$(printf '%s\n%s\n' "$LOCAL_VER" "$RE
         touch "$TRIGGER_FILE"
     else
         echo "Auto-update disabled. Notifying UI."
-        echo "{\"update_available\": \"$REMOTE_VER\"}" > "$STATUS_FILE"
+        python3 -c "import json; print(json.dumps({'update_available': '$REMOTE_VER'}))" > "$STATUS_FILE"
         chmod 644 "$STATUS_FILE"
     fi
 else
     echo "SyncPK is up to date."
-    echo "{\"update_available\": false}" > "$STATUS_FILE"
+    python3 -c "import json; print(json.dumps({'update_available': False}))" > "$STATUS_FILE"
     chmod 644 "$STATUS_FILE"
 fi

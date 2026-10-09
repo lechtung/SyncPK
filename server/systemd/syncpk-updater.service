@@ -1,5 +1,7 @@
 [Unit]
 Description=Actualizador root de SyncPK
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=oneshot

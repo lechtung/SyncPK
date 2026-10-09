@@ -6,28 +6,78 @@ import urllib.request
 import os
 import datetime
 import time
+import threading
+import sqlite3
+import re
 
 ADDON = xbmcaddon.Addon()
 ADDON_ID = ADDON.getAddonInfo('id')
 ADDON_PATH = xbmcvfs.translatePath(ADDON.getAddonInfo('path'))
+QUEUE_DB = os.path.join(ADDON_PATH, 'queue.db')
+
+def get_db_connection():
+    os.makedirs(ADDON_PATH, exist_ok=True)
+    conn = sqlite3.connect(QUEUE_DB, timeout=5)
+    conn.execute("CREATE TABLE IF NOT EXISTS webhook_queue (id INTEGER PRIMARY KEY AUTOINCREMENT, payload TEXT, created_at TEXT)")
+    return conn
 
 def log(msg, level=xbmc.LOGINFO):
-    # Escribir siempre en el log propio para facilitar la depuracion
-    try:
-        log_file = os.path.join(ADDON_PATH, 'syncpk.log')
-        with open(log_file, 'a', encoding='utf-8') as f:
-            now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            f.write(f"[{now}] {msg}\n")
-    except:
-        pass
+    msg_str = str(msg)
+    msg_str = re.sub(r'(\?|&)token=[^&]+', r'\1token=***', msg_str)
+    
+    if ADDON.getSetting('debug_log') == 'true':
+        try:
+            log_file = os.path.join(xbmcvfs.translatePath('special://temp'), 'syncpk.log')
+            if os.path.exists(log_file) and os.path.getsize(log_file) > 5 * 1024 * 1024:
+                os.rename(log_file, log_file + '.old')
+            with open(log_file, 'a', encoding='utf-8') as f:
+                now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                f.write(f"[{now}] {msg_str}\n")
+        except:
+            pass
 
     if level == xbmc.LOGDEBUG and ADDON.getSetting('debug_log') != 'true':
         return
-    xbmc.log(f"[{ADDON_ID}] {msg}", level)
+    xbmc.log(f"[{ADDON_ID}] {msg_str}", level)
 
 def notify(msg):
     if ADDON.getSetting('show_notifications') == 'true':
         xbmc.executebuiltin(f"Notification(SyncPK, {msg}, 3000, '')")
+
+def enqueue_webhook(payload):
+    try:
+        with get_db_connection() as conn:
+            conn.execute("INSERT INTO webhook_queue (payload, created_at) VALUES (?, ?)", 
+                         (json.dumps(payload), datetime.datetime.now(datetime.timezone.utc).isoformat()))
+        log("Webhook encolado localmente.", xbmc.LOGDEBUG)
+    except Exception as e:
+        log(f"Error al encolar webhook: {e}", xbmc.LOGERROR)
+
+def process_queue():
+    webhook_url = ADDON.getSetting('server_url')
+    if not webhook_url or "/webhook/kodi" not in webhook_url:
+        return
+
+    try:
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            c.execute("SELECT id, payload FROM webhook_queue ORDER BY id ASC LIMIT 50")
+            rows = c.fetchall()
+            if not rows: return
+            
+            log(f"Procesando {len(rows)} webhooks encolados...", xbmc.LOGDEBUG)
+            for row_id, payload_str in rows:
+                try:
+                    req = urllib.request.Request(webhook_url, data=payload_str.encode('utf-8'))
+                    req.add_header('Content-Type', 'application/json')
+                    with urllib.request.urlopen(req, timeout=5) as response:
+                        if response.status in [200, 201]:
+                            conn.execute("DELETE FROM webhook_queue WHERE id = ?", (row_id,))
+                except Exception as e:
+                    log(f"Error reenviando webhook ID {row_id}: {e}", xbmc.LOGERROR)
+                    break 
+    except Exception as e:
+        log(f"Error procesando cola: {e}", xbmc.LOGERROR)
 
 class PlayerMonitor(xbmc.Player):
     def __init__(self):
@@ -39,28 +89,25 @@ class PlayerMonitor(xbmc.Player):
         self.start_time = 0
         self.total_time = 0
         self.media_info = {}
+        self.last_known_time = 0
 
     def onPlayBackStarted(self):
         self.playing_file = self.getPlayingFile()
         self.total_time = self.getTotalTime()
         self.start_time = self.getTime()
+        self.last_known_time = self.start_time
         
-        # Kodi tarda unos milisegundos en rellenar xbmc.getInfoLabel y devuelve basura. Usamos JSON-RPC:
         try:
             rpc_query = {
                 "jsonrpc": "2.0", 
                 "method": "Player.GetItem",
-                "params": {
-                   "playerid": 1,
-                   "properties": ["showtitle", "title", "season", "episode", "tvshowid", "imdbnumber", "uniqueid"]
-                },
+                "params": {"playerid": 1, "properties": ["showtitle", "title", "season", "episode", "tvshowid", "imdbnumber", "uniqueid"]},
                 "id": 1
             }
             res = json.loads(xbmc.executeJSONRPC(json.dumps(rpc_query)))
             item = res.get("result", {}).get("item", {})
             media_type = item.get("type", "")
             
-            # Si Kodi no sabe qué es, adivinamos por la temporada
             if media_type == 'unknown' or not media_type:
                 if int(item.get("season", -1)) > -1:
                     media_type = "episode"
@@ -72,7 +119,6 @@ class PlayerMonitor(xbmc.Player):
             
             tvshowid = item.get('tvshowid', -1)
             if media_type == "episode" and tvshowid != -1:
-                # Obtener los IDs de la serie completa
                 show_query = {
                     "jsonrpc": "2.0", "method": "VideoLibrary.GetTVShowDetails",
                     "params": {"tvshowid": int(tvshowid), "properties": ["uniqueid", "imdbnumber"]}, "id": 1
@@ -81,7 +127,6 @@ class PlayerMonitor(xbmc.Player):
                 show_details = show_res.get("result", {}).get("tvshowdetails", {})
                 show_unique_ids = show_details.get("uniqueid", {})
                 
-                # Fallback por si la librería es vieja y solo tiene imdbnumber
                 if not show_unique_ids and show_details.get("imdbnumber"):
                     f_id = show_details.get("imdbnumber")
                     if f_id.startswith("tt"): show_unique_ids["imdb"] = f_id
@@ -115,10 +160,7 @@ class PlayerMonitor(xbmc.Player):
         if not self.playing_file:
             return
             
-        try:
-            current_time = self.getTime() if not ended else self.total_time
-        except:
-            current_time = self.total_time
+        current_time = self.total_time if ended else self.last_known_time
 
         if self.total_time > 0:
             percent_watched = (current_time / self.total_time) * 100
@@ -144,14 +186,12 @@ class PlayerMonitor(xbmc.Player):
 
     def send_webhook(self):
         try:
-            # Filtrar YouTube/Tubed de forma inmediata
             if self.playing_file:
                 path_lower = self.playing_file.lower()
                 if 'plugin.video.youtube' in path_lower or 'plugin.video.tubed' in path_lower:
                     log(f"Ignorando envío porque es un vídeo de YouTube/Tubed: {self.playing_file}", xbmc.LOGDEBUG)
                     return
                 
-            # Filtrado inteligente: Si no tiene un ID válido en la base de datos de Kodi, es un trailer o un stream externo
             kodi_id_str = self.media_info.get('kodi_id', '')
             try: kodi_id_int = int(kodi_id_str)
             except: kodi_id_int = -1
@@ -192,6 +232,10 @@ class PlayerMonitor(xbmc.Player):
                 payload["Metadata"]["show_unique_ids"] = self.media_info.get('show_unique_ids', {})
 
             webhook_url = ADDON.getSetting('server_url')
+            if not webhook_url or "/webhook/kodi" not in webhook_url:
+                log("Servidor URL no configurado o invalido. Encolando webhook.", xbmc.LOGWARNING)
+                enqueue_webhook(payload)
+                return
             
             log(f"Enviando Webhook a {webhook_url} -> {json.dumps(payload)}", xbmc.LOGDEBUG)
             
@@ -204,7 +248,8 @@ class PlayerMonitor(xbmc.Player):
                 notify("Sincronizado con éxito")
                 
         except Exception as e:
-            log(f"Error procesando el envio del webhook: {e}", xbmc.LOGERROR)
+            log(f"Error procesando el envio del webhook: {e}. Encolando...", xbmc.LOGERROR)
+            enqueue_webhook(payload)
 
 def json_rpc(method, params=None):
     request = {"jsonrpc": "2.0", "method": method, "id": 1}
@@ -223,22 +268,22 @@ class SyncPuller:
         resp_t = json_rpc("VideoLibrary.GetTVShows", {"properties": ["uniqueid", "imdbnumber", "title"]})
         self.kodi_shows = resp_t.get("result", {}).get("tvshows", [])
 
-    def _buscar_pelicula(self, simkl_ids, titulo):
+    def _buscar_pelicula(self, server_ids, titulo):
         for m in self.kodi_movies:
             u_id = m.get("uniqueid", {})
-            if simkl_ids.get("imdb") and (u_id.get("imdb") == simkl_ids["imdb"] or m.get("imdbnumber") == simkl_ids["imdb"]): return m["movieid"]
-            if simkl_ids.get("tmdb") and (u_id.get("tmdb") == str(simkl_ids["tmdb"]) or m.get("imdbnumber") == str(simkl_ids["tmdb"])): return m["movieid"]
+            if server_ids.get("imdb") and (str(u_id.get("imdb")) == str(server_ids["imdb"]) or str(m.get("imdbnumber")) == str(server_ids["imdb"])): return m["movieid"]
+            if server_ids.get("tmdb") and (str(u_id.get("tmdb")) == str(server_ids["tmdb"]) or str(m.get("imdbnumber")) == str(server_ids["tmdb"])): return m["movieid"]
         if titulo:
             for m in self.kodi_movies:
                 if m.get("title", "").lower() == titulo.lower(): return m["movieid"]
         return None
 
-    def _buscar_serie(self, simkl_ids, titulo):
+    def _buscar_serie(self, server_ids, titulo):
         for show in self.kodi_shows:
             u_id = show.get("uniqueid", {})
-            if simkl_ids.get("imdb") and (u_id.get("imdb") == simkl_ids["imdb"] or show.get("imdbnumber") == simkl_ids["imdb"]): return show["tvshowid"]
-            if simkl_ids.get("tvdb") and (u_id.get("tvdb") == str(simkl_ids["tvdb"]) or show.get("imdbnumber") == str(simkl_ids["tvdb"])): return show["tvshowid"]
-            if simkl_ids.get("tmdb") and (u_id.get("tmdb") == str(simkl_ids["tmdb"]) or show.get("imdbnumber") == str(simkl_ids["tmdb"])): return show["tvshowid"]
+            if server_ids.get("imdb") and (str(u_id.get("imdb")) == str(server_ids["imdb"]) or str(show.get("imdbnumber")) == str(server_ids["imdb"])): return show["tvshowid"]
+            if server_ids.get("tvdb") and (str(u_id.get("tvdb")) == str(server_ids["tvdb"]) or str(show.get("imdbnumber")) == str(server_ids["tvdb"])): return show["tvshowid"]
+            if server_ids.get("tmdb") and (str(u_id.get("tmdb")) == str(server_ids["tmdb"]) or str(show.get("imdbnumber")) == str(server_ids["tmdb"])): return show["tvshowid"]
         if titulo:
             for show in self.kodi_shows:
                 if show.get("title", "").lower() == titulo.lower(): return show["tvshowid"]
@@ -248,7 +293,6 @@ class SyncPuller:
         log("Iniciando FULL PUSH SYNC. Construyendo paquete masivo...", xbmc.LOGINFO)
         payloads = []
         
-        # 1. Películas vistas
         resp_m = json_rpc("VideoLibrary.GetMovies", {"properties": ["uniqueid", "imdbnumber", "title", "playcount", "lastplayed"]})
         for m in resp_m.get("result", {}).get("movies", []):
             if m.get("playcount", 0) > 0:
@@ -257,7 +301,7 @@ class SyncPuller:
                     try:
                         local_dt = datetime.datetime.strptime(m["lastplayed"], '%Y-%m-%d %H:%M:%S')
                         timestamp = time.mktime(local_dt.timetuple())
-                        utc_dt = datetime.datetime.utcfromtimestamp(timestamp)
+                        utc_dt = datetime.datetime.fromtimestamp(timestamp, tz=datetime.timezone.utc)
                         watched_at = utc_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
                     except: pass
                 
@@ -271,7 +315,6 @@ class SyncPuller:
                 if watched_at: payload["Metadata"]["watched_at"] = watched_at
                 payloads.append(payload)
 
-        # 2. Episodios vistos
         resp_e = json_rpc("VideoLibrary.GetEpisodes", {"properties": ["uniqueid", "title", "showtitle", "season", "episode", "tvshowid", "playcount", "lastplayed"]})
         resp_s = json_rpc("VideoLibrary.GetTVShows", {"properties": ["uniqueid", "imdbnumber", "title"]})
         shows_cache = {s["tvshowid"]: s for s in resp_s.get("result", {}).get("tvshows", [])}
@@ -283,7 +326,7 @@ class SyncPuller:
                     try:
                         local_dt = datetime.datetime.strptime(ep["lastplayed"], '%Y-%m-%d %H:%M:%S')
                         timestamp = time.mktime(local_dt.timetuple())
-                        utc_dt = datetime.datetime.utcfromtimestamp(timestamp)
+                        utc_dt = datetime.datetime.fromtimestamp(timestamp, tz=datetime.timezone.utc)
                         watched_at = utc_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
                     except: pass
                 
@@ -301,7 +344,6 @@ class SyncPuller:
                 }
                 if watched_at: payload["Metadata"]["watched_at"] = watched_at
                 
-                # Fallback de IMDB para la serie
                 if not payload["Metadata"]["show_unique_ids"] and show_info.get("imdbnumber"):
                     f_id = show_info.get("imdbnumber")
                     if f_id.startswith("tt"): payload["Metadata"]["show_unique_ids"]["imdb"] = f_id
@@ -313,21 +355,35 @@ class SyncPuller:
             log("Full Push completado: No había nada visto en Kodi localmente.", xbmc.LOGINFO)
             return
 
-        try:
-            bulk_url = f"{host_url}/webhook/kodi/bulk"
-            req = urllib.request.Request(bulk_url, data=json.dumps(payloads).encode('utf-8'))
-            req.add_header('Content-Type', 'application/json')
-            with urllib.request.urlopen(req, timeout=30) as response:
-                res = json.loads(response.read())
-                log(f"Full Push completado con éxito. Enviados {len(payloads)} items. Procesados: {res.get('processed')}", xbmc.LOGINFO)
-        except Exception as e:
-            log(f"Error en Full Push Bulk: {e}", xbmc.LOGERROR)
+        bulk_url = f"{host_url}/webhook/kodi/bulk"
+        chunk_size = 100
+        for i in range(0, len(payloads), chunk_size):
+            chunk = payloads[i:i + chunk_size]
+            try:
+                req = urllib.request.Request(bulk_url, data=json.dumps(chunk).encode('utf-8'))
+                req.add_header('Content-Type', 'application/json')
+                with urllib.request.urlopen(req, timeout=30) as response:
+                    res = json.loads(response.read())
+                    log(f"Full Push chunk {i//chunk_size + 1} enviado. Procesados: {res.get('processed')}", xbmc.LOGINFO)
+            except Exception as e:
+                log(f"Error en Full Push Bulk chunk {i//chunk_size + 1}: {e}", xbmc.LOGERROR)
 
     def run(self):
+        try:
+            self._run_internal()
+        except Exception as e:
+            log(f"Error fatal en el ciclo SyncPuller: {e}", xbmc.LOGERROR)
+
+    def _run_internal(self):
         utc_sync = ADDON.getSetting('last_sync_date')
                 
         base_url = ADDON.getSetting('server_url')
-        host_url = base_url.split("/webhook/kodi")[0] if "/webhook/kodi" in base_url else "http://192.168.178.206:8000"
+        if not base_url or "/webhook/kodi" not in base_url:
+            log("Configuracion de red invalida. Configura la URL correcta del servidor en los ajustes del Addon.", xbmc.LOGWARNING)
+            notify("Configura la URL de SyncPK")
+            return
+            
+        host_url = base_url.split("/webhook/kodi")[0]
             
         url = f"{host_url}/sync/all-items?client=kodi"
         if utc_sync: url += f"&date_from={utc_sync}"
@@ -407,15 +463,15 @@ class SyncPuller:
             except Exception as e:
                 log(f"Error confirmando sincronización: {e}", xbmc.LOGERROR)
                 
-        # --- PULL FINALIZADO. SI ES LA PRIMERA VEZ, HACEMOS FULL PUSH DESPUÉS ---
         if is_first_sync:
-            self._full_push_sync(host_url)
+            threading.Thread(target=self._full_push_sync, args=(host_url,), daemon=True).start()
                 
         if server_time:
             ADDON.setSetting('last_sync_date', server_time)
             log(f"Sincronización terminada. Nueva fecha de servidor guardada: {server_time}")
         else:
             log("Sincronización terminada pero no se pudo obtener server_time. Manteniendo la fecha anterior.", xbmc.LOGWARNING)
+
 if __name__ == '__main__':
     log("Servicio iniciado")
     player = PlayerMonitor()
@@ -425,10 +481,9 @@ if __name__ == '__main__':
         
     puller = SyncPuller()
     if sync_on_startup:
-        puller.run()
+        threading.Thread(target=puller.run, daemon=True).start()
         
     ticks = 0
-    # Mantener el servicio vivo hasta que Kodi se cierre
     while not monitor.abortRequested():
         if monitor.waitForAbort(1):
             break
@@ -439,8 +494,17 @@ if __name__ == '__main__':
             sync_interval = 15
             
         ticks += 1
+        
+        if player.isPlayingVideo():
+            try:
+                player.last_known_time = player.getTime()
+            except: pass
+
+        if ticks % 60 == 0:
+            threading.Thread(target=process_queue, daemon=True).start()
+            
         if sync_interval > 0 and ticks >= (sync_interval * 60):
-            puller.run()
+            threading.Thread(target=puller.run, daemon=True).start()
             ticks = 0
             
     log("Servicio detenido")

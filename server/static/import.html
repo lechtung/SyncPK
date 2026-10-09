@@ -9,8 +9,8 @@
   <link rel="icon" href="/favicon.ico" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link href="/vendor/inter.css" rel="stylesheet">
+  <link href="/vendor/fontawesome/css/all.min.css" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="setup.css" />
   <link rel="stylesheet" href="import.css" />
@@ -116,7 +116,7 @@
         <div class="step-subtitle" data-i18n="import_step2_subtitle">Downloading cross-server activity from your Plex account.</div>
         
         <div class="import-progress-container">
-          <div class="import-status-text">
+          <div class="import-status-text" style="flex-direction: column; align-items: flex-start; gap: 6px;">
             <span id="import-cloud-status" data-i18n="import_step2_text">Fetching batches...</span>
             <span id="import-cloud-count">0 items</span>
           </div>
@@ -220,7 +220,11 @@
             document.getElementById('import-percentage').textContent = '100%';
         } else if (idx === 1) {
             document.getElementById('import-cloud-status').textContent = t('import_step2_done');
-            document.getElementById('import-cloud-count').textContent = uiState[1].cur + " items" + t('import_step2_complete_text');
+            let finalOrphans = uiState[1].orphans || 0;
+              let finalUpdates = uiState[1].updates || 0;
+              let textTemplate = t('import_step2_progress_text') || "{count} items processed ( {orphans} inserted / {updates} updated )";
+              let finalText = textTemplate.replace('{count}', uiState[1].cur).replace('{orphans}', finalOrphans).replace('{updates}', finalUpdates);
+              document.getElementById('import-cloud-count').textContent = finalText + t('import_step2_complete_text');
             document.getElementById('import-cloud-fill').classList.remove('indeterminate');
             document.getElementById('import-cloud-fill').style.width = '100%';
             icon.classList.remove('fa-cloud-arrow-down', 'fa-beat-fade');
@@ -337,7 +341,11 @@
                     } 
                     else if (msg.step === 1 && !uiState[1].done) {
                         uiState[1].cur = msg.count;
-                        document.getElementById('import-cloud-count').textContent = msg.count + " items";
+                        uiState[1].orphans = msg.orphans || 0;
+                          uiState[1].updates = msg.updates || 0;
+                          let textTemplate = t('import_step2_progress_text') || "{orphans} inseridos / {updates} atualizados";
+                          let progressText = textTemplate.replace('{orphans}', uiState[1].orphans).replace('{updates}', uiState[1].updates);
+                          document.getElementById('import-cloud-count').textContent = progressText;
                         
                         if (currentStepIdx < 1 && !uiState[0].done) {
                              finishStep(0);
@@ -406,7 +414,7 @@
                     let data = await res.json();
                     // Only act if truly stopped AND we've been on step 3 for at least 30 seconds
                     const step3Age = step3StartTime ? Date.now() - step3StartTime : 0;
-                    if (!data.is_running && data.done && currentTmdbCount > 0 && step3Age > 30000 && !uiState[2].done) {
+                    if (!data.running && data.done && currentTmdbCount > 0 && step3Age > 30000 && !uiState[2].done) {
                         console.warn('[import] Fallback polling closing step 3 after 30s');
                         if (!uiState[1].done) finishStep(1);
                         const waitForStep3 = () => {

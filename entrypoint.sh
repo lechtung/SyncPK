@@ -1,16 +1,16 @@
 #!/bin/sh
 set -e
 
-# Asegurar que el directorio de datos existe
+# Ensure data directory exists
 mkdir -p /app/data
 
-# Arreglar los permisos del volumen montado solo si difiere (Optimización - Punto 6)
-if [ "$(stat -c '%u' /app/data)" != "1000" ]; then
-    chown -R syncpkuser:syncpkuser /app/data
+# Fix mounted volume permissions only if they differ (Optimization)
+if [ -n "$(find /app/data ! -uid 1000 -print -quit 2>/dev/null)" ]; then
+    chown -R syncpkuser:syncpkuser /app/data || true
 fi
 
-# Restringir umask para que los ficheros creados sean privados (Punto 6)
+# Restrict umask so created files are private
 umask 077
 
-# Ejecutar el comando pasado (uvicorn) quitándonos los permisos de root
+# Execute the passed command (uvicorn) dropping root privileges
 exec gosu syncpkuser "$@"

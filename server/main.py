@@ -1,27 +1,45 @@
-#v8
-from fastapi import FastAPI, Request, Query, Depends, HTTPException, Header, Cookie, WebSocket, WebSocketDisconnect, BackgroundTasks
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse
-from pydantic import BaseModel
-from typing import Optional, List
-import sqlite3
+import asyncio
+import base64
+import ctypes
 import datetime
+import difflib
+import hashlib
+import hmac
+import httpx
 import json
+import logging
+import os
+import queue
+import random, math
+import re
+import requests
+import requests, time
+import secrets
+import shutil
+import sqlite3
+import string
+import subprocess
+import sys
+import threading
+import time
+import traceback
 import urllib.request
 import xml.etree.ElementTree as ET
+from fastapi import FastAPI, Request, Query, Depends, HTTPException, Header, Cookie, WebSocket, WebSocketDisconnect, BackgroundTasks
+from fastapi import HTTPException
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import FileResponse, Response
+from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from collections import defaultdict
-import os
-import base64
-import hmac
-import hashlib
-import asyncio
-import time
-import threading
-import queue
-import sys
-import string
-import secrets
-import re
+from collections import deque
+from contextlib import closing
+from logging.handlers import RotatingFileHandler
+from pydantic import BaseModel
+from typing import Optional, List
+
+#v8
 
 # WebSocket Manager para eventos en tiempo real
 class ConnectionManager:
@@ -50,14 +68,12 @@ ENV_PATH = os.path.join(DATA_DIR, ".env")
 DB_PATH = os.path.join(DATA_DIR, "sync.db")
 SETTINGS_FILE = os.path.join(DATA_DIR, "plex_settings.json")
 LOG_FILE = os.path.join(DATA_DIR, "syncpk.log")
-CACHE_PATH = os.path.join(DATA_DIR, "static/cache") 
+CACHE_PATH = os.path.join(DATA_DIR, "cache") 
 
 # Shared state for background rescan task
 rescan_status = {"running": False, "done": False}
 
 
-import logging
-from logging.handlers import RotatingFileHandler
 
 logging.basicConfig(
     handlers=[RotatingFileHandler(LOG_FILE, maxBytes=5*1024*1024, backupCount=1, encoding='utf-8')],
@@ -70,9 +86,11 @@ class DualLogger(object):
         self.terminal = sys.stderr if is_stderr else sys.__stdout__
         self.logger = logging.getLogger('SyncPK')
         self.buf = ""
+        self.lock = threading.Lock()
         
     def write(self, message):
-        self.terminal.write(message)
+        with self.lock:
+            self.terminal.write(message)
         self.terminal.flush()
         self.buf += message
         if '\n' in self.buf:
@@ -83,7 +101,8 @@ class DualLogger(object):
             self.buf = lines[-1]
             
     def flush(self):
-        self.terminal.flush()
+        with self.lock:
+            self.terminal.flush()
         if self.buf.strip():
             self.logger.info(self.buf.strip())
             self.buf = ""
@@ -164,12 +183,35 @@ async def setup_guard(request, call_next):
     if not os.path.exists(ENV_PATH):
         # Allow: setup endpoint, time healthcheck, static assets, and the root HTML route
         if path.startswith("/api/") and not path.startswith("/api/setup") and path != "/api/time":
-            from fastapi.responses import JSONResponse
             return JSONResponse(
                 status_code=403,
                 content={"error": "SyncPK is not configured yet. Complete the setup wizard first."}
             )
     return await call_next(request)
+
+# --- CUSTOM ACCESS LOG MIDDLEWARE ---
+
+logging.basicConfig(level=logging.INFO, format='\x1b[32m%(levelname)s\x1b[0m:     %(message)s')
+access_logger = logging.getLogger("syncpk.access")
+
+@app.middleware("http")
+async def access_log_middleware(request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    
+    path = request.url.path
+    # Prevent spam in physical logs if there is no error
+    if response.status_code in [200, 304] and (path.startswith("/cache/") or path.startswith("/static/") or path == "/favicon.ico"):
+        return response
+        
+    process_time = (time.time() - start_time) * 1000
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    
+    # Colored format like Uvicorn
+    color = "\x1b[32m" if response.status_code < 400 else "\x1b[31m"
+    access_logger.info(f'{client_ip} - "\x1b[1m{request.method} {path} HTTP/1.1\x1b[0m" {color}{response.status_code}\x1b[0m ({process_time:.2f}ms)')
+    
+    return response
 
 # --- PLEX & SECURITY CONFIGURATION ---
 PLEX_URL = os.getenv("PLEX_URL", "")
@@ -254,7 +296,7 @@ def verify_webhook_token(token: Optional[str] = Query(None)):
 
 
 def get_db_connection():
-    conn = sqlite3.connect(DB_PATH, timeout=20)
+    conn = sqlite3.connect(DB_PATH, timeout=20, check_same_thread=False)
     conn.execute("PRAGMA journal_mode=WAL")
     return conn
 
@@ -354,14 +396,28 @@ def init_db():
 
 init_db()
 
-import httpx
-import asyncio
-import os
 
 os.makedirs(os.path.join(CACHE_PATH, "posters"), exist_ok=True)
 os.makedirs(os.path.join(CACHE_PATH, "fanarts"), exist_ok=True)
 
 # --- UNIFIED ARTWORK LOGIC ---
+
+def tmdb_get(url, **kwargs):
+    headers = kwargs.get("headers", {})
+    if len(TMDB_API_KEY) > 40:
+        headers["Authorization"] = f"Bearer {TMDB_API_KEY}"
+        if "?" in url:
+            url = re.sub(r"&?api_key=[^&]+", "", url)
+            url = url.replace("?&", "?").rstrip("?")
+    else:
+        if "?" not in url:
+            url += f"?api_key={TMDB_API_KEY}"
+        elif "api_key=" not in url:
+            url += f"&api_key={TMDB_API_KEY}"
+    kwargs["headers"] = headers
+    kwargs.setdefault("timeout", 15)
+    return requests.get(url, **kwargs)
+
 def _get_tmdb_size(desired_px, valid_sizes):
     for size in valid_sizes:
         if size == 'original': return size
@@ -425,8 +481,10 @@ async def _download_single_image(client, url_suffix, local_filename, folder, tar
                     continue
                 if resp.status_code == 200:
                     os.makedirs(os.path.join(CACHE_PATH, folder), exist_ok=True)
-                    with open(local_path, "wb") as f:
+                    tmp_path = local_path + ".tmp"
+                    with open(tmp_path, "wb") as f:
                         f.write(resp.content)
+                    os.replace(tmp_path, local_path)
                     return True
                 return False
             except Exception:
@@ -503,7 +561,6 @@ async def download_artwork_async(client, media_type, tmdb_id, show_tmdb_id, seas
     return updated_info
 
 def download_artwork_sync(media_type, tmdb_id, show_tmdb_id, season, episode, title, show_title):
-    import httpx
     async def wrapper():
         async with httpx.AsyncClient() as client:
             return await download_artwork_async(client, media_type, tmdb_id, show_tmdb_id, season, episode, title, show_title)
@@ -518,9 +575,6 @@ def download_artwork_sync(media_type, tmdb_id, show_tmdb_id, season, episode, ti
 async def execute_full_rescan(sync_lang, tmdb_key, poster_pref, fanart_pref, is_debug=False, main_loop=None):
     print(f"[rescan] Starting full library rescan for language: {sync_lang}")
     try:
-        import httpx
-        import asyncio
-        import json
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT id, tmdb_id, show_tmdb_id, media_type, season, episode, title, show_title, poster_path, fanart_path FROM watch_history")
@@ -581,7 +635,6 @@ async def execute_full_rescan(sync_lang, tmdb_key, poster_pref, fanart_pref, is_
         await manager.broadcast(done_msg)
         print("[rescan] Full library rescan completed successfully.")
     except Exception as e:
-        import traceback
         print(f"[rescan] Error during rescan: {e}")
         traceback.print_exc()
         # Even on error, signal the frontend so it doesn't hang
@@ -599,7 +652,6 @@ async def bulk_download_tmdb_images():
     f_pref = os.getenv("FANART_PREF", "episode")
     is_debug = os.getenv("DEBUG", "false") == "true"
     
-    import asyncio
     loop = asyncio.get_running_loop()
     await execute_full_rescan(lang, tmdb_key, p_pref, f_pref, is_debug, loop)
     
@@ -622,7 +674,7 @@ def get_show_ids_from_plex(grandparent_key):
     url = f"{PLEX_URL}{grandparent_key}"
     try:
         req = urllib.request.Request(url, headers=plex_headers)
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, timeout=15) as response:
             data = json.loads(response.read())
             metadata = data.get("MediaContainer", {}).get("Metadata", [])
             if metadata:
@@ -816,7 +868,6 @@ async def plex_webhook(request: Request):
         
     payload = json.loads(payload_str)
     
-    from fastapi.concurrency import run_in_threadpool
     def _db_task():
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -834,7 +885,6 @@ async def kodi_webhook(request: Request):
     except Exception:
         return {"status": "error", "message": "Invalid JSON"}
         
-    from fastapi.concurrency import run_in_threadpool
     def _db_task():
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -1038,7 +1088,7 @@ def process_kodi_payload(payload, cursor, is_bulk=False):
     return True
 
 
-@app.post("/webhook/kodi/bulk", dependencies=[Depends(verify_api_key)])
+@app.post("/webhook/kodi/bulk", dependencies=[Depends(verify_webhook_token)])
 async def kodi_webhook_bulk(request: Request):
     try:
         payloads = await request.json()
@@ -1062,7 +1112,7 @@ async def kodi_webhook_bulk(request: Request):
 class ConfirmSyncRequest(BaseModel):
     ids: list[int]
 
-@app.post("/sync/confirm-kodi", dependencies=[Depends(verify_api_key)])
+@app.post("/sync/confirm-kodi", dependencies=[Depends(verify_webhook_token)])
 def confirm_kodi_sync(req: ConfirmSyncRequest):
     if not req.ids:
         return {"status": "success", "deleted": 0}
@@ -1074,8 +1124,9 @@ def confirm_kodi_sync(req: ConfirmSyncRequest):
     conn.close()
     return {"status": "success", "deleted": len(req.ids)}
 
-@app.get("/sync/all-items", dependencies=[Depends(verify_api_key)])
+@app.get("/sync/all-items", dependencies=[Depends(verify_webhook_token)])
 def get_all_items(client: Optional[str] = Query("kodi"), date_from: Optional[str] = Query(None)):
+    now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -1086,8 +1137,7 @@ def get_all_items(client: Optional[str] = Query("kodi"), date_from: Optional[str
     if date_from:
         query += " AND created_at >= ?"
         params.append(date_from)
-        query += " AND origin != ?"
-        params.append(client)
+        # Eliminamos la regla origin != client para que si hay mï¿½ltiples TVs con Kodi, todas reciban todo.
         
     cursor.execute(query, params)
     rows = cursor.fetchall()
@@ -1151,7 +1201,6 @@ def get_all_items(client: Optional[str] = Query("kodi"), date_from: Optional[str
             deleted_shows.append(item)
         
     conn.close()
-    now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     return {
         "movies": movies,
         "shows": shows_list,
@@ -1187,7 +1236,6 @@ def login(req: LoginRequest):
         pwd_hash = hashlib.sha256((req.password + SALT).encode()).hexdigest()
 
     if hmac.compare_digest(pwd_hash, WEB_HASH):
-        from fastapi.responses import JSONResponse
         res = JSONResponse(content={"success": True})
         res.set_cookie(key="syncpk_session", value=WEB_HASH, httponly=True, samesite="lax", max_age=86400 * 30)
         return res
@@ -1285,13 +1333,11 @@ def get_stats(type: str = "all", year: str = "all", month: str = "all", search: 
         "available_years": available_years
     }
 
-import subprocess
 
 @app.get("/api/logs")
 def get_logs(authorization: str = Depends(verify_api_key)):
     try:
         if os.path.exists(LOG_FILE):
-            from collections import deque
             with open(LOG_FILE, 'r', encoding='utf-8') as f:
                 lines = deque(f, maxlen=200)
             return {"logs": "".join(lines)}
@@ -1299,7 +1345,6 @@ def get_logs(authorization: str = Depends(verify_api_key)):
     except Exception as e:
         return {"logs": f"Error leyendo logs: {e}"}
 
-from fastapi.responses import FileResponse, Response
 
 @app.get("/api/download_logs", dependencies=[Depends(verify_api_key)])
 def download_logs():
@@ -1311,7 +1356,6 @@ def download_logs():
         return Response(content="No logs available.", media_type="text/plain")
     except Exception as e:
         error_str = str(e)
-        import re
         error_str = re.sub(r'X-Plex-Token=[a-zA-Z0-9_-]+', 'X-Plex-Token=***', error_str)
         return {"error": f"Error descargando logs: {error_str}"}
 
@@ -1425,7 +1469,6 @@ def get_plex_activity_nodes(metadata_id, types=None, max_timeout=600):
     if types is None:
         types = ["WATCH_HISTORY", "WATCH_SESSION"]
         
-    import requests, time
     url_graphql = "https://community.plex.tv/api"
     headers_fetch = {
         "Accept": "application/json", "Content-Type": "application/json",
@@ -1467,7 +1510,6 @@ def get_plex_activity_nodes(metadata_id, types=None, max_timeout=600):
         time.sleep(5)
 
 def mutate_plex_activity(node_id, action, watched_at_graphql=None, title="", max_timeout=600, main_loop=None):
-    import requests, time
     url = "https://community.plex.tv/api"
     headers = {
         "Accept": "application/json", "Content-Type": "application/json",
@@ -1592,9 +1634,20 @@ def unscrobble_plex(item):
                     pass
             
             if not nodes_to_delete:
-                print(f"⚠️ [unscrobble] No se encontró coincidencia de fecha para '{title}'. Se borrarán TODOS los {total_nodes} registros cloud. Considera abortar si es un error.")
-                nodes_to_delete = nodes
+                print(f"⚠️ [unscrobble] No se encontró coincidencia de fecha para '{title}'. ABORTANDO para evitar borrado masivo.")
+                return False
             else:
+                # Find the single closest node instead of all
+                try:
+                    target_date_dt = datetime.datetime.strptime(target_date_str.replace("Z", "").split(".")[0], "%Y-%m-%dT%H:%M:%S")
+                    closest_node = min(
+                        nodes_to_delete, 
+                        key=lambda x: abs((datetime.datetime.strptime(x.get("date").replace("Z", "").split(".")[0], "%Y-%m-%dT%H:%M:%S") - target_date_dt).total_seconds())
+                    )
+                    nodes_to_delete = [closest_node]
+                except Exception as e:
+                    pass
+
                 if is_debug: print(f"[DEBUG] [unscrobble] Found {len(nodes_to_delete)} matching activit(ies) to delete.", flush=True)
                 
             if len(nodes_to_delete) < total_nodes:
@@ -1693,6 +1746,17 @@ def perform_plex_surgery(item: dict, watched_at_local: str, main_loop=None):
     
     if nodes:
         node_id = nodes[0].get("id")
+        try:
+            target_date = datetime.datetime.strptime(watched_at_local.replace("Z", "").split(".")[0], "%Y-%m-%dT%H:%M:%S")
+            closest_node = min(
+                [n for n in nodes if n.get("date")], 
+                key=lambda x: abs((datetime.datetime.strptime(x.get("date").replace("Z", "").split(".")[0], "%Y-%m-%dT%H:%M:%S") - target_date).total_seconds()),
+                default=None
+            )
+            if closest_node:
+                node_id = closest_node.get("id")
+        except Exception as e:
+            print("Error finding closest node in surgery:", e)
     else:
         print(f"No node for {item.get('title')}, triggering CLOUD scrobble...")
         cloud_headers = {
@@ -1926,7 +1990,6 @@ def _update_in_background(item_id: int, req: UpdateHistoryRequest, main_loop=Non
             end_date = datetime.datetime.strptime(clean_end, "%Y-%m-%dT%H:%M:%SZ")
         order = "asc" if end_date >= current_date else "desc"
     
-    import random, math
     days_counts = []
     
     if dist_mode == "same":
@@ -2078,8 +2141,6 @@ async def update_history_item(item_id: int, req: UpdateHistoryRequest, backgroun
 
 
 # --- PLEX SYNC BACKGROUND LOGIC ---
-import requests
-import time
 
 SYNC_INTERVAL = 900
 
@@ -2104,7 +2165,6 @@ def get_plex_libraries():
             return [{"key": s["key"], "type": s.get("type")} for s in sections if s.get("type") in ["movie", "show"]]
     except Exception as e:
         error_str = str(e)
-        import re
         error_str = re.sub(r'X-Plex-Token=[a-zA-Z0-9_-]+', 'X-Plex-Token=***', error_str)
         print(f"Error getting Plex libraries: {error_str}")
     return []
@@ -2265,7 +2325,6 @@ def push_all_to_db(main_loop=None):
         except Exception as e:
             print(f"Error pre-flighting section {sec['key']}: {e}")
     
-    import json
     def _notify_step1(current_count, lib_name):
         if not main_loop: return
         try:
@@ -2456,6 +2515,7 @@ def push_recent_to_db(last_sync_utc_str):
         conn.commit()
         conn.close()
         print(f"🚀 Incremental items processed.")
+    return True
 
 _plex_items_cache = {"data": None, "ts": 0}
 _CACHE_TTL = 300  # 5 minutos
@@ -2516,7 +2576,6 @@ def match_show(show_data, plex_shows, show_tmdb_id=None, year=None):
                 return ps.get("ratingKey")
     # 2. Título exacto + año
     title = show_data.get("show", {}).get("title", "").lower()
-    import difflib
     candidates = []
     for ps in plex_shows:
         ps_title = ps.get("title", "").lower()
@@ -2600,135 +2659,119 @@ def push_cloud_orphans_to_db(main_loop=None):
     
     count_orphans = 0
     count_updates = 0
-    items_notified = [0]  # use list to allow mutation from nested functions
+    items_notified = 0
     
     processed_shows = set()
     show_titles_cache = {}
     
-    import json
-    def _notify_step2(count):
+    task_queue = queue.Queue()
+    result_queue = queue.Queue()
+    rate_limit_event = threading.Event()
+    rate_limit_event.set()
+    
+    request_lock = threading.Lock()
+    last_request_time = [0.0]
+    
+    def wait_for_rate_limit():
+        rate_limit_event.wait()
+        with request_lock:
+            now = time.time()
+            time_since_last = now - last_request_time[0]
+            if time_since_last < 0.25:
+                time.sleep(0.25 - time_since_last)
+            last_request_time[0] = time.time()
+            
+    def _notify_step2(count, orphans, updates):
         if not main_loop: return
         try:
             msg = json.dumps({
                 "type": "import_progress",
                 "step": 1,
-                "count": count
+                "count": count,
+                "orphans": orphans,
+                "updates": updates,
+                "orphans": orphans,
+                "updates": updates
             })
             asyncio.run_coroutine_threadsafe(manager.broadcast(msg), main_loop)
         except: pass
-    
-    
-    def process_item_node(node, is_secondary=False):
-        nonlocal count_orphans, count_updates
-        items_notified[0] += 1
-        _notify_step2(items_notified[0])
-        cloud_date = node.get("date")
-        meta = node.get("metadataItem")
-        
-        if is_debug:
-            print(f"[DEBUG] CLOUD NODE LÍDO: {meta.get('title') if meta else 'Sin Titulo'} | Date: {cloud_date} | GUID: {meta.get('guid') if meta else 'No GUID'}")
-            
-        if not meta or not meta.get("guid"): 
-            if is_debug: print(f"[DEBUG] -> Ignorado: No tiene metadata o GUID")
-            return
-        
-        guid = meta.get("guid")
-        
-        if guid in local_items_by_guid:
-            local_date = local_items_by_guid[guid]["watched_at"]
-            if is_debug: print(f"[DEBUG] -> ENCONTRADO EN BD LOCAL (ID: {local_items_by_guid[guid]['id']}). Fecha Local: {local_date}")
-            
-            if cloud_date and local_date:
-                def parse_iso_to_dt(s: str):
-                    clean = s.replace("Z", "").split(".")[0]
-                    return datetime.datetime.strptime(clean, "%Y-%m-%dT%H:%M:%S")
-                cloud_dt = parse_iso_to_dt(cloud_date)
-                local_dt = parse_iso_to_dt(local_date)
-                if cloud_dt < local_dt:
-                    print(f"⬇️ Updating date from {local_date} to {cloud_date} for {meta.get('title')}")
-                    cursor.execute("UPDATE watch_history SET watched_at = ?, created_at = ? WHERE id = ?", (cloud_date, now_utc, local_items_by_guid[guid]["id"]))
-                    local_items_by_guid[guid]["watched_at"] = cloud_date
-                    count_updates += 1
-                    conn.commit()
-                else:
-                    if is_debug: print(f"[DEBUG] -> NO ACTUALIZADO: Fecha Cloud ({cloud_date}) no es más antigua que Fecha Local ({local_date})")
-        else:
-            if is_debug: print(f"[DEBUG] -> NO ENCONTRADO EN BD LOCAL. Marcado como Huérfano.")
-            print(f"🌟 Orphan detected in Cloud: {meta.get('title')} ({cloud_date})")
-            try:
-                plex_metadata_id = guid.split("/")[-1]
-                meta_url = f"https://metadata.provider.plex.tv/library/metadata/{plex_metadata_id}?X-Plex-Token={PLEX_TOKEN}&X-Plex-Language={lang}"
-                m_resp = requests.get(meta_url, headers={"Accept": "application/json"}, timeout=10)
-                if m_resp.status_code == 200:
-                    m_data = m_resp.json().get("MediaContainer", {}).get("Metadata", [])
-                    if m_data:
-                        item = m_data[0]
-                        m_type = item.get("type")
-                        if m_type not in ["movie", "episode"]:
-                            print(f"⚠️ Ignorando huérfano global (tipo '{m_type}'): {meta.get('title')}")
-                            return
-                            
-                        actual_media_type = m_type
-                        
-                        p = build_payload_from_plex(item, actual_media_type)
-                        if not p:
-                            return
-                        p["Metadata"]["watched_at"] = cloud_date 
-                        
-                        if actual_media_type == "episode" and "grandparentGuid" in item:
-                            gp_guid = item["grandparentGuid"]
-                            
-                            if gp_guid not in show_titles_cache:
-                                # 1. Buscar en BD local para heredar el nombre
-                                cursor.execute("SELECT show_title FROM watch_history WHERE plex_show_guid = ? LIMIT 1", (gp_guid,))
-                                row_show = cursor.fetchone()
-                                local_title = row_show["show_title"] if (row_show and row_show["show_title"]) else None
-                                
-                                # 2. Buscar en Plex Cloud para rellenar Guids y por si acaso el nombre no está local
-                                cloud_guids = []
-                                cloud_title = None
-                                gp_id = gp_guid.split("/")[-1]
-                                try:
-                                    gp_url = f"https://metadata.provider.plex.tv/library/metadata/{gp_id}?X-Plex-Token={PLEX_TOKEN}&X-Plex-Language={lang}"
-                                    gp_resp = requests.get(gp_url, headers={"Accept": "application/json"}, timeout=5)
-                                    if gp_resp.status_code == 200:
-                                        gp_data = gp_resp.json().get("MediaContainer", {}).get("Metadata", [])
-                                        if gp_data:
-                                            cloud_title = gp_data[0].get("title")
-                                            cloud_guids = gp_data[0].get("Guid", [])
-                                except Exception:
-                                    pass
-                                    
-                                # Guardar en caché el nombre final (prioridad local) y los guids
-                                show_titles_cache[gp_guid] = {
-                                    "title": local_title or cloud_title,
-                                    "guids": cloud_guids
-                                }
-                                
-                            cached_data = show_titles_cache[gp_guid]
-                            if cached_data["title"]:
-                                p["Metadata"]["grandparentTitle"] = cached_data["title"]
-                            if cached_data["guids"]:
-                                p["Metadata"]["grandparentGuids"] = cached_data["guids"]
-                                
-                        if process_plex_payload(p, cursor, is_bulk=True):
-                            conn.commit()
-                            count_orphans += 1
-                            # Cache it to avoid retrying in the current loop
-                            cursor.execute("SELECT id FROM watch_history WHERE plex_guid=?", (guid,))
-                            new_r = cursor.fetchone()
-                            if new_r:
-                                local_items_by_guid[guid] = {"id": new_r["id"], "watched_at": cloud_date}
-            except Exception as e:
-                print(f"❌ Error rescuing orphan {guid}: {e}")
 
-    def fetch_show_history_db(show_id, show_title, notify_fn=None):
+    def worker_loop():
+        while True:
+            task = task_queue.get()
+            if task is None:
+                task_queue.task_done()
+                break
+                
+            task_type = task.get("type")
+            try:
+                if task_type == "orphan":
+                    resolve_orphan(task["node"], task["meta"], task["guid"], task["cloud_date"])
+                elif task_type == "show_history":
+                    resolve_show_history(task["show_id"], task["show_title"])
+            except Exception as e:
+                print(f"❌ [Worker] Error en tarea {task_type}: {e}")
+            task_queue.task_done()
+
+    def resolve_orphan(node, meta, guid, cloud_date):
+        try:
+            plex_metadata_id = guid.split("/")[-1]
+            meta_url = f"https://metadata.provider.plex.tv/library/metadata/{plex_metadata_id}?X-Plex-Token={PLEX_TOKEN}&X-Plex-Language={lang}"
+            
+            wait_for_rate_limit()
+            m_resp = requests.get(meta_url, headers={"Accept": "application/json"}, timeout=10)
+            
+            if m_resp.status_code == 429:
+                retry = int(m_resp.headers.get("Retry-After", "60"))
+                print(f"⏳ [Worker-429] Huérfano {meta.get('title')}: Esperando {retry}s...")
+                rate_limit_event.clear()
+                time.sleep(retry)
+                rate_limit_event.set()
+                task_queue.put({"type": "orphan", "node": node, "meta": meta, "guid": guid, "cloud_date": cloud_date})
+                return
+                
+            if m_resp.status_code == 200:
+                m_data = m_resp.json().get("MediaContainer", {}).get("Metadata", [])
+                if m_data:
+                    item = m_data[0]
+                    m_type = item.get("type")
+                    if m_type not in ["movie", "episode"]: return
+                    actual_media_type = m_type
+                    p = build_payload_from_plex(item, actual_media_type)
+                    if not p: return
+                    p["Metadata"]["watched_at"] = cloud_date
+                    
+                    if actual_media_type == "episode" and "grandparentGuid" in item:
+                        gp_guid = item["grandparentGuid"]
+                        cloud_guids = []
+                        cloud_title = None
+                        gp_id = gp_guid.split("/")[-1]
+                        
+                        try:
+                            gp_url = f"https://metadata.provider.plex.tv/library/metadata/{gp_id}?X-Plex-Token={PLEX_TOKEN}&X-Plex-Language={lang}"
+                            wait_for_rate_limit()
+                            gp_resp = requests.get(gp_url, headers={"Accept": "application/json"}, timeout=5)
+                            if gp_resp.status_code == 200:
+                                gp_data = gp_resp.json().get("MediaContainer", {}).get("Metadata", [])
+                                if gp_data:
+                                    cloud_title = gp_data[0].get("title")
+                                    cloud_guids = gp_data[0].get("Guid", [])
+                        except: pass
+                        
+                        p["_cloud_gp_title"] = cloud_title
+                        p["_cloud_gp_guids"] = cloud_guids
+                        p["_gp_guid"] = gp_guid
+                    
+                    result_queue.put({"type": "insert_orphan", "payload": p, "guid": guid, "cloud_date": cloud_date, "meta": meta})
+        except Exception as e:
+            print(f"❌ [Worker] Error rescuing orphan {guid}: {e}")
+
+    def resolve_show_history(show_id, show_title):
         h_next = True
         p_cursor = None
         page_num = 1
-        print(f"\n📡 [API] Obteniendo historial completo de la serie: {show_title} ({show_id})...")
+        
         while h_next:
-            if is_debug: print(f"[DEBUG] -> Pidiendo Página {page_num} de {show_title} (Cursor: {p_cursor})")
             payload_sec = {
                 "query": query_secondary,
                 "variables": {
@@ -2742,113 +2785,171 @@ def push_cloud_orphans_to_db(main_loop=None):
             }
             start_time = time.time()
             success = False
+            
             while True:
                 try:
+                    wait_for_rate_limit()
                     resp_sec = requests.post(url_graphql, headers=headers_fetch, json=payload_sec, timeout=30)
                     if resp_sec.status_code == 429:
                         retry = int(resp_sec.headers.get("Retry-After", "60"))
-                        if is_debug: print(f"[DEBUG] -> RATE LIMIT (429). Esperando {retry}s...")
-                        print(f"⏳ [429] Esperando {retry}s...")
+                        rate_limit_event.clear()
                         time.sleep(retry)
+                        rate_limit_event.set()
                         continue
                     if resp_sec.status_code != 200:
-                        if time.time() - start_time > 600:
-                            if is_debug: print(f"[DEBUG] -> FALLO API CLOUD. HTTP {resp_sec.status_code}. Tiempo límite (10m) superado.")
-                            break
-                        if is_debug: print(f"[DEBUG] -> FALLO API CLOUD. HTTP {resp_sec.status_code}. Reintentando en 3s...")
+                        if time.time() - start_time > 600: break
                         time.sleep(3)
                         continue
                         
                     data_sec = resp_sec.json().get("data", {}).get("activityFeed", {})
                     nodes_sec = data_sec.get("nodes", [])
                     
-                    if is_debug: print(f"[DEBUG] -> Página {page_num} recibida. Nodos: {len(nodes_sec)}")
-                    if not nodes_sec:
-                        if is_debug: print(f"[DEBUG] -> JSON/XML DEVUELTO VACÍO PARA {show_title} en página {page_num}.")
-                        
                     for n_sec in nodes_sec:
                         m_sec = n_sec.get("metadataItem")
                         if m_sec and m_sec.get("type") == "EPISODE":
-                            process_item_node(n_sec, is_secondary=True)
+                            result_queue.put({"type": "process_node", "node": n_sec})
                             
                     p_info = data_sec.get("pageInfo", {})
                     h_next = p_info.get("hasNextPage", False)
                     p_cursor = p_info.get("endCursor")
-                    if is_debug: print(f"[DEBUG] -> Fin de Página {page_num}. Hay más páginas? {h_next}")
                     page_num += 1
-                    time.sleep(1)
                     success = True
                     break
                 except Exception as e:
-                    if time.time() - start_time > 600:
-                        print(f"Error fetching show history: {e}")
-                        if is_debug: print(f"[DEBUG] -> EXCEPCION en fetch_show_history_db: {e}")
-                        break
-                    if is_debug: print(f"[DEBUG] -> EXCEPCION. Reintentando en 3s: {e}")
+                    if time.time() - start_time > 600: break
                     time.sleep(3)
-                    
-            if not success:
-                print(f"❌ Abortando historial de {show_title} tras 10 minutos de fallos continuos.")
+            if not success: break
+                
+    def writer_loop():
+        nonlocal count_orphans, count_updates, items_notified
+        while True:
+            msg = result_queue.get()
+            if msg is None:
+                result_queue.task_done()
                 break
+                
+            mtype = msg["type"]
+            try:
+                if mtype == "process_node":
+                    node = msg["node"]
+                    items_notified += 1
+                    
+                    cloud_date = node.get("date")
+                    meta = node.get("metadataItem")
+                    if not meta or not meta.get("guid"): 
+                        continue
+                        
+                    guid = meta.get("guid")
+                    if guid in local_items_by_guid:
+                        local_date = local_items_by_guid[guid]["watched_at"]
+                        if cloud_date and local_date:
+                            def parse_iso_to_dt(s: str):
+                                clean = s.replace("Z", "").split(".")[0]
+                                return datetime.datetime.strptime(clean, "%Y-%m-%dT%H:%M:%S")
+                            try:
+                                cloud_dt = parse_iso_to_dt(cloud_date)
+                                local_dt = parse_iso_to_dt(local_date)
+                                if cloud_dt < local_dt:
+                                    print(f"🔄 Updating date from {local_date} to {cloud_date} for {meta.get('title')}")
+                                    cursor.execute("UPDATE watch_history SET watched_at = ?, created_at = ? WHERE id = ?", (cloud_date, now_utc, local_items_by_guid[guid]["id"]))
+                                    local_items_by_guid[guid]["watched_at"] = cloud_date
+                                    count_updates += 1
+                            except: pass
+                    else:
+                        task_queue.put({"type": "orphan", "node": node, "meta": meta, "guid": guid, "cloud_date": cloud_date})
+                        
+                elif mtype == "insert_orphan":
+                    p = msg["payload"]
+                    guid = msg["guid"]
+                    cloud_date = msg["cloud_date"]
+                    meta = msg.get("meta", {})
+                    
+                    if "_gp_guid" in p:
+                        gp_guid = p["_gp_guid"]
+                        if gp_guid not in show_titles_cache:
+                            cursor.execute("SELECT show_title FROM watch_history WHERE plex_show_guid = ? LIMIT 1", (gp_guid,))
+                            row_show = cursor.fetchone()
+                            local_title = row_show["show_title"] if (row_show and row_show["show_title"]) else None
+                            show_titles_cache[gp_guid] = {
+                                "title": local_title or p.get("_cloud_gp_title"),
+                                "guids": p.get("_cloud_gp_guids", [])
+                            }
+                        cached_data = show_titles_cache[gp_guid]
+                        if cached_data["title"]: p["Metadata"]["grandparentTitle"] = cached_data["title"]
+                        if cached_data["guids"]: p["Metadata"]["grandparentGuids"] = cached_data["guids"]
+                        for k in ["_cloud_gp_title", "_cloud_gp_guids", "_gp_guid"]: p.pop(k, None)
+
+                    if process_plex_payload(p, cursor, is_bulk=True):
+                        count_orphans += 1
+                        cursor.execute("SELECT id FROM watch_history WHERE plex_guid=?", (guid,))
+                        new_r = cursor.fetchone()
+                        if new_r:
+                            local_items_by_guid[guid] = {"id": new_r["id"], "watched_at": cloud_date}
+                            print(f"✅ Orphan inserted: {meta.get('title')}")
+                            
+                elif mtype == "commit":
+                    conn.commit()
+            except Exception as e:
+                print(f"❌ [Writer] Error en {mtype}: {e}")
+            finally:
+                _notify_step2(items_notified, count_orphans, count_updates)
+                result_queue.task_done()
+
+    workers = []
+    for i in range(4):
+        t = threading.Thread(target=worker_loop, daemon=True)
+        t.start()
+        workers.append(t)
+        
+    writer = threading.Thread(target=writer_loop, daemon=True)
+    writer.start()
 
     retries_primary = 0
     total_nodes_processed = 0
     while has_next:
         payload = {
             "query": query_primary,
-            "variables": {"first": 50, "after": page_cursor, "types": ["WATCH_HISTORY", "WATCH_SESSION"]},
+            "variables": {"first": 100, "after": page_cursor, "types": ["WATCH_HISTORY", "WATCH_SESSION"]},
             "operationName": "GetActivityFeed"
         }
         start_time = time.time()
         success = False
+        
         while True:
             try:
+                wait_for_rate_limit()
                 resp = requests.post(url_graphql, headers=headers_fetch, json=payload, timeout=20)
+                
                 if resp.status_code == 429:
-                    time.sleep(5)
+                    retry = int(resp.headers.get("Retry-After", "5"))
+                    print(f"⚠️ [Plex Rate Limit] Plex temporarily blocked us. Waiting {retry} seconds...")
+                    rate_limit_event.clear()
+                    time.sleep(retry)
+                    rate_limit_event.set()
                     continue
                 if resp.status_code != 200:
-                    if time.time() - start_time > 600:
-                        print(f"Error {resp.status_code} fetching from Plex Cloud. Tiempo límite (10m) superado.")
-                        break
+                    print(f"⚠️ [Error API] HTTP {resp.status_code}. Retrying in 3s...")
+                    if time.time() - start_time > 600: break
                     time.sleep(3)
                     continue
                     
                 resp_json = resp.json()
                 if "errors" in resp_json:
                     FATAL_CODES = {"NOT_FOUND", "FORBIDDEN", "UNAUTHORIZED", "BAD_USER_INPUT"}
-                    is_fatal = any(
-                        e.get("extensions", {}).get("code", "") in FATAL_CODES
-                        for e in resp_json["errors"]
-                    )
-                    if is_fatal:
-                        print("❌ Error definitivo GraphQL en Smart Extractor. Abortando.")
-                        has_next = False
-                        break
-                        
-                    if time.time() - start_time > 600:
-                        print(f"⚠️ Error interno en GraphQL transitorio superó 10 min: {resp_json['errors']}")
-                        break
+                    is_fatal = any(e.get("extensions", {}).get("code", "") in FATAL_CODES for e in resp_json["errors"])
+                    if is_fatal or time.time() - start_time > 600: break
                     time.sleep(3)
                     continue
-                    
                 success = True
                 break
             except Exception as e:
-                if time.time() - start_time > 600:
-                    print(f"❌ Error de red primario superó 10 min: {e}")
-                    break
+                if time.time() - start_time > 600: break
                 time.sleep(3)
                 
-        if not success:
-            print("❌ Abortando Cloud Phase tras 10 minutos de fallos continuos.")
-            break
+        if not success: break
             
-        retries_primary = 0
-                
         data = resp_json.get("data")
-        if not data:
-            break
+        if not data: break
         
         data = data.get("activityFeed", {})
         nodes = data.get("nodes", [])
@@ -2857,46 +2958,54 @@ def push_cloud_orphans_to_db(main_loop=None):
         if not nodes: break
         
         for node in nodes:
+            total_nodes_processed += 1
             meta = node.get("metadataItem")
             if not meta: continue
             m_type = meta.get("type")
             
             if m_type == "MOVIE":
-                process_item_node(node)
+                result_queue.put({"type": "process_node", "node": node})
             elif m_type == "EPISODE":
                 gp = meta.get("grandparent")
                 if not gp:
-                    process_item_node(node)
+                    result_queue.put({"type": "process_node", "node": node})
                     continue
                 show_guid = gp.get("guid")
-                show_title = gp.get("title")
                 if not show_guid:
-                    process_item_node(node)
+                    result_queue.put({"type": "process_node", "node": node})
                     continue
                 show_id = show_guid.split("/")[-1]
-                if show_id in processed_shows:
-                    continue
-                processed_shows.add(show_id)
-                fetch_show_history_db(show_id, show_title)
+                if show_id not in processed_shows:
+                    processed_shows.add(show_id)
+                    task_queue.put({"type": "show_history", "show_id": show_id, "show_title": gp.get("title")})
             elif m_type == "SHOW":
                 show_guid = meta.get("guid")
-                show_title = meta.get("title")
-                if not show_guid:
-                    continue
+                if not show_guid: continue
                 show_id = show_guid.split("/")[-1]
-                if show_id in processed_shows:
-                    continue
-                processed_shows.add(show_id)
-                fetch_show_history_db(show_id, show_title)
-                
+                if show_id not in processed_shows:
+                    processed_shows.add(show_id)
+                    task_queue.put({"type": "show_history", "show_id": show_id, "show_title": meta.get("title")})
+                    
         has_next = page_info.get("hasNextPage", False)
         page_cursor = page_info.get("endCursor")
-        
-        # Commit every page
-        conn.commit()
-        
+        result_queue.put({"type": "commit"})
         print(f"[Import Cloud] Processed {total_nodes_processed} items from cloud, found {count_orphans} new orphans so far...")
-        time.sleep(1)
+
+    # Wait for the cyclic queues to completely settle
+    while True:
+        if task_queue.unfinished_tasks == 0 and result_queue.unfinished_tasks == 0:
+            time.sleep(0.5)
+            if task_queue.unfinished_tasks == 0 and result_queue.unfinished_tasks == 0:
+                break
+        time.sleep(0.5)
+
+    for _ in range(4): task_queue.put(None)
+    result_queue.put({"type": "commit"})
+    result_queue.put(None)
+    
+    for w in workers: w.join()
+    writer.join()
+    
     conn.close()
     print(f"✅ Smart Extractor V2 completed! Inserted {count_orphans} orphans and updated {count_updates} dates.")
 
@@ -2918,20 +3027,29 @@ def run_sync(main_loop=None):
     save_settings(settings)
     print(f"Sync completed. Date updated: {now_utc}")
 
+is_initial_syncing = False
+
 async def sync_loop():
     while True:
         try:
-            loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, lambda: run_sync(loop))
+            if not is_initial_syncing:
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(None, lambda: run_sync(loop))
         except Exception as e:
             print(f"Error in sync loop: {e}")
-        print(f"Sleeping {SYNC_INTERVAL} seconds...")
-        await asyncio.sleep(SYNC_INTERVAL)
+        
+        sleep_time = 86400 if HAS_PLEX_PASS else SYNC_INTERVAL
+        print(f"Sleeping {sleep_time} seconds...")
+        await asyncio.sleep(sleep_time)
 
 async def background_initial_task():
-    global rescan_status
-    loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, lambda: run_sync(loop))
+    global rescan_status, is_initial_syncing
+    is_initial_syncing = True
+    try:
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, lambda: run_sync(loop))
+    finally:
+        is_initial_syncing = False
     
     # Notificamos que la BD ha terminado de llenarse, pasamos a descargar imágenes
     settings = load_settings()
@@ -2946,6 +3064,41 @@ async def background_initial_task():
     finally:
         rescan_status = {"running": False, "done": True}
 
+async def docker_update_checker():
+    while True:
+        try:
+            if os.getenv("SYNC_IS_DOCKER", "false").lower() == "true":
+                async with httpx.AsyncClient(timeout=20.0) as client:
+                    resp = await client.get("https://api.github.com/repos/lechtung/SyncPK/releases/latest")
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        remote_ver = data.get("tag_name", "").lstrip("vV")
+                        
+                        local_ver = "0.0.0"
+                        if os.path.exists(os.path.join(APP_DIR, ".ver")):
+                            with open(os.path.join(APP_DIR, ".ver")) as f:
+                                local_ver = f.read().strip()
+                        
+                        ignored_version = os.getenv("IGNORED_UPDATE_VERSION", "")
+                        notify_updates = os.getenv("NOTIFY_UPDATES", "true").lower() == "true"
+                        
+                        # Compare versions properly? For simplicity, if they are different and notify_updates, we flag it.
+                        if remote_ver and remote_ver != local_ver:
+                            if remote_ver != ignored_version and notify_updates:
+                                os.environ["UPDATE_AVAILABLE"] = remote_ver
+                                env_path = ENV_PATH
+                                env_lines = []
+                                if os.path.exists(env_path):
+                                    with open(env_path, "r", encoding="utf-8") as f:
+                                        env_lines = [line for line in f.readlines() if not line.startswith("UPDATE_AVAILABLE=")]
+                                env_lines.append(f'UPDATE_AVAILABLE={remote_ver}\n')
+                                with open(env_path, "w", encoding="utf-8") as f:
+                                    f.writelines(env_lines)
+        except Exception as e:
+            print(f"Error checking for Docker updates: {e}")
+            
+        await asyncio.sleep(86400) # Check once a day
+
 def start_background_tasks():
     settings = load_settings()
     last_sync = settings.get("last_sync_date")
@@ -2955,6 +3108,9 @@ def start_background_tasks():
         settings["sync_state"] = 1
         save_settings(settings)
         asyncio.create_task(background_initial_task())
+        
+    if os.getenv("SYNC_IS_DOCKER", "false").lower() == "true":
+        asyncio.create_task(docker_update_checker())
         
     if not HAS_PLEX_PASS:
         print("Plex Pass NOT detected: Starting incremental sync loop...")
@@ -3284,6 +3440,7 @@ def get_ui_config():
         "ui_text_primary": os.getenv("UI_TEXT_PRIMARY", "#c9d1d9"),
         "ui_text_secondary": os.getenv("UI_TEXT_SECONDARY", "#8b949e"),
         "ui_show_duration": os.getenv("UI_SHOW_DURATION", "true") == "true",
+        "ui_show_watch_time": os.getenv("UI_SHOW_WATCH_TIME", "true") == "true",
         "ui_show_title": os.getenv("UI_SHOW_TITLE", "true") == "true",
     }
 
@@ -3333,6 +3490,7 @@ def get_config():
         "ui_text_primary": os.getenv("UI_TEXT_PRIMARY", "#c9d1d9"),
         "ui_text_secondary": os.getenv("UI_TEXT_SECONDARY", "#8b949e"),
         "ui_show_duration": os.getenv("UI_SHOW_DURATION", "true") == "true",
+        "ui_show_watch_time": os.getenv("UI_SHOW_WATCH_TIME", "true") == "true",
         "ui_show_title": os.getenv("UI_SHOW_TITLE", "true") == "true",
         "fanart_mask_opacity": os.getenv("FANART_MASK_OPACITY", "0.3")
     }
@@ -3375,6 +3533,7 @@ class ConfigPayload(BaseModel):
     ui_text_primary: Optional[str] = "#c9d1d9"
     ui_text_secondary: Optional[str] = "#8b949e"
     ui_show_duration: Optional[bool] = True
+    ui_show_watch_time: Optional[bool] = True
     ui_show_title: Optional[bool] = True
     fanart_mask_opacity: Optional[str] = "0.3"
 
@@ -3481,6 +3640,7 @@ def save_config(payload: ConfigPayload):
             "UI_TEXT_PRIMARY": payload.ui_text_primary,
             "UI_TEXT_SECONDARY": payload.ui_text_secondary,
             "UI_SHOW_DURATION": "true" if payload.ui_show_duration else "false",
+            "UI_SHOW_WATCH_TIME": "true" if payload.ui_show_watch_time else "false",
             "UI_SHOW_TITLE": "true" if payload.ui_show_title else "false",
             "FANART_MASK_OPACITY": payload.fanart_mask_opacity
         }
@@ -3516,7 +3676,6 @@ def save_config(payload: ConfigPayload):
                 
         # Unhide file on Windows before writing
         if os.name == 'nt' and os.path.exists(env_path):
-            import ctypes
             # FILE_ATTRIBUTE_NORMAL = 128
             ctypes.windll.kernel32.SetFileAttributesW(env_path, 128)
             
@@ -3533,11 +3692,16 @@ def save_config(payload: ConfigPayload):
                 pass
                 
         # Reload all globals from the freshly written .env
+        try:
+            if os.path.exists(ENV_PATH + '.bak') and os.name == 'nt':
+                ctypes.windll.kernel32.SetFileAttributesW(ENV_PATH + '.bak', 128)
+            shutil.copyfile(ENV_PATH, ENV_PATH + '.bak')
+        except Exception:
+            pass
         reload_settings()
 
         if payload.force_rescan:
             if payload.clear_cache:
-                import shutil
                 print("[rescan] Vaciar caché solicitado. Limpiando directorios de imágenes...", flush=True)
                 for folder in ["posters", "fanarts"]:
                     folder_path = os.path.join(CACHE_PATH, folder)
@@ -3554,7 +3718,6 @@ def save_config(payload: ConfigPayload):
 
             def rescan_task_wrapper():
                 global rescan_status
-                import asyncio
                 try:
                     loop = asyncio.get_event_loop()
                 except RuntimeError:
@@ -3573,18 +3736,15 @@ def save_config(payload: ConfigPayload):
 
 @app.post("/api/config/restore", dependencies=[Depends(verify_api_key)])
 def restore_config():
-    import shutil
     if not os.path.exists(ENV_PATH + ".bak"):
         return {"status": "error", "message": "No backup found (.env.bak)"}
     
     if os.name == 'nt' and os.path.exists(ENV_PATH):
-        import ctypes
         ctypes.windll.kernel32.SetFileAttributesW(ENV_PATH, 128)
         
     shutil.copy(ENV_PATH + ".bak", ENV_PATH)
     
     if os.name == 'nt':
-        import ctypes
         ctypes.windll.kernel32.SetFileAttributesW(ENV_PATH, 2)
     
     # Reload config into memory
@@ -3598,6 +3758,12 @@ def restore_config():
                 env_vars[k.strip()] = val
                 os.environ[k.strip()] = val
                 
+                try:
+                    if os.path.exists(ENV_PATH + '.bak') and os.name == 'nt':
+                        ctypes.windll.kernel32.SetFileAttributesW(ENV_PATH + '.bak', 128)
+                    shutil.copyfile(ENV_PATH, ENV_PATH + '.bak')
+                except Exception:
+                    pass
     reload_settings()
     return {"status": "success"}
 
@@ -3629,8 +3795,12 @@ class TestPlexRequest(BaseModel):
     url: str
 
 @app.post("/api/setup/test-plex")
-async def test_plex(req: TestPlexRequest):
-    import httpx
+async def test_plex(req: TestPlexRequest, request: Request):
+    if os.path.exists(ENV_PATH):
+        try:
+            await verify_api_key(request)
+        except Exception:
+            raise HTTPException(status_code=403, detail="Not authorized")
     try:
         clean_url = req.url.rstrip("/")
         async with httpx.AsyncClient(verify=False, timeout=5.0) as client:
@@ -3645,8 +3815,12 @@ class TestTmdbRequest(BaseModel):
     api_key: str
 
 @app.post("/api/setup/test-tmdb")
-async def test_tmdb(req: TestTmdbRequest):
-    import httpx
+async def test_tmdb(req: TestTmdbRequest, request: Request):
+    if os.path.exists(ENV_PATH):
+        try:
+            await verify_api_key(request)
+        except Exception:
+            raise HTTPException(status_code=403, detail="Not authorized")
     try:
         url = "https://api.themoviedb.org/3/authentication"
         headers = {"accept": "application/json"}
@@ -3677,7 +3851,6 @@ async def process_setup(data: SetupData):
     web_salt = ''.join(secrets.choice(alphabet) for _ in range(16))
 
     # Web password hash: scrypt instead of SHA-256 (resistant to brute-force/dictionary attacks)
-    from fastapi.concurrency import run_in_threadpool
     
     def _hash_pwd():
         return hashlib.scrypt(
@@ -3730,7 +3903,6 @@ async def process_setup(data: SetupData):
     print(f"[DEBUG SETUP] VALORES EXTRAIDOS DEL FRONTEND PARA .ENV:", flush=True)
     print(f"[DEBUG SETUP] POSTER_PREF = {data.poster_pref}", flush=True)
     print(f"[DEBUG SETUP] FANART_PREF = {data.fanart_pref}", flush=True)
-    print(f"[DEBUG SETUP] TMDB_API_KEY = {data.tmdb_api_key}", flush=True)
     print(f"[DEBUG SETUP] ---------------------------------------------", flush=True)
 
     # 4. Write the final file to the persistent data folder (ESCRITURA ATÓMICA)
@@ -3749,13 +3921,18 @@ async def process_setup(data: SetupData):
         return {"error": f"Error al escribir en disco: {str(e)}"}
 
     # Hot reload configuration
+    try:
+        if os.path.exists(ENV_PATH + '.bak') and os.name == 'nt':
+            ctypes.windll.kernel32.SetFileAttributesW(ENV_PATH + '.bak', 128)
+        shutil.copyfile(ENV_PATH, ENV_PATH + '.bak')
+    except Exception:
+        pass
     reload_settings()        
 
     # Now that we have Plex data and the configuration is in memory, we start the tasks.
     start_background_tasks()    
 
     # Creating the response with HTTPONLY cookie
-    from fastapi.responses import JSONResponse
     
     response_data = {
         "status": "success", 
@@ -3793,9 +3970,10 @@ def update_status():
     except Exception:
         update_available = os.getenv("UPDATE_AVAILABLE", "")
     
+    is_docker = os.getenv("SYNC_IS_DOCKER", "false").lower() == "true"
     if update_available and update_available != ignored_version and notify_updates:
-        return {"has_update": True, "version": update_available}
-    return {"has_update": False}
+        return {"has_update": True, "version": update_available, "is_docker": is_docker}
+    return {"has_update": False, "is_docker": is_docker}
 
 @app.post("/api/update/ignore", dependencies=[Depends(verify_api_key)])
 def update_ignore(req: UpdateIgnoreRequest):
@@ -3830,7 +4008,6 @@ def update_ignore(req: UpdateIgnoreRequest):
     os.environ["UPDATE_AVAILABLE"] = ""
         
     if os.name == 'nt' and os.path.exists(env_path):
-        import ctypes
         ctypes.windll.kernel32.SetFileAttributesW(env_path, 128)
         
     with open(env_path, "w", encoding="utf-8") as f:
@@ -3846,7 +4023,6 @@ def update_ignore(req: UpdateIgnoreRequest):
 
 @app.post("/api/update/trigger", dependencies=[Depends(verify_api_key)])
 def update_trigger():
-    import subprocess
     try:
         # We start the systemd service. We don't wait for it because it will restart our service!
         subprocess.Popen(["sudo", "systemctl", "start", "syncpk-updater.service"])
@@ -3857,7 +4033,6 @@ def update_trigger():
 
 @app.post("/api/update/trigger", dependencies=[Depends(verify_api_key)])
 def update_trigger():
-    import os
     
     # Check if we are in Docker (where we don't use systemd)
     if os.path.exists("/.dockerenv"):
@@ -3916,3 +4091,8 @@ def serve_index():
 os.makedirs(CACHE_PATH, exist_ok=True)
 app.mount("/cache", StaticFiles(directory=CACHE_PATH), name="cache")
 app.mount("/", StaticFiles(directory="static"), name="static")
+
+@app.post("/api/logout")
+def logout_endpoint(response: Response):
+    response.delete_cookie("syncpk_session")
+    return {"status": "success"}

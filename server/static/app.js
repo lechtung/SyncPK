@@ -233,6 +233,9 @@ async function loadUIConfig() {
             if (data.ui_text_primary) document.documentElement.style.setProperty('--text-primary', data.ui_text_primary);
             if (data.ui_text_secondary) document.documentElement.style.setProperty('--text-secondary', data.ui_text_secondary);
             if (data.ui_glass_blur) document.documentElement.style.setProperty('--glass-blur', `blur(${data.ui_glass_blur}px)`);
+            if (data.ui_show_duration !== undefined) window.UI_SHOW_DURATION = data.ui_show_duration;
+            if (data.ui_show_watch_time !== undefined) window.UI_SHOW_WATCH_TIME = data.ui_show_watch_time;
+            if (data.ui_show_title !== undefined) window.UI_SHOW_TITLE = data.ui_show_title;
         }
     } catch (e) {
         console.warn("Could not load UI config", e);
@@ -313,7 +316,7 @@ function setupEventListeners() {
 
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-            ['edit-modal', 'manual-modal', 'confirm-modal', 'config-modal', 'log-modal', 'update-modal'].forEach(id => {
+            ['edit-modal', 'manual-modal', 'confirm-modal', 'config-modal', 'log-modal', 'update-modal', 'about-modal'].forEach(id => {
                 const modal = document.getElementById(id);
                 if (modal && !modal.classList.contains('hidden')) {
                     if (id === 'update-modal') {
@@ -356,6 +359,15 @@ async function checkUpdates() {
             if (data.has_update) {
                 let subtitle = currentLangData.update_subtitle || 'Version [VERSION] is available. Do you want to install it now?';
                 subtitle = subtitle.replace('[VERSION]', data.version);
+
+                if (data.is_docker) {
+                    let dockerMsg = currentLangData.update_docker_instructions || 'To update this Docker instance, open your terminal and run: docker compose pull && docker compose up -d';
+                    subtitle = `(v${data.version}) ` + dockerMsg;
+                    document.getElementById('update-now-btn').style.display = 'none';
+                } else {
+                    document.getElementById('update-now-btn').style.display = 'inline-block';
+                }
+
                 document.getElementById('update-subtitle').textContent = subtitle;
 
                 // Store version globally for ignoring
@@ -789,8 +801,27 @@ async function renderHistory(items) {
             let bgStyle = fUrl ? `background-image: url('${fUrl}')` : 'background-color: #111';
 
             let timeStr = new Date(item.watched_at).toLocaleTimeString(navigator.language, { hour: '2-digit', minute: '2-digit' });
+            let timeHtml = "";
+            if (window.UI_SHOW_WATCH_TIME !== false) {
+                timeHtml = `<div class="card-time">${timeStr}</div>`;
+            }
+
             let title = item.media_type === 'movie' ? item.title : item.show_title;
-            let subtitle = item.media_type === 'movie' ? '' : `T${item.season} · E${item.episode} - ${item.title}`;
+            let subtitle = "";
+            if (item.media_type !== 'movie') {
+                subtitle = `T${item.season} · E${item.episode}`;
+                if (window.UI_SHOW_TITLE !== false) {
+                    subtitle += ` - ${item.title}`;
+                }
+            }
+
+            let durationHtml = "";
+            if (window.UI_SHOW_DURATION !== false && item.duration) {
+                let h = Math.floor(item.duration / 60);
+                let m = item.duration % 60;
+                let dStr = (h > 0 ? `${h}h ` : "") + `${m}m`;
+                durationHtml = `<div class="card-duration">${dStr}</div>`;
+            }
 
             card.innerHTML = `
                 <div class="c-poster" style="${posterStyle}"></div>
@@ -800,8 +831,9 @@ async function renderHistory(items) {
                     <div class="card-content">
                         <div class="card-title">${escapeHTML(title)}</div>
                         <div class="card-subtitle">${escapeHTML(subtitle)}</div>
-                        <div class="card-time">${timeStr}</div>
                     </div>
+                    ${timeHtml}
+                    ${durationHtml}
                     <button class="kebab-menu-btn">⋮</button>
                     <div class="kebab-dropdown glass-panel" id="dropdown-${item.id}">
                         <div class="dropdown-item danger btn-del" data-i18n="action_delete">${currentLangData.action_delete || 'Delete'}</div>
@@ -1220,177 +1252,178 @@ function setupConfigModal() {
 
     // Open Config Modal
     const mobileSettingsBtn = document.getElementById('settings-menu-btn');
-    
+
     const openConfigHandler = async () => {
         document.querySelector('.fab-container').classList.remove('active');
         document.getElementById('header-right').classList.remove('open');
         configModal.classList.remove('hidden');
 
         try {
-                let res = await apiFetch('/api/config');
-                if (res.ok) {
-                    let data = await res.json();
-                    document.getElementById('config-plex-url').value = data.plex_url || '';
-                    document.getElementById('config-plex-token').value = data.plex_token || '';
-                    document.getElementById('config-tmdb-api').value = data.tmdb_api_key || '';
-                    document.getElementById('config-plex-client-id').value = data.plex_client_id || '';
+            let res = await apiFetch('/api/config');
+            if (res.ok) {
+                let data = await res.json();
+                document.getElementById('config-plex-url').value = data.plex_url || '';
+                document.getElementById('config-plex-token').value = data.plex_token || '';
+                document.getElementById('config-tmdb-api').value = data.tmdb_api_key || '';
+                document.getElementById('config-plex-client-id').value = data.plex_client_id || '';
 
-                    if (data.api_token_raw) {
-                        document.getElementById('webhooks-toggle-container').style.display = 'block';
-                        const host = window.location.host;
-                        document.getElementById('webhook-url-plex').value = `http://${host}/webhook/plex?token=${data.api_token_raw}`;
-                        document.getElementById('webhook-url-kodi').value = `http://${host}/webhook/kodi?token=${data.api_token_raw}`;
-                    } else {
-                        document.getElementById('webhooks-toggle-container').style.display = 'none';
-                    }
-
-                    document.getElementById('config-debug').checked = !!data.debug_mode;
-                    document.getElementById('config-auto-update').checked = !!data.auto_update;
-                    document.getElementById('config-notify-updates').checked = !!data.notify_updates;
-
-                    let pqDd = document.getElementById('configPosterQuality-dd'); if (pqDd) { let val = data.poster_quality || 'w185'; pqDd.dataset.currentValue = val; pqDd.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected')); let match = Array.from(pqDd.querySelectorAll('.c-dropdown-item')).find(i => i.dataset.value === val); if (match) { match.classList.add('selected'); document.getElementById('configPosterQuality-val').innerText = match.innerText; } }
-                    let fqDd = document.getElementById('configFanartQuality-dd'); if (fqDd) { let val = data.fanart_quality || 'w300'; fqDd.dataset.currentValue = val; fqDd.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected')); let match = Array.from(fqDd.querySelectorAll('.c-dropdown-item')).find(i => i.dataset.value === val); if (match) { match.classList.add('selected'); document.getElementById('configFanartQuality-val').innerText = match.innerText; } }
-                    let posterDd = document.getElementById('configPosterPref-dd');
-                    if (posterDd) {
-                        let val = data.poster_pref || 'show';
-                        posterDd.dataset.currentValue = val;
-                        posterDd.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected'));
-                        let item = posterDd.querySelector(`.c-dropdown-item[data-value="${val}"]`);
-                        if (item) {
-                            item.classList.add('selected');
-                            posterDd.querySelector('.c-dropdown-value').textContent = item.textContent;
-                        }
-                    }
-
-                    let fanartDd = document.getElementById('configFanartPref-dd');
-                    if (fanartDd) {
-                        let val = data.fanart_pref || 'episode';
-                        fanartDd.dataset.currentValue = val;
-                        fanartDd.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected'));
-                        let item = fanartDd.querySelector(`.c-dropdown-item[data-value="${val}"]`);
-                        if (item) {
-                            item.classList.add('selected');
-                            fanartDd.querySelector('.c-dropdown-value').textContent = item.textContent;
-                        }
-                    }
-
-                    let langValue = data.sync_language || 'es';
-                    let langDd = document.getElementById('configLang-dd');
-                    langDd.dataset.currentValue = langValue;
-                    langDd.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected'));
-                    let selectedItem = langDd.querySelector(`.c-dropdown-item[data-value="${langValue}"]`);
-                    if (selectedItem) {
-                        selectedItem.classList.add('selected');
-                        let valEl = langDd.querySelector('.c-dropdown-value');
-                        valEl.textContent = selectedItem.textContent;
-                        valEl.setAttribute('data-i18n', selectedItem.getAttribute('data-i18n'));
-                    }
-
-                    let dashLangValue = data.dashboard_language || 'auto';
-                    let dashLangDd = document.getElementById('configDashboardLang-dd');
-                    dashLangDd.dataset.currentValue = dashLangValue;
-                    dashLangDd.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected'));
-                    let dashSelectedItem = dashLangDd.querySelector(`.c-dropdown-item[data-value="${dashLangValue}"]`);
-                    if (dashSelectedItem) {
-                        dashSelectedItem.classList.add('selected');
-                        let dashValEl = dashLangDd.querySelector('.c-dropdown-value');
-                        dashValEl.textContent = dashSelectedItem.textContent;
-                        dashValEl.setAttribute('data-i18n', dashSelectedItem.getAttribute('data-i18n'));
-                    }
-                    configModal.dataset.originalLang = langValue;
-                    configModal.dataset.originalDashLang = dashLangValue;
-                    configModal.dataset.originalPoster = data.poster_pref || 'show';
-                    configModal.dataset.originalFanart = data.fanart_pref || 'episode';
-                    configModal.dataset.originalPosterQ = data.poster_quality || 'w185';
-                    configModal.dataset.originalFanartQ = data.fanart_quality || 'w300';
-                    configModal.dataset.originalPosterW = data.ui_poster_w || 108;
-                    configModal.dataset.originalFanartW = data.ui_fanart_w || 288;
-
-                    document.getElementById('config-poster-w').value = data.ui_poster_w || 108;
-                    document.getElementById('val-poster-w').innerText = (data.ui_poster_w || 108) + 'px';
-                    document.getElementById('config-poster-h').value = data.ui_poster_h || 225;
-                    document.getElementById('val-poster-h').innerText = (data.ui_poster_h || 225) + 'px';
-                    document.getElementById('config-fanart-w').value = data.ui_fanart_w || 288;
-                    document.getElementById('val-fanart-w').innerText = (data.ui_fanart_w || 288) + 'px';
-                    document.getElementById('config-fanart-h').value = data.ui_fanart_h || 168;
-                    document.getElementById('val-fanart-h').innerText = (data.ui_fanart_h || 168) + 'px';
-                    document.getElementById('config-grid-gap').value = data.ui_grid_gap || 15;
-                    document.getElementById('val-gap').innerText = (data.ui_grid_gap || 15) + 'px';
-                    document.getElementById('config-card-radius').value = data.ui_card_radius || 8;
-                    document.getElementById('val-radius').innerText = (data.ui_card_radius || 8) + 'px';
-
-                    /*
-                    --bg-color: #0d1117;
-                    --glass-bg: rgba(22, 27, 34, 0.7);
-                    --glass-border: rgba(255, 255, 255, 0.1);
-                    --text-primary: #c9d1d9;
-                    --text-secondary: #8b949e;
-                    --accent: #58a6ff;
-                    --accent-hover: #3182ce;
-                    --accent-dark: #2568a8;
-                    --danger: #f85149;                    
-                    */
-
-                    document.getElementById('config-bg-color').value = data.ui_bg_color || '#0d1117';
-                    if (window.pickrBgColor) window.pickrBgColor.setColor(data.ui_bg_color || '#0d1117');
-                    document.getElementById('config-glass-bg').value = data.ui_glass_bg || 'rgba(22,27,34,0.7)';
-                    if (window.pickrGlassBg) window.pickrGlassBg.setColor(data.ui_glass_bg || 'rgba(22,27,34,0.7)');
-                    document.getElementById('config-glass-border').value = data.ui_glass_border || 'rgba(255,255,255,0.1)';
-                    if (window.pickrGlassBorder) window.pickrGlassBorder.setColor(data.ui_glass_border || 'rgba(255,255,255,0.1)');
-                    document.getElementById('config-edit-bg').value = data.ui_edit_bg || 'rgba(22,27,34,0.85)';
-                    if (window.pickrEditBg) window.pickrEditBg.setColor(data.ui_edit_bg || 'rgba(22,27,34,0.85)');
-                    document.getElementById('config-combo-bg').value = data.ui_combo_bg || 'rgba(13,17,23,0.95)';
-                    if (window.pickrComboBg) window.pickrComboBg.setColor(data.ui_combo_bg || 'rgba(13,17,23,0.95)');
-                    document.getElementById('config-panel-bg').value = data.ui_panel_bg || 'rgba(255,255,255,0.03)';
-                    if (window.pickrPanelBg) window.pickrPanelBg.setColor(data.ui_panel_bg || 'rgba(255,255,255,0.03)');
-                    document.getElementById('config-accent-primary').value = data.ui_accent_primary || '#58a6ff';
-                    if (window.pickrAccentPrimary) window.pickrAccentPrimary.setColor(data.ui_accent_primary || '#58a6ff');
-                    document.getElementById('config-accent-hover').value = data.ui_accent_hover || '#3182ce';
-                    if (window.pickrAccentHover) window.pickrAccentHover.setColor(data.ui_accent_hover || '#3182ce');
-                    document.getElementById('config-accent-dark').value = data.ui_accent_dark || '#2568a8';
-                    if (window.pickrAccentDark) window.pickrAccentDark.setColor(data.ui_accent_dark || '#2568a8');
-                    document.getElementById('config-danger').value = data.ui_danger || '#f85149';
-                    if (window.pickrDanger) window.pickrDanger.setColor(data.ui_danger || '#f85149');
-                    document.getElementById('config-text-primary').value = data.ui_text_primary || '#c9d1d9';
-                    if (window.pickrTextPrimary) window.pickrTextPrimary.setColor(data.ui_text_primary || '#c9d1d9');
-                    document.getElementById('config-text-secondary').value = data.ui_text_secondary || '#8b949e';
-                    if (window.pickrTextSecondary) window.pickrTextSecondary.setColor(data.ui_text_secondary || '#8b949e');
-
-
-                    document.getElementById('config-glass-blur').value = data.ui_glass_blur || 10;
-                    document.getElementById('val-blur').innerText = (data.ui_glass_blur || 10) + 'px';
-                    document.getElementById('config-fanart-opacity').value = data.fanart_mask_opacity || 0.3;
-                    document.getElementById('val-mask-opacity').innerText = data.fanart_mask_opacity || 0.3;
-                    document.getElementById('config-show-duration').checked = data.ui_show_duration !== false;
-                    document.getElementById('config-show-title').checked = data.ui_show_title !== false;
-
-                    let fontDd = document.getElementById('configFont-dd');
-                    if (fontDd) {
-                        let fontVal = data.ui_font || 'inter';
-                        fontDd.dataset.currentValue = fontVal;
-                        fontDd.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected'));
-                        let item = fontDd.querySelector(`.c-dropdown-item[data-value="${fontVal}"]`);
-                        if (item) {
-                            item.classList.add('selected');
-                            fontDd.querySelector('.c-dropdown-value').textContent = item.textContent;
-                        }
-                    }
-
-                    // Resetear estado del formulario
-                    pwdInput.value = '';
-                    repeatInput.value = '';
-                    repeatContainer.classList.add('hidden');
-                    pwdError.classList.add('hidden');
-                    saveBtn.disabled = false;
+                if (data.api_token_raw) {
+                    document.getElementById('webhooks-toggle-container').style.display = 'block';
+                    const host = window.location.host;
+                    document.getElementById('webhook-url-plex').value = `http://${host}/webhook/plex?token=${data.api_token_raw}`;
+                    document.getElementById('webhook-url-kodi').value = `http://${host}/webhook/kodi?token=${data.api_token_raw}`;
+                } else {
+                    document.getElementById('webhooks-toggle-container').style.display = 'none';
                 }
-            } catch (e) { console.error(e); }
-        };
-        if (fabConfig) {
-            fabConfig.addEventListener('click', openConfigHandler);
-        }
-        if (mobileSettingsBtn) {
-            mobileSettingsBtn.addEventListener('click', openConfigHandler);
-        }
+
+                document.getElementById('config-debug').checked = !!data.debug_mode;
+                document.getElementById('config-auto-update').checked = !!data.auto_update;
+                document.getElementById('config-notify-updates').checked = !!data.notify_updates;
+
+                let pqDd = document.getElementById('configPosterQuality-dd'); if (pqDd) { let val = data.poster_quality || 'w185'; pqDd.dataset.currentValue = val; pqDd.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected')); let match = Array.from(pqDd.querySelectorAll('.c-dropdown-item')).find(i => i.dataset.value === val); if (match) { match.classList.add('selected'); document.getElementById('configPosterQuality-val').innerText = match.innerText; } }
+                let fqDd = document.getElementById('configFanartQuality-dd'); if (fqDd) { let val = data.fanart_quality || 'w300'; fqDd.dataset.currentValue = val; fqDd.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected')); let match = Array.from(fqDd.querySelectorAll('.c-dropdown-item')).find(i => i.dataset.value === val); if (match) { match.classList.add('selected'); document.getElementById('configFanartQuality-val').innerText = match.innerText; } }
+                let posterDd = document.getElementById('configPosterPref-dd');
+                if (posterDd) {
+                    let val = data.poster_pref || 'show';
+                    posterDd.dataset.currentValue = val;
+                    posterDd.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected'));
+                    let item = posterDd.querySelector(`.c-dropdown-item[data-value="${val}"]`);
+                    if (item) {
+                        item.classList.add('selected');
+                        posterDd.querySelector('.c-dropdown-value').textContent = item.textContent;
+                    }
+                }
+
+                let fanartDd = document.getElementById('configFanartPref-dd');
+                if (fanartDd) {
+                    let val = data.fanart_pref || 'episode';
+                    fanartDd.dataset.currentValue = val;
+                    fanartDd.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected'));
+                    let item = fanartDd.querySelector(`.c-dropdown-item[data-value="${val}"]`);
+                    if (item) {
+                        item.classList.add('selected');
+                        fanartDd.querySelector('.c-dropdown-value').textContent = item.textContent;
+                    }
+                }
+
+                let langValue = data.sync_language || 'es';
+                let langDd = document.getElementById('configLang-dd');
+                langDd.dataset.currentValue = langValue;
+                langDd.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected'));
+                let selectedItem = langDd.querySelector(`.c-dropdown-item[data-value="${langValue}"]`);
+                if (selectedItem) {
+                    selectedItem.classList.add('selected');
+                    let valEl = langDd.querySelector('.c-dropdown-value');
+                    valEl.textContent = selectedItem.textContent;
+                    valEl.setAttribute('data-i18n', selectedItem.getAttribute('data-i18n'));
+                }
+
+                let dashLangValue = data.dashboard_language || 'auto';
+                let dashLangDd = document.getElementById('configDashboardLang-dd');
+                dashLangDd.dataset.currentValue = dashLangValue;
+                dashLangDd.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected'));
+                let dashSelectedItem = dashLangDd.querySelector(`.c-dropdown-item[data-value="${dashLangValue}"]`);
+                if (dashSelectedItem) {
+                    dashSelectedItem.classList.add('selected');
+                    let dashValEl = dashLangDd.querySelector('.c-dropdown-value');
+                    dashValEl.textContent = dashSelectedItem.textContent;
+                    dashValEl.setAttribute('data-i18n', dashSelectedItem.getAttribute('data-i18n'));
+                }
+                configModal.dataset.originalLang = langValue;
+                configModal.dataset.originalDashLang = dashLangValue;
+                configModal.dataset.originalPoster = data.poster_pref || 'show';
+                configModal.dataset.originalFanart = data.fanart_pref || 'episode';
+                configModal.dataset.originalPosterQ = data.poster_quality || 'w185';
+                configModal.dataset.originalFanartQ = data.fanart_quality || 'w300';
+                configModal.dataset.originalPosterW = data.ui_poster_w || 108;
+                configModal.dataset.originalFanartW = data.ui_fanart_w || 288;
+
+                document.getElementById('config-poster-w').value = data.ui_poster_w || 108;
+                document.getElementById('val-poster-w').value = data.ui_poster_w || 108;
+                document.getElementById('config-poster-h').value = data.ui_poster_h || 225;
+                document.getElementById('val-poster-h').value = data.ui_poster_h || 225;
+                document.getElementById('config-fanart-w').value = data.ui_fanart_w || 288;
+                document.getElementById('val-fanart-w').value = data.ui_fanart_w || 288;
+                document.getElementById('config-fanart-h').value = data.ui_fanart_h || 168;
+                document.getElementById('val-fanart-h').value = data.ui_fanart_h || 168;
+                document.getElementById('config-grid-gap').value = data.ui_grid_gap !== undefined ? data.ui_grid_gap : 15;
+                document.getElementById('val-gap').value = data.ui_grid_gap !== undefined ? data.ui_grid_gap : 15;
+                document.getElementById('config-card-radius').value = data.ui_card_radius !== undefined ? data.ui_card_radius : 8;
+                document.getElementById('val-radius').value = data.ui_card_radius !== undefined ? data.ui_card_radius : 8;
+
+                /*
+                --bg-color: #0d1117;
+                --glass-bg: rgba(22, 27, 34, 0.7);
+                --glass-border: rgba(255, 255, 255, 0.1);
+                --text-primary: #c9d1d9;
+                --text-secondary: #8b949e;
+                --accent: #58a6ff;
+                --accent-hover: #3182ce;
+                --accent-dark: #2568a8;
+                --danger: #f85149;                    
+                */
+
+                document.getElementById('config-bg-color').value = data.ui_bg_color || '#0d1117';
+                if (window.pickrBgColor) { window.pickrBgColor.setColor(data.ui_bg_color || '#0d1117'); window.pickrBgColor.applyColor(); }
+                document.getElementById('config-glass-bg').value = data.ui_glass_bg || 'rgba(22,27,34,0.7)';
+                if (window.pickrGlassBg) { window.pickrGlassBg.setColor(data.ui_glass_bg || 'rgba(22,27,34,0.7)'); window.pickrGlassBg.applyColor(); }
+                document.getElementById('config-glass-border').value = data.ui_glass_border || 'rgba(255,255,255,0.1)';
+                if (window.pickrGlassBorder) { window.pickrGlassBorder.setColor(data.ui_glass_border || 'rgba(255,255,255,0.1)'); window.pickrGlassBorder.applyColor(); }
+                document.getElementById('config-edit-bg').value = data.ui_edit_bg || 'rgba(22,27,34,0.85)';
+                if (window.pickrEditBg) { window.pickrEditBg.setColor(data.ui_edit_bg || 'rgba(22,27,34,0.85)'); window.pickrEditBg.applyColor(); }
+                document.getElementById('config-combo-bg').value = data.ui_combo_bg || 'rgba(13,17,23,0.95)';
+                if (window.pickrComboBg) { window.pickrComboBg.setColor(data.ui_combo_bg || 'rgba(13,17,23,0.95)'); window.pickrComboBg.applyColor(); }
+                document.getElementById('config-panel-bg').value = data.ui_panel_bg || 'rgba(255,255,255,0.03)';
+                if (window.pickrPanelBg) { window.pickrPanelBg.setColor(data.ui_panel_bg || 'rgba(255,255,255,0.03)'); window.pickrPanelBg.applyColor(); }
+                document.getElementById('config-accent-primary').value = data.ui_accent_primary || '#58a6ff';
+                if (window.pickrAccentPrimary) { window.pickrAccentPrimary.setColor(data.ui_accent_primary || '#58a6ff'); window.pickrAccentPrimary.applyColor(); }
+                document.getElementById('config-accent-hover').value = data.ui_accent_hover || '#3182ce';
+                if (window.pickrAccentHover) { window.pickrAccentHover.setColor(data.ui_accent_hover || '#3182ce'); window.pickrAccentHover.applyColor(); }
+                document.getElementById('config-accent-dark').value = data.ui_accent_dark || '#2568a8';
+                if (window.pickrAccentDark) { window.pickrAccentDark.setColor(data.ui_accent_dark || '#2568a8'); window.pickrAccentDark.applyColor(); }
+                document.getElementById('config-danger').value = data.ui_danger || '#f85149';
+                if (window.pickrDanger) { window.pickrDanger.setColor(data.ui_danger || '#f85149'); window.pickrDanger.applyColor(); }
+                document.getElementById('config-text-primary').value = data.ui_text_primary || '#c9d1d9';
+                if (window.pickrTextPrimary) { window.pickrTextPrimary.setColor(data.ui_text_primary || '#c9d1d9'); window.pickrTextPrimary.applyColor(); }
+                document.getElementById('config-text-secondary').value = data.ui_text_secondary || '#8b949e';
+                if (window.pickrTextSecondary) { window.pickrTextSecondary.setColor(data.ui_text_secondary || '#8b949e'); window.pickrTextSecondary.applyColor(); }
+
+
+                document.getElementById('config-glass-blur').value = data.ui_glass_blur !== undefined ? data.ui_glass_blur : 10;
+                document.getElementById('val-blur').value = data.ui_glass_blur !== undefined ? data.ui_glass_blur : 10;
+                document.getElementById('config-fanart-opacity').value = data.fanart_mask_opacity !== undefined ? data.fanart_mask_opacity : 0.3;
+                document.getElementById('val-mask-opacity').innerText = data.fanart_mask_opacity !== undefined ? data.fanart_mask_opacity : 0.3;
+                document.getElementById('config-show-duration').checked = data.ui_show_duration !== false;
+                document.getElementById('config-show-watch-time').checked = data.ui_show_watch_time !== false;
+                document.getElementById('config-show-title').checked = data.ui_show_title !== false;
+
+                let fontDd = document.getElementById('configFont-dd');
+                if (fontDd) {
+                    let fontVal = data.ui_font || 'inter';
+                    fontDd.dataset.currentValue = fontVal;
+                    fontDd.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected'));
+                    let item = fontDd.querySelector(`.c-dropdown-item[data-value="${fontVal}"]`);
+                    if (item) {
+                        item.classList.add('selected');
+                        fontDd.querySelector('.c-dropdown-value').textContent = item.textContent;
+                    }
+                }
+
+                // Resetear estado del formulario
+                pwdInput.value = '';
+                repeatInput.value = '';
+                repeatContainer.classList.add('hidden');
+                pwdError.classList.add('hidden');
+                saveBtn.disabled = false;
+            }
+        } catch (e) { console.error(e); }
+    };
+    if (fabConfig) {
+        fabConfig.addEventListener('click', openConfigHandler);
+    }
+    if (mobileSettingsBtn) {
+        mobileSettingsBtn.addEventListener('click', openConfigHandler);
+    }
 
     // Cancel Config
     cancelBtn.addEventListener('click', () => {
@@ -1457,7 +1490,7 @@ function setupConfigModal() {
             statusEl.textContent = currentLangData.config_pin_login || 'Please log in on the new Plex tab...';
 
             if (plexPinPollingInterval) clearInterval(plexPinPollingInterval);
-            plexPinPollingInterval = setInterval(async () => {
+            plexPinPollingInterval = window.plexPinInterval = setInterval(async () => {
                 const checkRes = await fetch(`https://plex.tv/api/v2/pins/${pinId}?X-Plex-Client-Identifier=SyncPK-Server-App`, {
                     headers: { "Accept": "application/json" }
                 });
@@ -1494,8 +1527,8 @@ function setupConfigModal() {
         const newPosterQ = document.getElementById('configPosterQuality-dd').dataset.currentValue || 'w185';
         const newFanartQ = document.getElementById('configFanartQuality-dd').dataset.currentValue || 'w300';
 
-        const newPosterW = parseInt(document.getElementById('config-poster-w').value);
-        const newFanartW = parseInt(document.getElementById('config-fanart-w').value);
+        const newPosterW = parseInt(document.getElementById('config-poster-w').value) || 108;
+        const newFanartW = parseInt(document.getElementById('config-fanart-w').value) || 288;
 
         const pwd = pwdInput.value;
 
@@ -1511,9 +1544,9 @@ function setupConfigModal() {
             dashboard_language: newDashLang,
             poster_pref: newPoster,
             fanart_pref: newFanart, poster_quality: newPosterQ, fanart_quality: newFanartQ,
-            ui_poster_w: newPosterW,
+            ui_poster_w: String(newPosterW),
             ui_poster_h: document.getElementById('config-poster-h').value,
-            ui_fanart_w: newFanartW,
+            ui_fanart_w: String(newFanartW),
             ui_fanart_h: document.getElementById('config-fanart-h').value,
             ui_grid_gap: document.getElementById('config-grid-gap').value,
             ui_card_radius: document.getElementById('config-card-radius').value,
@@ -1532,6 +1565,7 @@ function setupConfigModal() {
             ui_text_primary: document.getElementById('config-text-primary').value,
             ui_text_secondary: document.getElementById('config-text-secondary').value,
             ui_show_duration: document.getElementById('config-show-duration').checked,
+            ui_show_watch_time: document.getElementById('config-show-watch-time').checked,
             ui_show_title: document.getElementById('config-show-title').checked,
             fanart_mask_opacity: document.getElementById('config-fanart-opacity').value
         };
@@ -1589,6 +1623,16 @@ function setupConfigModal() {
                             setTimeout(() => window.location.reload(true), 3000);
                         } else {
                             hideOverlay(3000);
+
+                            let visualChanged = (
+                                window.UI_SHOW_DURATION !== payload.ui_show_duration ||
+                                window.UI_SHOW_WATCH_TIME !== payload.ui_show_watch_time ||
+                                window.UI_SHOW_TITLE !== payload.ui_show_title
+                            );
+
+                            loadUIConfig().then(() => {
+                                if (visualChanged) reloadHistory();
+                            });
                         }
                     }
 
@@ -1641,6 +1685,8 @@ document.addEventListener('DOMContentLoaded', setupConfigModal);
 
 // --- FLOATING ACTION BUTTON & MANUAL ADD ---
 document.addEventListener('DOMContentLoaded', () => {
+    initPickers();
+    checkUpdates();
 
     // --- Auto close mobile menu ---
     document.addEventListener("click", (e) => {
@@ -1688,9 +1734,33 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const fabAbout = document.getElementById('fab-about');
+    const aboutModal = document.getElementById('about-modal');
+    const aboutCloseBtn = document.getElementById('about-close-btn');
+
+    if (fabAbout) {
+        fabAbout.addEventListener('click', () => {
+            fabContainer.classList.remove('active');
+            aboutModal.classList.remove('hidden');
+        });
+    }
+
+    const logoTrigger = document.getElementById('logo-trigger');
+    if (logoTrigger) {
+        logoTrigger.addEventListener('click', () => {
+            aboutModal.classList.remove('hidden');
+        });
+    }
+
+    if (aboutCloseBtn) {
+        aboutCloseBtn.addEventListener('click', () => {
+            aboutModal.classList.add('hidden');
+        });
+    }
+
     // Open Manual Modal
     const mobileAddManualBtn = document.getElementById('add-manual-menu-btn');
-    
+
     const openManualHandler = () => {
         fabContainer.classList.remove('active');
         document.getElementById('header-right').classList.remove('open');
@@ -1701,7 +1771,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (fabAddManual) {
         fabAddManual.addEventListener('click', openManualHandler);
     }
-    
+
     if (mobileAddManualBtn) {
         mobileAddManualBtn.addEventListener('click', openManualHandler);
     }
@@ -1971,9 +2041,20 @@ function initPickers() {
             }
         });
 
+        pickr.on('init', instance => {
+            instance.setColor(defaultColor);
+        });
+
+        pickr.on('init', instance => {
+            let val = document.getElementById(inputId).value || defaultColor;
+            instance.setColor(val);
+        });
+
         pickr.on('save', (color, instance) => {
-            document.getElementById(inputId).value = color.toRGBA().toString(0);
-            instance.hide();
+            if (color) {
+                document.getElementById(inputId).value = color.toRGBA().toString(0);
+                instance.hide();
+            }
         });
 
         return pickr;
@@ -2161,6 +2242,8 @@ function connectWebSocket() {
 
 // Call on load
 document.addEventListener('DOMContentLoaded', () => {
+    initPickers();
+    checkUpdates();
 
     // --- Auto close mobile menu ---
     document.addEventListener("click", (e) => {
