@@ -92,7 +92,7 @@ For SyncPK to know immediately when you watch something on Plex, you need to con
 
 Once the server is running, you need to install the Kodi addon on your media players.
 
-1. Download the `kodi_addon.zip` from the latest GitHub Release and install it in Kodi via "Install from zip file".
+1. Download [`kodi_addon.zip`](https://github.com/lechtung/SyncPK/releases/latest/download/kodi_addon.zip) from the latest GitHub Release and install it in Kodi via "Install from zip file".
 2. Go to the Addon Settings.
 3. In the **SyncPK Server** tab, configure:
    - **Webhook URL**: Copy the Kodi Webhook URL provided at the end of the Web Setup wizard or in the SyncPK Dashboard settings (it includes your secure API token).
