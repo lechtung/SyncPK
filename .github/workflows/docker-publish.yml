@@ -18,11 +18,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Upload install.sh to Release
+      - name: Upload install scripts to Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload ${{ github.event.release.tag_name }} install.sh --clobber
+          gh release upload ${{ github.event.release.tag_name }} install_proxmox.sh --clobber
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3

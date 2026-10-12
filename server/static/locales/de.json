@@ -355,5 +355,6 @@
     "config_show_watch_time": "Show watch time",
     "tmdb_attribution": "Dieses Produkt verwendet die TMDB-API, wird jedoch nicht von TMDB unterstützt oder zertifiziert.",
     "not_affiliated": "SyncPK ist ein unabhngiges Open-Source-Projekt und ist in keiner Weise mit Plex oder Kodi verbunden, finanziert oder assoziiert.",
-    "about_icons": "Symbole von"
+    "about_icons": "Symbole von",
+    "import_step2_progress_text": "{orphans} eingefügt / {updates} aktualisiert"
 }

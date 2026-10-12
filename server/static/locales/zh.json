@@ -355,5 +355,6 @@
     "config_show_watch_time": "Show watch time",
     "tmdb_attribution": "本产品使用 TMDB API，但未经 TMDB 认可或认证。",
     "not_affiliated": "SyncPK 是一个独立的开源项目，不隶属于 Plex 或 Kodi，也未获得其资助或与之有任何关联。",
-    "about_icons": "图标由"
+    "about_icons": "图标由",
+    "import_step2_progress_text": "插入了 {orphans} 项 / 更新了 {updates} 项"
 }

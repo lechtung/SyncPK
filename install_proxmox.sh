@@ -85,8 +85,8 @@ fi
 
 echo "[Info] Gathering local and available templates..."
 pveam update &>/dev/null
-DOWNLOADED_TEMPLATES=$(pvesm list $TEMPLATE_STORAGE --content vztmpl | grep -E 'system.*(debian-12-standard|debian-13-standard|ubuntu-24\.04-standard|ubuntu-22\.04-standard)' | awk '{print $1}')
-AVAILABLE_TEMPLATES=$(pveam available | grep -E 'system.*(debian-12-standard|debian-13-standard|ubuntu-24\.04-standard|ubuntu-22\.04-standard)' | awk '{print $2}')
+DOWNLOADED_TEMPLATES=$(pvesm list $TEMPLATE_STORAGE --content vztmpl | awk 'NR>1 {print $1}')
+AVAILABLE_TEMPLATES=$(pveam available | awk '$2 ~ /system.*(debian-12-standard|debian-13-standard|ubuntu-24\.04-standard)/ {print $2}')
 
 TEMPLATE_MENU=()
 declare -A TPL_MAP
@@ -186,12 +186,4 @@ EOF"
 pct exec $CTID -- chmod +x /etc/profile.d/syncpk-motd.sh
 
 echo ""
-echo "================================================================"
-echo -e "\e[32mSyncPK LXC Container Created Successfully!\e[0m"
-echo "----------------------------------------------------------------"
-echo -e "Container ID: \e[1m$CTID\e[0m"
-echo -e "IP Address:   \e[1m$CT_IP\e[0m"
-echo -e "URL:          \e[1mhttp://$CT_IP:8000\e[0m"
-echo "================================================================"
-echo "You can now open the URL in your browser to run the Setup Wizard."
-echo ""
+echo "[Info] Proxmox wrapper script finished. The internal installer output above is the final result."
