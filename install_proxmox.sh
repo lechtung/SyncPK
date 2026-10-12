@@ -161,10 +161,6 @@ echo "[Info] Assigned IP: $CT_IP"
 
 echo "[Info] Launching automated system installer inside LXC..."
 # Use GitHub Releases API endpoint for install.sh to fix main vs release desync
-pct exec $CTID -- bash -c "set -euo pipefail; apt-get update && apt-get install -y curl ca-certificates && curl -fsSL https://github.com/$GITHUB_USER/$GITHUB_REPO/releases/latest/download/install.sh > install.sh && bash install.sh" || error "install.sh failed inside LXC."
-
-echo "[Info] Installation successful. Reducing RAM to 512MB..."
-pct set $CTID -memory 512 || true
 
 echo "[Info] Configuring Welcome Message (MOTD)..."
 pct exec $CTID -- bash -c "cat << 'EOF' > /etc/profile.d/syncpk-motd.sh
@@ -185,5 +181,6 @@ fi
 EOF"
 pct exec $CTID -- chmod +x /etc/profile.d/syncpk-motd.sh
 
-echo ""
-echo "[Info] Proxmox wrapper script finished. The internal installer output above is the final result."
+pct exec $CTID -- bash -c "set -euo pipefail; apt-get update && apt-get install -y curl ca-certificates && curl -fsSL https://github.com/$GITHUB_USER/$GITHUB_REPO/releases/latest/download/install.sh > install.sh && bash install.sh" || error "install.sh failed inside LXC."
+
+pct set $CTID -memory 512 || true
