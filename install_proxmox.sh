@@ -77,6 +77,48 @@ while true; do
     fi
 done
 
+# --- Network configuration: DHCP or Static IP ---
+HOST_GW=$(ip route | awk '/default/ {print $3; exit}')
+SUBNET_PREFIX=""
+if [ -n "$HOST_GW" ]; then
+    SUBNET_PREFIX=$(echo "$HOST_GW" | sed 's/\.[0-9]*$//')
+fi
+
+NET_CONFIG="ip=dhcp"
+CT_IP=""
+
+if [ -n "$HOST_GW" ] && [ -n "$SUBNET_PREFIX" ]; then
+    if whiptail --title "SyncPK - Network Configuration" \
+        --yes-button "DHCP (Default)" \
+        --no-button "Static IP" \
+        --yesno "Select network configuration method for the LXC container:\n\nDetected Gateway: ${HOST_GW}\nDetected Subnet:  ${SUBNET_PREFIX}.0/24\n\nUse DHCP (recommended)?\nOr select 'Static IP' to specify a fixed address in this subnet." \
+        13 68; then
+        NET_CONFIG="ip=dhcp"
+    else
+        while true; do
+            LAST_OCTET=$(whiptail --title "SyncPK - Static IP" \
+                --inputbox "Subnet detected: ${SUBNET_PREFIX}.x\nGateway: ${HOST_GW}\n\nEnter the last octet for the container's static IP (1-254):\nResulting IP will be: ${SUBNET_PREFIX}.[YOUR_INPUT]" \
+                12 65 "" 3>&1 1>&2 2>&3)
+            if [ $? -ne 0 ]; then exit 1; fi
+
+            # Validate: must be a number between 1 and 254
+            if [[ "$LAST_OCTET" =~ ^[0-9]+$ ]] && [ "$LAST_OCTET" -ge 1 ] && [ "$LAST_OCTET" -le 254 ]; then
+                CT_IP="${SUBNET_PREFIX}.${LAST_OCTET}"
+                NET_CONFIG="ip=${CT_IP}/24,gw=${HOST_GW}"
+                whiptail --title "SyncPK - Static IP" --msgbox \
+                    "Static IP configured: ${CT_IP}\nGateway: ${HOST_GW}\n\nMake sure this IP is excluded from your router's DHCP pool or configured with a static reservation to prevent conflicts." \
+                    11 65
+                break
+            else
+                whiptail --title "Error" --msgbox "Invalid value: '$LAST_OCTET'. Please enter a number between 1 and 254." 8 55
+            fi
+        done
+    fi
+else
+    # Fallback to DHCP if default gateway could not be determined
+    NET_CONFIG="ip=dhcp"
+fi
+
 CTID=$(pvesh get /cluster/nextid)
 TEMPLATE_STORAGE=$(pvesm status -content vztmpl | awk 'NR>1 {print $1}' | head -n 1)
 
@@ -141,7 +183,7 @@ LATEST_TEMPLATE="$TEMPLATE_STORAGE:vztmpl/$LATEST_TEMPLATE_FILE"
 
 # Medium Priority: Install with 1024MB to avoid OOM killer during pip compilation
 echo "[Info] Creating CT container $CTID with 1024MB RAM for installation..."
-pct create $CTID $LATEST_TEMPLATE -storage $TARGET_STORAGE -rootfs $TARGET_STORAGE:8 -password "$ROOT_PASSWORD" -arch amd64 -hostname syncpk -cores 1 -memory 1024 -net0 name=eth0,bridge=$BRIDGE,ip=dhcp -unprivileged 1 -features nesting=1 -timezone host -onboot 1 || error "Failed to create LXC container (pct create failed)."
+pct create $CTID $LATEST_TEMPLATE -storage $TARGET_STORAGE -rootfs $TARGET_STORAGE:8 -password "$ROOT_PASSWORD" -arch amd64 -hostname syncpk -cores 1 -memory 1024 -net0 name=eth0,bridge=$BRIDGE,$NET_CONFIG -unprivileged 1 -features nesting=1 -timezone host -onboot 1 || error "Failed to create LXC container (pct create failed)."
 
 pct start $CTID || error "Failed to start container $CTID."
 
@@ -156,11 +198,16 @@ for i in $(seq 1 30); do
 done
 
 if [ "$NET_OK" -eq 0 ]; then
-    error "No network access in the LXC container (Check bridge and DHCP). Debug with: pct enter $CTID"
+    error "No network access in the LXC container (Check bridge and DHCP/static config). Debug with: pct enter $CTID"
 fi
 
-CT_IP=$(pct exec $CTID -- ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
-echo "[Info] Assigned IP: $CT_IP"
+# Resolve CT IP: use known static IP or detect via DHCP
+if [ -n "$CT_IP" ]; then
+    echo "[Info] Static IP: $CT_IP"
+else
+    CT_IP=$(pct exec $CTID -- ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n 1)
+    echo "[Info] DHCP-assigned IP: $CT_IP"
+fi
 
 echo "[Info] Launching automated system installer inside LXC..."
 # Use GitHub Releases API endpoint for install.sh to fix main vs release desync
