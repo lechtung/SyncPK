@@ -50,6 +50,9 @@ cleanup() {
     rm -rf "$TMP_DIR"
     if [ "$INSTALL_SUCCESS" -eq 0 ] && [ -d "$CODE_DIR" ]; then
         echo -e "\e[31m[ERROR] Installation failed. Rolling back partial changes...\e[0m"
+        systemctl disable --now syncpk-server syncpk-checker.timer syncpk-updater.path 2>/dev/null || true
+        rm -f /etc/systemd/system/syncpk-*.service /etc/systemd/system/syncpk-*.timer /etc/systemd/system/syncpk-*.path 2>/dev/null || true
+        systemctl daemon-reload 2>/dev/null || true
         rm -rf "$CODE_DIR"
     fi
 }
@@ -68,12 +71,12 @@ fi
 
 echo "[Info] Installing OS dependencies..."
 export DEBIAN_FRONTEND=noninteractive
-apt-get update > /var/log/syncpk-install.log 2>&1 || {
+apt-get -o DPkg::Lock::Timeout=120 update > /var/log/syncpk-install.log 2>&1 || {
     tail -n 20 /var/log/syncpk-install.log
     echo -e "\e[31m[ERROR] apt-get update failed. Check the log.\e[0m"
     exit 1
 }
-apt-get install -y curl python3 python3-venv ca-certificates >> /var/log/syncpk-install.log 2>&1 || {
+apt-get -o DPkg::Lock::Timeout=120 install -y curl python3 python3-venv ca-certificates >> /var/log/syncpk-install.log 2>&1 || {
     tail -n 20 /var/log/syncpk-install.log
     echo -e "\e[31m[ERROR] Package installation failed. Check the log.\e[0m"
     exit 1
@@ -139,6 +142,9 @@ find $CODE_DIR -type f ! -path "*/venv/*" ! -path "*/.git/*" -exec chmod 644 {} 
 chmod +x $CODE_DIR/update.sh
 if [ -f "$CODE_DIR/check_update.sh" ]; then
     chmod +x $CODE_DIR/check_update.sh
+fi
+if [ -f "$CODE_DIR/uninstall.sh" ]; then
+    chmod +x $CODE_DIR/uninstall.sh
 fi
 
 chown -R syncpk:syncpk $DATA_DIR

@@ -224,6 +224,7 @@ API_HASH = os.getenv("API_HASH", "")
 HAS_PLEX_PASS = os.getenv("HAS_PLEX_PASS", "false").lower() == "true"
 PLEX_CLIENT_ID = os.getenv("PLEX_CLIENT_ID", "syncpk-default")
 FANART_MASK_OPACITY = os.getenv("FANART_MASK_OPACITY", "0.3")
+DELETED_HISTORY_RETENTION_DAYS = int(os.getenv("DELETED_HISTORY_RETENTION_DAYS", "1095"))
 
 plex_headers = {"Accept": "application/json", "X-Plex-Token": PLEX_TOKEN}
 
@@ -231,7 +232,8 @@ def reload_settings():
     """Re-read all global security/config variables from the .env file.
     Call this any time the .env is written (setup wizard, save config, restore)."""
     global PLEX_URL, PLEX_TOKEN, TMDB_API_KEY, SALT, WEB_SALT, WEB_HASH, \
-           API_HASH, HAS_PLEX_PASS, PLEX_CLIENT_ID, FANART_MASK_OPACITY, plex_headers
+           API_HASH, HAS_PLEX_PASS, PLEX_CLIENT_ID, FANART_MASK_OPACITY, \
+           DELETED_HISTORY_RETENTION_DAYS, plex_headers
     # Re-parse .env into os.environ first
     if os.path.exists(ENV_PATH):
         with open(ENV_PATH, "r", encoding="utf-8") as _f:
@@ -251,6 +253,7 @@ def reload_settings():
     HAS_PLEX_PASS      = os.getenv("HAS_PLEX_PASS", "false").lower() == "true"
     PLEX_CLIENT_ID     = os.getenv("PLEX_CLIENT_ID", "syncpk-default")
     FANART_MASK_OPACITY = os.getenv("FANART_MASK_OPACITY", "0.3")
+    DELETED_HISTORY_RETENTION_DAYS = int(os.getenv("DELETED_HISTORY_RETENTION_DAYS", "1095"))
     plex_headers       = {"Accept": "application/json", "X-Plex-Token": PLEX_TOKEN}
 
 def verify_api_key(
@@ -348,6 +351,19 @@ def init_db():
             show_tmdb_id TEXT,
             deleted_at TEXT
         )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS deleted_history_acks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            deleted_history_id INTEGER NOT NULL,
+            client_id TEXT NOT NULL,
+            acked_at TEXT NOT NULL,
+            UNIQUE(deleted_history_id, client_id)
+        )
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_deleted_acks_client
+        ON deleted_history_acks(client_id, deleted_history_id)
     """)
     cursor.execute("""
         CREATE TRIGGER IF NOT EXISTS trg_cleanup_deleted_movie
@@ -1110,22 +1126,47 @@ async def kodi_webhook_bulk(request: Request):
     return {"status": "success", "processed": count}
 
 class ConfirmSyncRequest(BaseModel):
+    client_id: Optional[str] = None
     ids: list[int]
 
 @app.post("/sync/confirm-kodi", dependencies=[Depends(verify_webhook_token)])
 def confirm_kodi_sync(req: ConfirmSyncRequest):
     if not req.ids:
-        return {"status": "success", "deleted": 0}
+        return {"status": "success", "confirmed": 0, "deleted": 0}
+    
     conn = get_db_connection()
     cursor = conn.cursor()
-    placeholders = ",".join("?" for _ in req.ids)
-    cursor.execute(f"DELETE FROM deleted_history WHERE id IN ({placeholders})", req.ids)
+    now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    # Record ACKs per client if client_id is provided
+    client_id = req.client_id or "default_client"
+    for item_id in req.ids:
+        cursor.execute("""
+            INSERT OR IGNORE INTO deleted_history_acks (deleted_history_id, client_id, acked_at)
+            VALUES (?, ?, ?)
+        """, (item_id, client_id, now_utc))
+
+    # Prune tombstone records older than configured retention period (default: 1095 days / 3 years)
+    cursor.execute(f"""
+        DELETE FROM deleted_history 
+        WHERE deleted_at < datetime('now', '-{DELETED_HISTORY_RETENTION_DAYS} days')
+    """)
+    # Clean up orphan ACKs whose parents have been pruned
+    cursor.execute("""
+        DELETE FROM deleted_history_acks 
+        WHERE deleted_history_id NOT IN (SELECT id FROM deleted_history)
+    """)
+
     conn.commit()
     conn.close()
-    return {"status": "success", "deleted": len(req.ids)}
+    return {"status": "success", "confirmed": len(req.ids), "deleted": len(req.ids)}
 
 @app.get("/sync/all-items", dependencies=[Depends(verify_webhook_token)])
-def get_all_items(client: Optional[str] = Query("kodi"), date_from: Optional[str] = Query(None)):
+def get_all_items(
+    client: Optional[str] = Query("kodi"),
+    client_id: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None)
+):
     now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     conn = get_db_connection()
     conn.row_factory = sqlite3.Row
@@ -1137,7 +1178,6 @@ def get_all_items(client: Optional[str] = Query("kodi"), date_from: Optional[str
     if date_from:
         query += " AND created_at >= ?"
         params.append(date_from)
-        # Eliminamos la regla origin != client para que si hay mï¿½ltiples TVs con Kodi, todas reciban todo.
         
     cursor.execute(query, params)
     rows = cursor.fetchall()
@@ -1152,6 +1192,7 @@ def get_all_items(client: Optional[str] = Query("kodi"), date_from: Optional[str
                 "id": item["id"],
                 "movie": {
                     "title": item["title"],
+                    "year": item.get("year"),
                     "ids": {
                         "imdb": item["imdb_id"],
                         "tmdb": item["tmdb_id"],
@@ -1164,6 +1205,12 @@ def get_all_items(client: Optional[str] = Query("kodi"), date_from: Optional[str
             show_key = f"{item['show_title']}_{item['show_tmdb_id']}"
             if not shows[show_key]["title"]:
                 shows[show_key]["title"] = item["show_title"]
+                shows[show_key]["year"] = item.get("show_year")
+                shows[show_key]["ids"] = {
+                    "imdb": item.get("show_imdb_id"),
+                    "tmdb": item.get("show_tmdb_id"),
+                    "tvdb": item.get("show_tvdb_id")
+                }
                 
             season_num = item["season"]
             if season_num not in shows[show_key]["seasons"]:
@@ -1184,11 +1231,29 @@ def get_all_items(client: Optional[str] = Query("kodi"), date_from: Optional[str
                 "episodes": eps
             })
         shows_list.append({
-            "show": {"title": show_data["title"]},
+            "show": {
+                "title": show_data["title"],
+                "year": show_data.get("year"),
+                "ids": show_data.get("ids", {})
+            },
             "seasons": seasons_list
         })
         
-    cursor.execute("SELECT * FROM deleted_history WHERE deleted_at >= ?", (date_from,))
+    # Fetch tombstones not yet acknowledged by this client
+    target_client = client_id or "default_client"
+    deleted_query = """
+        SELECT d.* FROM deleted_history d
+        LEFT JOIN deleted_history_acks a 
+          ON d.id = a.deleted_history_id AND a.client_id = ?
+        WHERE a.id IS NULL
+    """
+    deleted_params = [target_client]
+
+    if date_from:
+        deleted_query += " AND d.deleted_at >= ?"
+        deleted_params.append(date_from)
+
+    cursor.execute(deleted_query, deleted_params)
     deleted_rows = cursor.fetchall()
     deleted_movies = []
     deleted_shows = []

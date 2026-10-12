@@ -8,6 +8,7 @@
         <setting id="sync_on_startup" type="bool" label="Sincronizar al iniciar Kodi" default="true" />
         <setting id="sync_interval" type="number" label="Intervalo de sincronización (minutos, 0=Desactivado)" default="15" />
         <setting id="last_sync_date" type="text" label="Fecha última sincronización (Borrar para forzar Full Sync)" default="" />
+        <setting id="client_id" type="text" label="Client UID" default="" visible="false" />
     </category>
     <category label="Opciones de Reproducción">
         <setting id="watched_percent" type="number" label="Porcentaje para considerar Visto (%)" default="80" />

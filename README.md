@@ -49,11 +49,18 @@ bash -c "$(curl -fsSL https://github.com/lechtung/SyncPK/releases/latest/downloa
 
 **Next step:** Open your browser and go to `http://<YOUR_LXC_IP>:8000` to start the Web Setup.
 
+> ⚠️ **Note about DHCP:** If you rely on DHCP for the LXC container's IP, create a **DHCP reservation** in your router so the IP doesn't change and break your Kodi/Plex webhook URLs.
+
 ### Option B: Baremetal / Existing Linux Machine
 If you want to install SyncPK on a Raspberry Pi, an existing Debian/Ubuntu server, or inside a container you already created, use this script. Run this command as **root** inside your Linux machine:
 
 ```bash
 bash -c "$(curl -fsSL https://github.com/lechtung/SyncPK/releases/latest/download/install.sh)"
+```
+
+**To reinstall** (overwriting an existing installation):
+```bash
+bash -c "$(curl -fsSL https://github.com/lechtung/SyncPK/releases/latest/download/install.sh)" _ --force
 ```
 
 **Next step:** Open your browser and go to `http://<YOUR_SERVER_IP>:8000` to start the Web Setup.
@@ -118,6 +125,8 @@ If your server has an active firewall (like `ufw`), you must open port 8000 to a
 sudo ufw allow 8000/tcp
 ```
 
+> ⚠️ **Docker & UFW:** If you expose port `8000:8000` in Docker, it will **bypass UFW**. To strictly bind the server to localhost for a reverse proxy, use `127.0.0.1:8000:8000` in your compose file.
+
 ---
 
 ## 💾 Backup & Restore
@@ -144,15 +153,27 @@ Simply place the contents back into `/var/lib/syncpk` (or `./data` for Docker) b
 
 **For Proxmox LXC**: Destroy the container from your Proxmox web interface.
 
-**For Baremetal**: 
+**For Baremetal**:
 ```bash
-sudo systemctl disable --now syncpk-server syncpk-checker.timer syncpk-updater.path
-sudo rm -rf /opt/syncpk /var/lib/syncpk /etc/systemd/system/syncpk*
-sudo systemctl daemon-reload
-sudo userdel syncpk
+sudo /opt/syncpk/uninstall.sh
+```
+To also delete all data and backups:
+```bash
+sudo /opt/syncpk/uninstall.sh --purge
 ```
 
 **For Docker**: Run `docker compose down -v` and delete the folder.
+
+---
+
+### 🪟 Windows Users (Docker / Podman)
+Running SyncPK natively as a service on Windows is not officially supported. However, you can run it perfectly using **Docker Desktop** (Free for personal use) or **Podman Desktop** (Open Source).
+Make sure you use absolute Windows paths for your volumes in your docker-compose.yml or docker run command:
+
+```yaml
+volumes:
+  - C:\path\to\your\data:/app/data
+```
 
 ---
 
@@ -169,18 +190,3 @@ SyncPK uses the following open-source libraries:
 ## 📄 License
 
 This project is licensed under the GNU General Public License v3.0 (GPL-3.0). See the [LICENSE](LICENSE) file for details.
-
-
-### 🪟 Windows Users (Docker / Podman)
-Running SyncPK natively as a service on Windows is not officially supported. However, you can run it perfectly using **Docker Desktop** (Free for personal use) or **Podman Desktop** (Open Source).
-Make sure you use absolute Windows paths for your volumes in your docker-compose.yml or docker run command:
-`yaml
-volumes:
-  - C:\path	o\your\data:/app/data
-`
-
-⚠️ **Important Note about UFW / Firewall in Docker:**
-If you expose the port 8000:8000 in Docker, it will bypass Linux firewalls like UFW. To strictly bind the server to localhost for a reverse proxy, use 127.0.0.1:8000:8000 in your compose file.
-
-⚠️ **Important Note about LXC DHCP:**
-If you installed via LXC (Proxmox) and rely on DHCP, ensure you create a DHCP reservation in your router so the IP doesn't change and break your Kodi/Plex webhook URLs.

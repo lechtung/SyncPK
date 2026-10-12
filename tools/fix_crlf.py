@@ -9,7 +9,7 @@ from pathlib import Path
 # Whitelist of safe text file extensions
 EXTENSIONS = {
     ".html", ".css", ".py", ".js", ".json", 
-    ".txt", ".sh", ".md", ".yml", ".yaml"
+    ".txt", ".sh", ".md", ".yml", ".yaml", ".xml"
 }
 
 # Explicit filenames that might not have standard extensions

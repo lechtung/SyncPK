@@ -2,7 +2,6 @@
 
 GITHUB_USER="lechtung"
 GITHUB_REPO="SyncPK"
-GITHUB_BRANCH="main"
 CTID=""
 
 function cleanup_on_error() {
@@ -24,6 +23,8 @@ function error() {
     echo -e "\e[31m[ERROR] $1\e[0m"
     cleanup_on_error
 }
+
+trap cleanup_on_error INT TERM
 
 if [ "$EUID" -ne 0 ]; then
     echo -e "\e[31m[ERROR] This script must be run as root (administrator privileges).\e[0m"
@@ -86,7 +87,7 @@ fi
 echo "[Info] Gathering local and available templates..."
 pveam update &>/dev/null
 DOWNLOADED_TEMPLATES=$(pvesm list $TEMPLATE_STORAGE --content vztmpl | awk 'NR>1 {print $1}')
-AVAILABLE_TEMPLATES=$(pveam available | awk '$2 ~ /system.*(debian-12-standard|debian-13-standard|ubuntu-24\.04-standard)/ {print $2}')
+AVAILABLE_TEMPLATES=$(pveam available | awk '$1=="system" && $2 ~ /^(debian-12-standard|debian-13-standard|ubuntu-24\.04-standard)/ {print $2}')
 
 TEMPLATE_MENU=()
 declare -A TPL_MAP
@@ -95,6 +96,8 @@ DEFAULT_ITEM=""
 
 for t in $DOWNLOADED_TEMPLATES; do
     filename=$(basename "$t")
+    # Only offer apt-compatible templates (Debian/Ubuntu); skip Alpine, Rocky, etc.
+    if ! echo "$filename" | grep -qE '^(debian|ubuntu)-'; then continue; fi
     shortname=$(echo "$filename" | sed -E 's/(-standard|_amd64.*\.tar\.[a-z]+)//g')
     TEMPLATE_MENU+=("$idx" "[Local] $shortname")
     TPL_MAP[$idx]="$filename"
@@ -140,7 +143,7 @@ LATEST_TEMPLATE="$TEMPLATE_STORAGE:vztmpl/$LATEST_TEMPLATE_FILE"
 echo "[Info] Creating CT container $CTID with 1024MB RAM for installation..."
 pct create $CTID $LATEST_TEMPLATE -storage $TARGET_STORAGE -rootfs $TARGET_STORAGE:8 -password "$ROOT_PASSWORD" -arch amd64 -hostname syncpk -cores 1 -memory 1024 -net0 name=eth0,bridge=$BRIDGE,ip=dhcp -unprivileged 1 -features nesting=1 -timezone host -onboot 1 || error "Failed to create LXC container (pct create failed)."
 
-pct start $CTID
+pct start $CTID || error "Failed to start container $CTID."
 
 echo "[Info] Waiting for the container to get network access..."
 NET_OK=0
@@ -164,23 +167,22 @@ echo "[Info] Launching automated system installer inside LXC..."
 
 echo "[Info] Configuring Welcome Message (MOTD)..."
 pct exec $CTID -- bash -c "cat << 'EOF' > /etc/profile.d/syncpk-motd.sh
-if [[ \$- == *i* ]]; then
-    LOCAL_IP=\$(hostname -I 2>/dev/null | awk '{print \$1}')
-    if [ -z \"\$LOCAL_IP\" ]; then LOCAL_IP=\"127.0.0.1\"; fi
-    echo \"\"
-    echo \"================================================================\"
-    echo -e \" \e[32m\e[1mSyncPK - Two-Way Kodi & Plex Sync Server\e[0m\"
-    echo \"================================================================\"
-    echo -e \" \e[1mWeb Dashboard:\e[0m http://\$LOCAL_IP:8000\"
-    echo -e \" \e[1mKodi Webhook:\e[0m  http://\$LOCAL_IP:8000/webhook/kodi\"
-    echo -e \" \e[1mPlex Webhook:\e[0m  http://\$LOCAL_IP:8000/webhook/plex\"
-    echo \"(Make sure to append your ?token=... in Plex/Kodi if configured)\"
-    echo \"================================================================\"
-    echo \"\"
-fi
+case \$- in *i*) ;; *) return ;; esac
+LOCAL_IP=\$(hostname -I 2>/dev/null | awk '{print \$1}')
+if [ -z \"\$LOCAL_IP\" ]; then LOCAL_IP=\"127.0.0.1\"; fi
+echo \"\"
+echo \"================================================================\"
+echo -e \" \e[32m\e[1mSyncPK - Two-Way Kodi & Plex Sync Server\e[0m\"
+echo \"================================================================\"
+echo -e \" \e[1mWeb Dashboard:\e[0m http://\$LOCAL_IP:8000\"
+echo -e \" \e[1mKodi Webhook:\e[0m  http://\$LOCAL_IP:8000/webhook/kodi\"
+echo -e \" \e[1mPlex Webhook:\e[0m  http://\$LOCAL_IP:8000/webhook/plex\"
+echo \"(Make sure to append your ?token=... in Plex/Kodi if configured)\"
+echo \"================================================================\"
+echo \"\"
 EOF"
 pct exec $CTID -- chmod +x /etc/profile.d/syncpk-motd.sh
 
 pct exec $CTID -- bash -c "set -euo pipefail; apt-get update && apt-get install -y curl ca-certificates && curl -fsSL https://github.com/$GITHUB_USER/$GITHUB_REPO/releases/latest/download/install.sh > install.sh && bash install.sh" || error "install.sh failed inside LXC."
 
-pct set $CTID -memory 512 || true
+pct set $CTID -memory 512 &>/dev/null || true
