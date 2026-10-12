@@ -98,7 +98,7 @@ for t in $DOWNLOADED_TEMPLATES; do
     shortname=$(echo "$filename" | sed -E 's/(-standard|_amd64.*\.tar\.[a-z]+)//g')
     TEMPLATE_MENU+=("$idx" "[Local] $shortname")
     TPL_MAP[$idx]="$filename"
-    if [[ "$filename" == *"debian-12-standard"* ]]; then
+    if [[ "$filename" == *"debian-13-standard"* ]]; then
         DEFAULT_ITEM="$idx"
     fi
     ((idx++))
@@ -109,7 +109,7 @@ for t in $AVAILABLE_TEMPLATES; do
         shortname=$(echo "$t" | sed -E 's/(-standard|_amd64.*\.tar\.[a-z]+)//g')
         TEMPLATE_MENU+=("$idx" "[Download] $shortname")
         TPL_MAP[$idx]="$t"
-        if [ -z "$DEFAULT_ITEM" ] && [[ "$t" == *"debian-12-standard"* ]]; then
+        if [ -z "$DEFAULT_ITEM" ] && [[ "$t" == *"debian-13-standard"* ]]; then
             DEFAULT_ITEM="$idx"
         fi
         ((idx++))
@@ -124,7 +124,7 @@ if [ ${#TEMPLATE_MENU[@]} -eq 0 ]; then
     error "No templates found locally or remotely."
 fi
 
-CHOICE=$(whiptail --title "SyncPK - Template Selection" --default-item "$DEFAULT_ITEM" --menu "Select the base image for the LXC container (Debian 12/13 recommended):" 18 60 8 "${TEMPLATE_MENU[@]}" 3>&1 1>&2 2>&3)
+CHOICE=$(whiptail --title "SyncPK - Template Selection" --default-item "$DEFAULT_ITEM" --menu "Select the base image for the LXC container (Debian 13 recommended):" 18 60 8 "${TEMPLATE_MENU[@]}" 3>&1 1>&2 2>&3)
 if [ $? -ne 0 ]; then exit 1; fi
 
 LATEST_TEMPLATE_FILE="${TPL_MAP[$CHOICE]}"
