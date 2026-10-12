@@ -2,433 +2,462 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SyncPK Setup</title>
-  <meta name="description" content="SyncPK initial configuration wizard." />
-  <link rel="icon" href="/favicon.ico" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="/vendor/inter.css" rel="stylesheet">
-  <link href="/vendor/fontawesome/css/all.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="style.css" />
-  <link rel="stylesheet" href="setup.css" />
-  <link rel="stylesheet" href="import.css" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SyncPK Setup</title>
+    <meta name="description" content="SyncPK initial configuration wizard." />
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="/vendor/inter.css" rel="stylesheet">
+    <link href="/vendor/fontawesome/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="setup.css" />
+    <link rel="stylesheet" href="import.css" />
 </head>
 
 <body>
-  <div id="setup-progress-wrap">
-    <div id="setup-progress-bar" style="width:0%"></div>
-  </div>
-  <div id="setup-step-indicator"></div>
-  <div class="wizard-card glass-panel" id="webhooks-card-container" style="display: none; animation: fadeIn 0.5s ease; max-width: 550px; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; z-index: 1000;">
-    <!-- Header de Éxito -->
-    <div style="text-align: center; margin-bottom: 30px;">
-        <div style="display:inline-block; margin-bottom: 15px;">
-            <svg class="svg-anim" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52" style="width: 70px; height: 70px;">
-                <circle class="circle" cx="26" cy="26" r="25" stroke="#4ade80" fill="none" stroke-width="2"/>
-                <path class="check" stroke="#4ade80" fill="none" stroke-width="2" d="M14 27 l 7 7 17 -17"/>
-            </svg>
-        </div>
-        <h2 style="font-size: 1.8rem; font-weight: 600; margin-bottom: 10px; background: linear-gradient(90deg, #fff, #aaa); -webkit-background-clip: text; -webkit-text-fill-color: transparent;" data-i18n="import_complete_title">Import Complete!</h2>
-        <p style="color: #aaa; font-size: 0.95rem; line-height: 1.5;" id="import_complete_subtitle_container" data-i18n="import_complete_subtitle">Your server is now fully synchronized.<br>To keep it updated in real-time, configure these webhooks:</p>
+    <div id="setup-progress-wrap">
+        <div id="setup-progress-bar" style="width:0%"></div>
     </div>
-
-    <!-- Contenedor Webhooks -->
-    <div class="webhook-card" style="background: rgba(0,0,0,0.3); border-radius: 12px; padding: 20px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 30px;">
-        <!-- Plex Webhook -->
-        <div style="margin-bottom: 20px;">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                <i class="fa-solid fa-play" style="color: #e5a00d;"></i>
-                <span style="font-weight: 500; font-size: 0.95rem;" data-i18n="import_complete_plex_webhook">Plex Webhook</span>
-                <span id="plex-pass-badge" style="font-size: 0.7rem; background: rgba(229, 160, 13, 0.2); color: #e5a00d; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(229,160,13,0.3);" data-i18n="import_complete_plex_pass_required">Plex Pass</span>
+    <div id="setup-step-indicator"></div>
+    <div class="wizard-card glass-panel" id="webhooks-card-container"
+        style="display: none; animation: fadeIn 0.5s ease; max-width: 550px; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; z-index: 1000;">
+        <!-- Header de Éxito -->
+        <div style="text-align: center; margin-bottom: 30px;">
+            <div style="display:inline-block; margin-bottom: 15px;">
+                <svg class="svg-anim" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52"
+                    style="width: 70px; height: 70px;">
+                    <circle class="circle" cx="26" cy="26" r="25" stroke="#4ade80" fill="none" stroke-width="2" />
+                    <path class="check" stroke="#4ade80" fill="none" stroke-width="2" d="M14 27 l 7 7 17 -17" />
+                </svg>
             </div>
-            
-            <!-- Vista CON Plex Pass -->
-            <div id="plex-webhook-active">
-                <p style="font-size: 0.8rem; color: #888; margin-bottom: 10px; line-height: 1.4;" data-i18n="import_complete_plex_desc">Add this URL in your Plex account settings.</p>
-                <div style="display: flex; gap: 10px;">
-                    <input type="text" id="final-plex-webhook" class="config-input" readonly style="flex: 1; margin: 0; font-family: monospace; font-size: 0.8rem; background: rgba(0,0,0,0.5); padding: 10px 12px; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #aaa;">
-                    <button class="icon-action-btn" onclick="copyWebhook('final-plex-webhook')" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0 15px; cursor: pointer; color: #fff; transition: all 0.2s;" title="Copiar"><i class="fa-solid fa-copy"></i></button>
+            <h2 style="font-size: 1.8rem; font-weight: 600; margin-bottom: 10px; background: linear-gradient(90deg, #fff, #aaa); -webkit-background-clip: text; -webkit-text-fill-color: transparent;"
+                data-i18n="import_complete_title">Import Complete!</h2>
+            <p style="color: #aaa; font-size: 0.95rem; line-height: 1.5;" id="import_complete_subtitle_container"
+                data-i18n="import_complete_subtitle">Your server is now fully synchronized.<br>To keep it updated in
+                real-time, configure these webhooks:</p>
+        </div>
+
+        <!-- Contenedor Webhooks -->
+        <div class="webhook-card"
+            style="background: rgba(0,0,0,0.3); border-radius: 12px; padding: 20px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 30px;">
+            <!-- Plex Webhook -->
+            <div style="margin-bottom: 20px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <i class="fa-solid fa-play" style="color: #e5a00d;"></i>
+                    <span style="font-weight: 500; font-size: 0.95rem;" data-i18n="import_complete_plex_webhook">Plex
+                        Webhook</span>
+                    <span id="plex-pass-badge"
+                        style="font-size: 0.7rem; background: rgba(229, 160, 13, 0.2); color: #e5a00d; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(229,160,13,0.3);"
+                        data-i18n="import_complete_plex_pass_required">Plex Pass</span>
+                </div>
+
+                <!-- Vista CON Plex Pass -->
+                <div id="plex-webhook-active">
+                    <p style="font-size: 0.8rem; color: #888; margin-bottom: 10px; line-height: 1.4;"
+                        data-i18n="import_complete_plex_desc">Add this URL in your Plex account settings.</p>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="final-plex-webhook" class="config-input" readonly
+                            style="flex: 1; margin: 0; font-family: monospace; font-size: 0.8rem; background: rgba(0,0,0,0.5); padding: 10px 12px; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #aaa;">
+                        <button class="icon-action-btn" onclick="copyWebhook('final-plex-webhook')"
+                            style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0 15px; cursor: pointer; color: #fff; transition: all 0.2s;"
+                            title="Copiar"><i class="fa-solid fa-copy"></i></button>
+                    </div>
+                </div>
+
+                <!-- Vista SIN Plex Pass -->
+                <div id="plex-webhook-fallback" style="display: none;">
+                    <p style="font-size: 0.85rem; color: #aaa; margin-bottom: 0; line-height: 1.5; background: rgba(255,255,255,0.05); padding: 12px; border-radius: 8px; border-left: 3px solid #e5a00d;"
+                        data-i18n="import_complete_plex_no_pass">
+                        Since you don't have a Plex Pass, SyncPK will use periodic background synchronization instead of
+                        webhooks. You don't need to configure anything else.
+                    </p>
                 </div>
             </div>
 
-            <!-- Vista SIN Plex Pass -->
-            <div id="plex-webhook-fallback" style="display: none;">
-                <p style="font-size: 0.85rem; color: #aaa; margin-bottom: 0; line-height: 1.5; background: rgba(255,255,255,0.05); padding: 12px; border-radius: 8px; border-left: 3px solid #e5a00d;" data-i18n="import_complete_plex_no_pass">
-                    Since you don't have a Plex Pass, SyncPK will use periodic background synchronization instead of webhooks. You don't need to configure anything else.
-                </p>
+            <!-- Kodi Webhook -->
+            <div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <i class="fa-solid fa-tv" style="color: #17B2E7;"></i>
+                    <span style="font-weight: 500; font-size: 0.95rem;" data-i18n="import_complete_kodi_webhook">Kodi
+                        Webhook</span>
+                </div>
+                <p style="font-size: 0.8rem; color: #888; margin-bottom: 10px; line-height: 1.4;"
+                    data-i18n="import_complete_kodi_desc">Configure this IP and your API Token in the Kodi Add-on
+                    settings.</p>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="final-kodi-webhook" class="config-input" readonly
+                        style="flex: 1; margin: 0; font-family: monospace; font-size: 0.8rem; background: rgba(0,0,0,0.5); padding: 10px 12px; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #aaa;">
+                    <button class="icon-action-btn" onclick="copyWebhook('final-kodi-webhook')"
+                        style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0 15px; cursor: pointer; color: #fff; transition: all 0.2s;"
+                        title="Copiar"><i class="fa-solid fa-copy"></i></button>
+                </div>
             </div>
         </div>
 
-        <!-- Kodi Webhook -->
-        <div>
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                <i class="fa-solid fa-tv" style="color: #17B2E7;"></i>
-                <span style="font-weight: 500; font-size: 0.95rem;" data-i18n="import_complete_kodi_webhook">Kodi Webhook</span>
+        <!-- Nota recordatoria -->
+        <p style="font-size: 0.8rem; color: #888; text-align: center; margin-top: -15px; margin-bottom: 25px;">
+            <i class="fa-solid fa-circle-info" style="margin-right: 5px;"></i>
+            <span data-i18n="import_complete_note">Note: You can view and modify these Webhooks at any time from the
+                Dashboard settings.</span>
+        </p>
+
+        <!-- Acción Final -->
+        <button class="btn-next" onclick="window.location.href='/'"
+            style="width: 100%; display: flex; align-items: center; justify-content: center;">
+            <span data-i18n="import_complete_btn">Go to Dashboard</span> <i class="fa-solid fa-arrow-right"
+                style="margin-left: 8px;"></i>
+        </button>
+    </div>
+    <div id="setup-shell">
+        <div id="setup-logo">
+            <img src="syncpk.svg?v=1.10" alt="SyncPK" onerror="this.style.display='none'" />
+            <span>Sync<span class="logo-p" style="font-style:normal;">P</span><span class="logo-k"
+                    style="font-style:normal;">K</span></span>
+        </div>
+        <div class="wizard-card glass-panel">
+            <!-- STEP 1: PLEX LOCAL DATA & ACTIVITY -->
+            <div class="wizard-step active" id="step-plex-local">
+                <div class="step-icon"><i class="fa-solid fa-server fa-beat-fade"></i></div>
+                <div class="step-title" data-i18n="import_step1_title">Importing Local Data & Activity</div>
+                <div class="step-subtitle" data-i18n="import_step1_subtitle">Scanning libraries and extracting activity
+                    history. This might take a few moments.</div>
+
+                <div class="import-progress-container">
+                    <div class="import-status-text">
+                        <span id="import-current-item" data-i18n="import_step1_text">Processing library...</span>
+                        <span id="import-percentage">0%</span>
+                    </div>
+                    <div class="import-progress-track">
+                        <div class="import-progress-bar" id="import-bar-fill" style="width: 0%"></div>
+                    </div>
+                </div>
             </div>
-            <p style="font-size: 0.8rem; color: #888; margin-bottom: 10px; line-height: 1.4;" data-i18n="import_complete_kodi_desc">Configure this IP and your API Token in the Kodi Add-on settings.</p>
-            <div style="display: flex; gap: 10px;">
-                <input type="text" id="final-kodi-webhook" class="config-input" readonly style="flex: 1; margin: 0; font-family: monospace; font-size: 0.8rem; background: rgba(0,0,0,0.5); padding: 10px 12px; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #aaa;">
-                <button class="icon-action-btn" onclick="copyWebhook('final-kodi-webhook')" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0 15px; cursor: pointer; color: #fff; transition: all 0.2s;" title="Copiar"><i class="fa-solid fa-copy"></i></button>
+
+            <!-- STEP 2: CLOUD ACTIVITY -->
+            <div class="wizard-step" id="step-cloud-activity">
+                <div class="step-icon"><i class="fa-solid fa-cloud-arrow-down"></i></div>
+                <div class="step-title" data-i18n="import_step2_title">Syncing Cloud Activity</div>
+                <div class="step-subtitle" data-i18n="import_step2_subtitle">Downloading cross-server activity from your
+                    Plex account.</div>
+
+                <div class="import-progress-container">
+                    <div class="import-status-text" style="flex-direction: column; align-items: flex-start; gap: 6px;">
+                        <span id="import-cloud-status" data-i18n="import_step2_text">Fetching batches...</span>
+                        <span id="import-cloud-count">0 items</span>
+                    </div>
+                    <div class="import-progress-track">
+                        <div class="import-progress-bar indeterminate" id="import-cloud-fill"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STEP 3: TMDB COVERS -->
+            <div class="wizard-step" id="step-tmdb-covers">
+                <div class="step-icon"><i class="fa-solid fa-image"></i></div>
+                <div class="step-title" data-i18n="import_step3_title">Downloading Posters</div>
+                <div class="step-subtitle" data-i18n="import_step3_subtitle">Fetching high quality metadata and artwork
+                    from TMDB.</div>
+
+                <div class="import-progress-container">
+                    <div class="import-status-text">
+                        <span id="import-tmdb-current" data-i18n="import_step3_text">Downloading poster...</span>
+                        <span id="import-tmdb-percentage">0%</span>
+                    </div>
+                    <div class="import-progress-track">
+                        <div class="import-progress-bar" id="import-tmdb-fill" style="width: 0%"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Nota recordatoria -->
-    <p style="font-size: 0.8rem; color: #888; text-align: center; margin-top: -15px; margin-bottom: 25px;">
-        <i class="fa-solid fa-circle-info" style="margin-right: 5px;"></i>
-        <span data-i18n="import_complete_note">Note: You can view and modify these Webhooks at any time from the Dashboard settings.</span>
-    </p>
+    <script>
+        const STEPS = ['step-plex-local', 'step-cloud-activity', 'step-tmdb-covers'];
+        let currentStepIdx = 0;
+        let currentLangData = {};
+        let currentTmdbCount = 0;
 
-    <!-- Acción Final -->
-    <button class="btn-next" onclick="window.location.href='/'" style="width: 100%; display: flex; align-items: center; justify-content: center;">
-        <span data-i18n="import_complete_btn">Go to Dashboard</span> <i class="fa-solid fa-arrow-right" style="margin-left: 8px;"></i>
-    </button>
-  </div>
-  <div id="setup-shell">
-    <div id="setup-logo">
-      <img src="/logo.png" alt="SyncPK" onerror="this.style.display='none'" />
-      <span>Sync<span style="color:#e5a00d; font-style:normal;">P</span><span style="color:#17B2E7; font-style:normal;">K</span></span>
-    </div>
-    <div class="wizard-card glass-panel">
-      <!-- STEP 1: PLEX LOCAL DATA & ACTIVITY -->
-      <div class="wizard-step active" id="step-plex-local">
-        <div class="step-icon"><i class="fa-solid fa-server fa-beat-fade"></i></div>
-        <div class="step-title" data-i18n="import_step1_title">Importing Local Data & Activity</div>
-        <div class="step-subtitle" data-i18n="import_step1_subtitle">Scanning libraries and extracting activity history. This might take a few moments.</div>
-        
-        <div class="import-progress-container">
-          <div class="import-status-text">
-            <span id="import-current-item" data-i18n="import_step1_text">Processing library...</span>
-            <span id="import-percentage">0%</span>
-          </div>
-          <div class="import-progress-track">
-            <div class="import-progress-bar" id="import-bar-fill" style="width: 0%"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- STEP 2: CLOUD ACTIVITY -->
-      <div class="wizard-step" id="step-cloud-activity">
-        <div class="step-icon"><i class="fa-solid fa-cloud-arrow-down"></i></div>
-        <div class="step-title" data-i18n="import_step2_title">Syncing Cloud Activity</div>
-        <div class="step-subtitle" data-i18n="import_step2_subtitle">Downloading cross-server activity from your Plex account.</div>
-        
-        <div class="import-progress-container">
-          <div class="import-status-text" style="flex-direction: column; align-items: flex-start; gap: 6px;">
-            <span id="import-cloud-status" data-i18n="import_step2_text">Fetching batches...</span>
-            <span id="import-cloud-count">0 items</span>
-          </div>
-          <div class="import-progress-track">
-            <div class="import-progress-bar indeterminate" id="import-cloud-fill"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- STEP 3: TMDB COVERS -->
-      <div class="wizard-step" id="step-tmdb-covers">
-        <div class="step-icon"><i class="fa-solid fa-image"></i></div>
-        <div class="step-title" data-i18n="import_step3_title">Downloading Posters</div>
-        <div class="step-subtitle" data-i18n="import_step3_subtitle">Fetching high quality metadata and artwork from TMDB.</div>
-        
-        <div class="import-progress-container">
-          <div class="import-status-text">
-            <span id="import-tmdb-current" data-i18n="import_step3_text">Downloading poster...</span>
-            <span id="import-tmdb-percentage">0%</span>
-          </div>
-          <div class="import-progress-track">
-            <div class="import-progress-bar" id="import-tmdb-fill" style="width: 0%"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    const STEPS = ['step-plex-local', 'step-cloud-activity', 'step-tmdb-covers'];
-    let currentStepIdx = 0;
-    let currentLangData = {};
-    let currentTmdbCount = 0;
-    
-    async function initI18n() {
-        let lang = window.DASHBOARD_LANG || 'auto';
-        if (lang === 'auto') {
-            const sup = ['en', 'es', 'de', 'fr', 'it', 'pt', 'zh', 'ja'];
-            const n = (navigator.language || 'en').split('-')[0].toLowerCase();
-            lang = sup.includes(n) ? n : 'en';
-        }
-        
-        try {
-            let r = await fetch('/locales/' + lang + '.json?v=' + Date.now());
-            if (r.ok) {
-                currentLangData = await r.json();
-                applyI18n();
+        async function initI18n() {
+            let lang = window.DASHBOARD_LANG || 'auto';
+            if (lang === 'auto') {
+                const sup = ['en', 'es', 'de', 'fr', 'it', 'pt', 'zh', 'ja'];
+                const n = (navigator.language || 'en').split('-')[0].toLowerCase();
+                lang = sup.includes(n) ? n : 'en';
             }
-        } catch(e) {}
-    }
 
-    function applyI18n() {
-        document.querySelectorAll('[data-i18n]').forEach(el => {
-            const k = el.getAttribute('data-i18n');
-            if (currentLangData[k]) {
-                el.textContent = currentLangData[k];
-            }
-        });
-        updateStepText(); // Re-apply variables to the active step text
-    }
-
-    function t(key, vars = {}) {
-        let str = currentLangData[key] || key;
-        for (const [k, v] of Object.entries(vars)) {
-            str = str.replace('{' + k + '}', v);
-        }
-        return str;
-    }
-    
-    // UI state data
-    const uiState = {
-        0: { cur: 0, tot: 0, lib: '', done: false },
-        1: { cur: 0, done: false },
-        2: { cur: 0, tot: 0, done: false }
-    };
-    let step3StartTime = 0; // timestamp when step 3 became visually active
-
-    function updateStepText() {
-        if (currentStepIdx === 0 && !uiState[0].done) {
-            document.getElementById('import-current-item').textContent = t('import_step1_text', {
-                lib: uiState[0].lib,
-                cur: uiState[0].cur,
-                tot: uiState[0].tot
-            });
-        } else if (currentStepIdx === 2 && !uiState[2].done) {
-            document.getElementById('import-tmdb-current').textContent = t('import_step3_text', {
-                cur: uiState[2].cur,
-                tot: uiState[2].tot
-            });
-        }
-    }
-
-    function finishStep(idx) {
-        uiState[idx].done = true;
-        const stepEl = document.getElementById(STEPS[idx]);
-        const icon = stepEl.querySelector('.step-icon i');
-        
-        if (idx === 0) {
-            document.getElementById('import-current-item').textContent = t('import_step1_done');
-            document.getElementById('import-bar-fill').style.width = '100%';
-            document.getElementById('import-percentage').textContent = '100%';
-        } else if (idx === 1) {
-            document.getElementById('import-cloud-status').textContent = t('import_step2_done');
-            let finalOrphans = uiState[1].orphans || 0;
-              let finalUpdates = uiState[1].updates || 0;
-              let textTemplate = t('import_step2_progress_text') || "{count} items processed ( {orphans} inserted / {updates} updated )";
-              let finalText = textTemplate.replace('{count}', uiState[1].cur).replace('{orphans}', finalOrphans).replace('{updates}', finalUpdates);
-              document.getElementById('import-cloud-count').textContent = finalText + t('import_step2_complete_text');
-            document.getElementById('import-cloud-fill').classList.remove('indeterminate');
-            document.getElementById('import-cloud-fill').style.width = '100%';
-            icon.classList.remove('fa-cloud-arrow-down', 'fa-beat-fade');
-            icon.classList.add('fa-check', 'success-text');
-        } else if (idx === 2) {
-            document.getElementById('import-tmdb-current').textContent = t('import_step3_done');
-            document.getElementById('import-tmdb-fill').style.width = '100%';
-            document.getElementById('import-tmdb-percentage').textContent = '100%';
-        }
-        
-        if (idx !== 1) {
-            icon.className = 'fa-solid fa-check success-text';
-        }
-        
-        // Wait 2.5 seconds before moving to the next step
-        setTimeout(() => {
-            if (idx < STEPS.length - 1) {
-                showStep(idx + 1);
-            } else {
-                completeImport();
-            }
-        }, 2500);
-    }
-
-    function showStep(idx) {
-        const curEl = document.getElementById(STEPS[currentStepIdx]);
-        curEl.classList.add('step-out');
-        
-        setTimeout(() => {
-            curEl.classList.remove('active', 'step-out');
-            const icon = curEl.querySelector('.step-icon i');
-            if(icon && icon.classList.contains('fa-beat-fade')) {
-                icon.classList.remove('fa-beat-fade');
-            }
-            
-            currentStepIdx = idx;
-            if (idx === 2) step3StartTime = Date.now(); // track when step 3 is shown
-            const nextEl = document.getElementById(STEPS[currentStepIdx]);
-            nextEl.classList.add('active');
-            
-            const nextIcon = nextEl.querySelector('.step-icon i');
-            if(nextIcon && !nextIcon.classList.contains('fa-check')) {
-                nextIcon.classList.add('fa-beat-fade');
-            }
-            
-            document.getElementById('setup-progress-bar').style.width = ((idx + 1) * 33.33) + '%';
-        }, 250);
-    }
-
-    async function completeImport() {
-        // Ocultar la tarjeta de pasos de importación
-        const stepsCard = document.querySelector('#setup-shell .wizard-card:not(#webhooks-card-container)');
-        if(stepsCard) stepsCard.style.display = 'none';
-
-        // Obtener configuración para rellenar webhooks
-        try {
-            let res = await fetch('/api/config');
-            let data = await res.json();
-            
-            let host = window.location.host;
-            let token = data.api_token_raw || 'ERROR_NO_TOKEN';
-            
-            document.getElementById('final-kodi-webhook').value = `http://${host}/webhook/kodi?token=${token}`;
-            
-            if (data.has_plex_pass) {
-                document.getElementById('final-plex-webhook').value = `http://${host}/webhook/plex?token=${token}`;
-                document.getElementById('plex-webhook-active').style.display = 'block';
-                document.getElementById('plex-webhook-fallback').style.display = 'none';
-                document.getElementById('plex-pass-badge').style.display = 'inline-block';
-            } else {
-                document.getElementById('plex-webhook-active').style.display = 'none';
-                document.getElementById('plex-webhook-fallback').style.display = 'block';
-                document.getElementById('plex-pass-badge').style.display = 'none';
-            }
-        } catch(e) {
-            console.error('Error fetching config for webhooks', e);
-        }
-
-        // Mostrar la nueva tarjeta final
-        const finalCard = document.getElementById('webhooks-card-container');
-        finalCard.style.display = 'block';
-    }
-
-    window.copyWebhook = function(id) {
-        const el = document.getElementById(id);
-        navigator.clipboard.writeText(el.value);
-        const btn = el.nextElementSibling;
-        const oldIcon = btn.innerHTML;
-        btn.innerHTML = '<i class="fa-solid fa-check" style="color: #4ade80;"></i>';
-        setTimeout(() => { btn.innerHTML = oldIcon; }, 2000);
-    }
-    
-    function connectWebSocket() {
-        let protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        let wsUrl = protocol + '//' + window.location.host + '/ws/updates';
-        let ws = new WebSocket(wsUrl);
-
-        ws.onmessage = function(event) {
             try {
-                let msg = JSON.parse(event.data);
-                if (msg.type === 'import_progress') {
-                    if (msg.step === 0 && !uiState[0].done) {
-                        uiState[0].lib = msg.library || '';
-                        uiState[0].cur = msg.current;
-                        uiState[0].tot = msg.total;
-                        updateStepText();
-                        let pct = Math.floor((msg.current / msg.total) * 100);
-                        document.getElementById('import-bar-fill').style.width = pct + '%';
-                        document.getElementById('import-percentage').textContent = pct + '%';
-                        
-                        if (msg.current >= msg.total) {
-                            finishStep(0);
-                        }
-                    } 
-                    else if (msg.step === 1 && !uiState[1].done) {
-                        uiState[1].cur = msg.count;
-                        uiState[1].orphans = msg.orphans || 0;
-                          uiState[1].updates = msg.updates || 0;
-                          let textTemplate = t('import_step2_progress_text') || "{orphans} inseridos / {updates} atualizados";
-                          let progressText = textTemplate.replace('{orphans}', uiState[1].orphans).replace('{updates}', uiState[1].updates);
-                          document.getElementById('import-cloud-count').textContent = progressText;
-                        
-                        if (currentStepIdx < 1 && !uiState[0].done) {
-                             finishStep(0);
-                        }
-                    }
-                } 
-                else if (msg.type === 'step3_init') {
-                    // Backend announced the total before downloading starts → show "0 de X"
-                    if (!uiState[1].done) finishStep(1);
-                    uiState[2].tot = msg.total;
-                    uiState[2].cur = 0;
-                    updateStepText();
-                    document.getElementById('import-tmdb-fill').style.width = '0%';
-                    document.getElementById('import-tmdb-percentage').textContent = '0%';
+                let r = await fetch('/locales/' + lang + '.json?v=' + Date.now());
+                if (r.ok) {
+                    currentLangData = await r.json();
+                    applyI18n();
                 }
-                else if (msg.type === 'batch_update') {
-                    if (!uiState[1].done) {
-                        finishStep(1);
-                    }
-                    if (!uiState[2].done) {
-                        currentTmdbCount += (msg.items ? msg.items.length : 0);
-                        uiState[2].cur = currentTmdbCount;
-                        uiState[2].tot = msg.total || uiState[0].tot;
-                        
-                        updateStepText();
-                        let pct = uiState[2].tot ? Math.floor((uiState[2].cur / uiState[2].tot) * 100) : 0;
-                        document.getElementById('import-tmdb-fill').style.width = pct + '%';
-                        document.getElementById('import-tmdb-percentage').textContent = pct + '%';
+            } catch (e) { }
+        }
 
-                        // Same logic as step 1: close when counter reaches total
-                        if (uiState[2].tot > 0 && currentTmdbCount >= uiState[2].tot) {
-                            finishStep(2);
-                        }
-                    }
+        function applyI18n() {
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const k = el.getAttribute('data-i18n');
+                if (currentLangData[k]) {
+                    el.textContent = currentLangData[k];
                 }
-                else if (msg.type === 'import_done') {
-                    // Disable the polling safety net (primary close is handled by batch_update above)
-                    document.dispatchEvent(new Event('import_done_received'));
+            });
+            updateStepText(); // Re-apply variables to the active step text
+        }
+
+        function t(key, vars = {}) {
+            let str = currentLangData[key] || key;
+            for (const [k, v] of Object.entries(vars)) {
+                str = str.replace('{' + k + '}', v);
+            }
+            return str;
+        }
+
+        // UI state data
+        const uiState = {
+            0: { cur: 0, tot: 0, lib: '', done: false },
+            1: { cur: 0, done: false },
+            2: { cur: 0, tot: 0, done: false }
+        };
+        let step3StartTime = 0; // timestamp when step 3 became visually active
+
+        function updateStepText() {
+            if (currentStepIdx === 0 && !uiState[0].done) {
+                document.getElementById('import-current-item').textContent = t('import_step1_text', {
+                    lib: uiState[0].lib,
+                    cur: uiState[0].cur,
+                    tot: uiState[0].tot
+                });
+            } else if (currentStepIdx === 2 && !uiState[2].done) {
+                document.getElementById('import-tmdb-current').textContent = t('import_step3_text', {
+                    cur: uiState[2].cur,
+                    tot: uiState[2].tot
+                });
+            }
+        }
+
+        function finishStep(idx) {
+            uiState[idx].done = true;
+            const stepEl = document.getElementById(STEPS[idx]);
+            const icon = stepEl.querySelector('.step-icon i');
+
+            if (idx === 0) {
+                document.getElementById('import-current-item').textContent = t('import_step1_done');
+                document.getElementById('import-bar-fill').style.width = '100%';
+                document.getElementById('import-percentage').textContent = '100%';
+            } else if (idx === 1) {
+                document.getElementById('import-cloud-status').textContent = t('import_step2_done');
+                let finalOrphans = uiState[1].orphans || 0;
+                let finalUpdates = uiState[1].updates || 0;
+                let textTemplate = t('import_step2_progress_text') || "{count} items processed ( {orphans} inserted / {updates} updated )";
+                let finalText = textTemplate.replace('{count}', uiState[1].cur).replace('{orphans}', finalOrphans).replace('{updates}', finalUpdates);
+                document.getElementById('import-cloud-count').textContent = finalText + t('import_step2_complete_text');
+                document.getElementById('import-cloud-fill').classList.remove('indeterminate');
+                document.getElementById('import-cloud-fill').style.width = '100%';
+                icon.classList.remove('fa-cloud-arrow-down', 'fa-beat-fade');
+                icon.classList.add('fa-check', 'success-text');
+            } else if (idx === 2) {
+                document.getElementById('import-tmdb-current').textContent = t('import_step3_done');
+                document.getElementById('import-tmdb-fill').style.width = '100%';
+                document.getElementById('import-tmdb-percentage').textContent = '100%';
+            }
+
+            if (idx !== 1) {
+                icon.className = 'fa-solid fa-check success-text';
+            }
+
+            // Wait 2.5 seconds before moving to the next step
+            setTimeout(() => {
+                if (idx < STEPS.length - 1) {
+                    showStep(idx + 1);
+                } else {
+                    completeImport();
+                }
+            }, 2500);
+        }
+
+        function showStep(idx) {
+            const curEl = document.getElementById(STEPS[currentStepIdx]);
+            curEl.classList.add('step-out');
+
+            setTimeout(() => {
+                curEl.classList.remove('active', 'step-out');
+                const icon = curEl.querySelector('.step-icon i');
+                if (icon && icon.classList.contains('fa-beat-fade')) {
+                    icon.classList.remove('fa-beat-fade');
+                }
+
+                currentStepIdx = idx;
+                if (idx === 2) step3StartTime = Date.now(); // track when step 3 is shown
+                const nextEl = document.getElementById(STEPS[currentStepIdx]);
+                nextEl.classList.add('active');
+
+                const nextIcon = nextEl.querySelector('.step-icon i');
+                if (nextIcon && !nextIcon.classList.contains('fa-check')) {
+                    nextIcon.classList.add('fa-beat-fade');
+                }
+
+                document.getElementById('setup-progress-bar').style.width = ((idx + 1) * 33.33) + '%';
+            }, 250);
+        }
+
+        async function completeImport() {
+            // Ocultar la tarjeta de pasos de importación
+            const stepsCard = document.querySelector('#setup-shell .wizard-card:not(#webhooks-card-container)');
+            if (stepsCard) stepsCard.style.display = 'none';
+
+            // Obtener configuración para rellenar webhooks
+            try {
+                let res = await fetch('/api/config');
+                let data = await res.json();
+
+                let host = window.location.host;
+                let token = data.api_token_raw || 'ERROR_NO_TOKEN';
+
+                document.getElementById('final-kodi-webhook').value = `http://${host}/webhook/kodi?token=${token}`;
+
+                if (data.has_plex_pass) {
+                    document.getElementById('final-plex-webhook').value = `http://${host}/webhook/plex?token=${token}`;
+                    document.getElementById('plex-webhook-active').style.display = 'block';
+                    document.getElementById('plex-webhook-fallback').style.display = 'none';
+                    document.getElementById('plex-pass-badge').style.display = 'inline-block';
+                } else {
+                    document.getElementById('plex-webhook-active').style.display = 'none';
+                    document.getElementById('plex-webhook-fallback').style.display = 'block';
+                    document.getElementById('plex-pass-badge').style.display = 'none';
                 }
             } catch (e) {
-                console.error("WS Parse error", e);
+                console.error('Error fetching config for webhooks', e);
             }
-        };
 
-        ws.onclose = function() {
-            setTimeout(connectWebSocket, 3000); // Reconnect
-        };
-    }
+            // Mostrar la nueva tarjeta final
+            const finalCard = document.getElementById('webhooks-card-container');
+            finalCard.style.display = 'block';
+        }
 
-    // Initialize
-    initI18n().then(() => {
-        document.getElementById('setup-progress-bar').style.width = '33.33%';
-        connectWebSocket();
-        
-        // SAFETY NET ONLY: if WebSocket disconnected and import_done was missed,
-        // wait a generous 30 seconds after rescan stops before closing step 3.
-        // This NEVER fires during a normal run where import_done arrives via WS.
-        let pollingClosedByImportDone = false;
-        document.addEventListener('import_done_received', () => { pollingClosedByImportDone = true; });
-        
-        setInterval(async () => {
-            if (pollingClosedByImportDone || uiState[2].done) return;
-            try {
-                let res = await fetch('/api/rescan/status');
-                if (res.ok) {
-                    let data = await res.json();
-                    // Only act if truly stopped AND we've been on step 3 for at least 30 seconds
-                    const step3Age = step3StartTime ? Date.now() - step3StartTime : 0;
-                    if (!data.running && data.done && currentTmdbCount > 0 && step3Age > 30000 && !uiState[2].done) {
-                        console.warn('[import] Fallback polling closing step 3 after 30s');
-                        if (!uiState[1].done) finishStep(1);
-                        const waitForStep3 = () => {
-                            if (uiState[2].done) return;
-                            if (currentStepIdx < 2) { setTimeout(waitForStep3, 300); return; }
-                            finishStep(2);
-                        };
-                        setTimeout(waitForStep3, 300);
+        window.copyWebhook = function (id) {
+            const el = document.getElementById(id);
+            navigator.clipboard.writeText(el.value);
+            const btn = el.nextElementSibling;
+            const oldIcon = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-check" style="color: #4ade80;"></i>';
+            setTimeout(() => { btn.innerHTML = oldIcon; }, 2000);
+        }
+
+        function connectWebSocket() {
+            let protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            let wsUrl = protocol + '//' + window.location.host + '/ws/updates';
+            let ws = new WebSocket(wsUrl);
+
+            ws.onmessage = function (event) {
+                try {
+                    let msg = JSON.parse(event.data);
+                    if (msg.type === 'import_progress') {
+                        if (msg.step === 0 && !uiState[0].done) {
+                            uiState[0].lib = msg.library || '';
+                            uiState[0].cur = msg.current;
+                            uiState[0].tot = msg.total;
+                            updateStepText();
+                            let pct = Math.floor((msg.current / msg.total) * 100);
+                            document.getElementById('import-bar-fill').style.width = pct + '%';
+                            document.getElementById('import-percentage').textContent = pct + '%';
+
+                            if (msg.current >= msg.total) {
+                                finishStep(0);
+                            }
+                        }
+                        else if (msg.step === 1 && !uiState[1].done) {
+                            uiState[1].cur = msg.count;
+                            uiState[1].orphans = msg.orphans || 0;
+                            uiState[1].updates = msg.updates || 0;
+                            let textTemplate = t('import_step2_progress_text') || "{orphans} inseridos / {updates} atualizados";
+                            let progressText = textTemplate.replace('{orphans}', uiState[1].orphans).replace('{updates}', uiState[1].updates);
+                            document.getElementById('import-cloud-count').textContent = progressText;
+
+                            if (currentStepIdx < 1 && !uiState[0].done) {
+                                finishStep(0);
+                            }
+                        }
                     }
-                }
-            } catch(e) {}
-        }, 5000);
-    });
+                    else if (msg.type === 'step3_init') {
+                        // Backend announced the total before downloading starts → show "0 de X"
+                        if (!uiState[1].done) finishStep(1);
+                        uiState[2].tot = msg.total;
+                        uiState[2].cur = 0;
+                        updateStepText();
+                        document.getElementById('import-tmdb-fill').style.width = '0%';
+                        document.getElementById('import-tmdb-percentage').textContent = '0%';
+                    }
+                    else if (msg.type === 'batch_update') {
+                        if (!uiState[1].done) {
+                            finishStep(1);
+                        }
+                        if (!uiState[2].done) {
+                            currentTmdbCount += (msg.items ? msg.items.length : 0);
+                            uiState[2].cur = currentTmdbCount;
+                            uiState[2].tot = msg.total || uiState[0].tot;
 
-  </script>
+                            updateStepText();
+                            let pct = uiState[2].tot ? Math.floor((uiState[2].cur / uiState[2].tot) * 100) : 0;
+                            document.getElementById('import-tmdb-fill').style.width = pct + '%';
+                            document.getElementById('import-tmdb-percentage').textContent = pct + '%';
+
+                            // Same logic as step 1: close when counter reaches total
+                            if (uiState[2].tot > 0 && currentTmdbCount >= uiState[2].tot) {
+                                finishStep(2);
+                            }
+                        }
+                    }
+                    else if (msg.type === 'import_done') {
+                        // Disable the polling safety net (primary close is handled by batch_update above)
+                        document.dispatchEvent(new Event('import_done_received'));
+                    }
+                } catch (e) {
+                    console.error("WS Parse error", e);
+                }
+            };
+
+            ws.onclose = function () {
+                setTimeout(connectWebSocket, 3000); // Reconnect
+            };
+        }
+
+        // Initialize
+        initI18n().then(() => {
+            document.getElementById('setup-progress-bar').style.width = '33.33%';
+            connectWebSocket();
+
+            // SAFETY NET ONLY: if WebSocket disconnected and import_done was missed,
+            // wait a generous 30 seconds after rescan stops before closing step 3.
+            // This NEVER fires during a normal run where import_done arrives via WS.
+            let pollingClosedByImportDone = false;
+            document.addEventListener('import_done_received', () => { pollingClosedByImportDone = true; });
+
+            setInterval(async () => {
+                if (pollingClosedByImportDone || uiState[2].done) return;
+                try {
+                    let res = await fetch('/api/rescan/status');
+                    if (res.ok) {
+                        let data = await res.json();
+                        // Only act if truly stopped AND we've been on step 3 for at least 30 seconds
+                        const step3Age = step3StartTime ? Date.now() - step3StartTime : 0;
+                        if (!data.running && data.done && currentTmdbCount > 0 && step3Age > 30000 && !uiState[2].done) {
+                            console.warn('[import] Fallback polling closing step 3 after 30s');
+                            if (!uiState[1].done) finishStep(1);
+                            const waitForStep3 = () => {
+                                if (uiState[2].done) return;
+                                if (currentStepIdx < 2) { setTimeout(waitForStep3, 300); return; }
+                                finishStep(2);
+                            };
+                            setTimeout(waitForStep3, 300);
+                        }
+                    }
+                } catch (e) { }
+            }, 5000);
+        });
+
+    </script>
 </body>
+
 </html>

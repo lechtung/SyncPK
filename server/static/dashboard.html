@@ -36,9 +36,10 @@
         <!-- STICKY HEADER -->
         <header class="sticky-header glass-panel">
             <div class="header-left">
-                <div id="logo-trigger" style="display: flex; align-items: center; gap: 16px; cursor: pointer;" data-i18n-title="action_about" title="About">
-                    <img src="favicon.ico" class="logo-icon" alt="SyncPK Logo">
-                    <h1 class="logo">Sync<span style="color:#e5a00d;">P</span><span style="color:#17B2E7;">K</span></h1>
+                <div id="logo-trigger" style="display: flex; align-items: center; gap: 16px; cursor: pointer;"
+                    data-i18n-title="action_about" title="About">
+                    <img src="syncpk.svg?v=1.10" class="logo-icon" alt="SyncPK Logo">
+                    <h1 class="logo">Sync<span class="logo-p">P</span><span class="logo-k">K</span></h1>
                 </div>
 
                 <!-- MOBILE MENU TOGGLE -->
@@ -803,13 +804,15 @@
                                 <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_poster_w">
                                     Poster Width:</h4>
                                 <div style="display: flex; align-items: center; gap: 2px;">
-                                    <input type="number" id="val-poster-w" style="width: 55px; background: transparent; border: none; color: var(--accent); font-size: 0.85rem; font-weight: bold; text-align: right; outline: none; padding: 0; margin-right: 4px; cursor: pointer; transition: all 0.2s;" class="config-val-input" min="100" max="1920"  oninput="document.getElementById('config-poster-w').value = this.value">
+                                    <input type="number" id="val-poster-w"
+                                        style="width: 55px; background: transparent; border: none; color: var(--accent); font-size: 0.85rem; font-weight: bold; text-align: right; outline: none; padding: 0; margin-right: 4px; cursor: pointer; transition: all 0.2s;"
+                                        class="config-val-input" min="100" max="1920"
+                                        oninput="document.getElementById('config-poster-w').value = this.value">
                                     <span style="color:var(--accent); font-size:0.85rem; font-weight:bold;">px</span>
                                 </div>
                             </div>
                             <input type="range" class="config-input" id="config-poster-w" min="100" max="1920"
-                                value="150"
-                                oninput="document.getElementById('val-poster-w').value = this.value">
+                                value="150" oninput="document.getElementById('val-poster-w').value = this.value">
                         </div>
                         <div class="input-group">
                             <div
@@ -817,13 +820,15 @@
                                 <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_poster_h">
                                     Poster Height:</h4>
                                 <div style="display: flex; align-items: center; gap: 2px;">
-                                    <input type="number" id="val-poster-h" style="width: 55px; background: transparent; border: none; color: var(--accent); font-size: 0.85rem; font-weight: bold; text-align: right; outline: none; padding: 0; margin-right: 4px; cursor: pointer; transition: all 0.2s;" class="config-val-input" min="150" max="1920"  oninput="document.getElementById('config-poster-h').value = this.value">
+                                    <input type="number" id="val-poster-h"
+                                        style="width: 55px; background: transparent; border: none; color: var(--accent); font-size: 0.85rem; font-weight: bold; text-align: right; outline: none; padding: 0; margin-right: 4px; cursor: pointer; transition: all 0.2s;"
+                                        class="config-val-input" min="150" max="1920"
+                                        oninput="document.getElementById('config-poster-h').value = this.value">
                                     <span style="color:var(--accent); font-size:0.85rem; font-weight:bold;">px</span>
                                 </div>
                             </div>
                             <input type="range" class="config-input" id="config-poster-h" min="150" max="1920"
-                                value="225"
-                                oninput="document.getElementById('val-poster-h').value = this.value">
+                                value="225" oninput="document.getElementById('val-poster-h').value = this.value">
                         </div>
                         <div class="input-group">
                             <div
@@ -831,13 +836,15 @@
                                 <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_fanart_w">
                                     Fanart Width:</h4>
                                 <div style="display: flex; align-items: center; gap: 2px;">
-                                    <input type="number" id="val-fanart-w" style="width: 55px; background: transparent; border: none; color: var(--accent); font-size: 0.85rem; font-weight: bold; text-align: right; outline: none; padding: 0; margin-right: 4px; cursor: pointer; transition: all 0.2s;" class="config-val-input" min="200" max="1920"  oninput="document.getElementById('config-fanart-w').value = this.value">
+                                    <input type="number" id="val-fanart-w"
+                                        style="width: 55px; background: transparent; border: none; color: var(--accent); font-size: 0.85rem; font-weight: bold; text-align: right; outline: none; padding: 0; margin-right: 4px; cursor: pointer; transition: all 0.2s;"
+                                        class="config-val-input" min="200" max="1920"
+                                        oninput="document.getElementById('config-fanart-w').value = this.value">
                                     <span style="color:var(--accent); font-size:0.85rem; font-weight:bold;">px</span>
                                 </div>
                             </div>
                             <input type="range" class="config-input" id="config-fanart-w" min="200" max="1920"
-                                value="300"
-                                oninput="document.getElementById('val-fanart-w').value = this.value">
+                                value="300" oninput="document.getElementById('val-fanart-w').value = this.value">
                         </div>
                         <div class="input-group">
                             <div
@@ -845,13 +852,15 @@
                                 <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_fanart_h">
                                     Fanart Height:</h4>
                                 <div style="display: flex; align-items: center; gap: 2px;">
-                                    <input type="number" id="val-fanart-h" style="width: 55px; background: transparent; border: none; color: var(--accent); font-size: 0.85rem; font-weight: bold; text-align: right; outline: none; padding: 0; margin-right: 4px; cursor: pointer; transition: all 0.2s;" class="config-val-input" min="100" max="1920"  oninput="document.getElementById('config-fanart-h').value = this.value">
+                                    <input type="number" id="val-fanart-h"
+                                        style="width: 55px; background: transparent; border: none; color: var(--accent); font-size: 0.85rem; font-weight: bold; text-align: right; outline: none; padding: 0; margin-right: 4px; cursor: pointer; transition: all 0.2s;"
+                                        class="config-val-input" min="100" max="1920"
+                                        oninput="document.getElementById('config-fanart-h').value = this.value">
                                     <span style="color:var(--accent); font-size:0.85rem; font-weight:bold;">px</span>
                                 </div>
                             </div>
                             <input type="range" class="config-input" id="config-fanart-h" min="100" max="1920"
-                                value="168"
-                                oninput="document.getElementById('val-fanart-h').value = this.value">
+                                value="168" oninput="document.getElementById('val-fanart-h').value = this.value">
                         </div>
                         <div class="input-group">
                             <div
@@ -859,7 +868,10 @@
                                 <h4 style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;" data-i18n="ui_grid_gap">
                                     Grid Spacing (Gap):</h4>
                                 <div style="display: flex; align-items: center; gap: 2px;">
-                                    <input type="number" id="val-gap" style="width: 55px; background: transparent; border: none; color: var(--accent); font-size: 0.85rem; font-weight: bold; text-align: right; outline: none; padding: 0; margin-right: 4px; cursor: pointer; transition: all 0.2s;" class="config-val-input" min="0" max="100"  oninput="document.getElementById('config-grid-gap').value = this.value">
+                                    <input type="number" id="val-gap"
+                                        style="width: 55px; background: transparent; border: none; color: var(--accent); font-size: 0.85rem; font-weight: bold; text-align: right; outline: none; padding: 0; margin-right: 4px; cursor: pointer; transition: all 0.2s;"
+                                        class="config-val-input" min="0" max="100"
+                                        oninput="document.getElementById('config-grid-gap').value = this.value">
                                     <span style="color:var(--accent); font-size:0.85rem; font-weight:bold;">px</span>
                                 </div>
                             </div>
@@ -872,7 +884,10 @@
                                 <label style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;"
                                     data-i18n="ui_card_radius" class="field-label">Card Border Radius:</label>
                                 <div style="display: flex; align-items: center; gap: 2px;">
-                                    <input type="number" id="val-radius" style="width: 55px; background: transparent; border: none; color: var(--accent); font-size: 0.85rem; font-weight: bold; text-align: right; outline: none; padding: 0; margin-right: 4px; cursor: pointer; transition: all 0.2s;" class="config-val-input" min="0" max="100"  oninput="document.getElementById('config-card-radius').value = this.value">
+                                    <input type="number" id="val-radius"
+                                        style="width: 55px; background: transparent; border: none; color: var(--accent); font-size: 0.85rem; font-weight: bold; text-align: right; outline: none; padding: 0; margin-right: 4px; cursor: pointer; transition: all 0.2s;"
+                                        class="config-val-input" min="0" max="100"
+                                        oninput="document.getElementById('config-card-radius').value = this.value">
                                     <span style="color:var(--accent); font-size:0.85rem; font-weight:bold;">px</span>
                                 </div>
                             </div>
@@ -975,7 +990,10 @@
                                 <label style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;"
                                     data-i18n="ui_glass_blur" class="field-label">Glassmorphism Blur:</label>
                                 <div style="display: flex; align-items: center; gap: 2px;">
-                                    <input type="number" id="val-blur" style="width: 55px; background: transparent; border: none; color: var(--accent); font-size: 0.85rem; font-weight: bold; text-align: right; outline: none; padding: 0; margin-right: 4px; cursor: pointer; transition: all 0.2s;" class="config-val-input" min="0" max="50"  oninput="document.getElementById('config-glass-blur').value = this.value">
+                                    <input type="number" id="val-blur"
+                                        style="width: 55px; background: transparent; border: none; color: var(--accent); font-size: 0.85rem; font-weight: bold; text-align: right; outline: none; padding: 0; margin-right: 4px; cursor: pointer; transition: all 0.2s;"
+                                        class="config-val-input" min="0" max="50"
+                                        oninput="document.getElementById('config-glass-blur').value = this.value">
                                     <span style="color:var(--accent); font-size:0.85rem; font-weight:bold;">px</span>
                                 </div>
                             </div>
@@ -988,7 +1006,10 @@
                                 <label style="margin-bottom: 0; color: #aaa; font-size: 0.85rem;"
                                     data-i18n="ui_fanart_opacity" class="field-label">Fanart Mask Opacity:</label>
                                 <div style="display: flex; align-items: center; gap: 2px;">
-                                    <input type="number" id="val-mask-opacity" style="width: 55px; background: transparent; border: none; color: var(--accent); font-size: 0.85rem; font-weight: bold; text-align: right; outline: none; padding: 0; margin-right: 4px; cursor: pointer; transition: all 0.2s;" class="config-val-input" min="0" max="1" step="0.1" oninput="document.getElementById('config-fanart-opacity').value = this.value">
+                                    <input type="number" id="val-mask-opacity"
+                                        style="width: 55px; background: transparent; border: none; color: var(--accent); font-size: 0.85rem; font-weight: bold; text-align: right; outline: none; padding: 0; margin-right: 4px; cursor: pointer; transition: all 0.2s;"
+                                        class="config-val-input" min="0" max="1" step="0.1"
+                                        oninput="document.getElementById('config-fanart-opacity').value = this.value">
                                     <span style="color:var(--accent); font-size:0.85rem; font-weight:bold;"></span>
                                 </div>
                             </div>
@@ -1162,8 +1183,8 @@
         <div class="login-box glass-panel" style="max-width: 500px; width: 90%; text-align: center; padding: 30px;">
             <!-- Título y Logo -->
             <div style="margin-bottom: 20px;">
-                <h2 style="margin: 0; font-size: 2rem; color: #fff;">Sync<span style="color:#e5a00d;">P</span><span
-                        style="color:#17B2E7;">K</span></h2>
+                <h2 style="margin: 0; font-size: 2rem; color: #fff;">Sync<span class="logo-p">P</span><span
+                        class="logo-k">K</span></h2>
                 <div style="color: #aaa; font-size: 0.9rem; margin-top: 5px;">v1.0.0</div>
             </div>
 
@@ -1195,8 +1216,11 @@
             </div>
 
             <!-- Font Awesome Attribution -->
-            <div style="background: rgba(0,0,0,0.2); padding: 10px 15px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 20px;">
-                <span style="color: #888; font-size: 0.8rem; line-height: 1.4;"><span data-i18n="about_icons">Icons by</span> <a href="https://fontawesome.com" target="_blank" style="color: #58a6ff; text-decoration: none;">Font Awesome</a> (Creative Commons 4.0)</span>
+            <div
+                style="background: rgba(0,0,0,0.2); padding: 10px 15px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 20px;">
+                <span style="color: #888; font-size: 0.8rem; line-height: 1.4;"><span data-i18n="about_icons">Icons
+                        by</span> <a href="https://fontawesome.com" target="_blank"
+                        style="color: #58a6ff; text-decoration: none;">Font Awesome</a> (Creative Commons 4.0)</span>
             </div>
 
             <!-- Disclaimer Plex / Kodi -->

@@ -1640,7 +1640,14 @@ button:disabled {
         left: 100%;
     }
 }
-.pickr button.pcr-button { background: transparent !important; width: 2em !important; height: 2em !important; padding: 0 !important; border-radius: 0.15em !important; }
+
+.pickr button.pcr-button {
+    background: transparent !important;
+    width: 2em !important;
+    height: 2em !important;
+    padding: 0 !important;
+    border-radius: 0.15em !important;
+}
 
 /* Number input text-like styling focus state */
 
@@ -1649,7 +1656,23 @@ button:disabled {
 }
 
 input[type=number].config-val-input:focus {
-    background: rgba(0,0,0,0.3) !important;
+    background: rgba(0, 0, 0, 0.3) !important;
     border-radius: 4px;
     padding-right: 2px !important;
+}
+
+/* For the span of the letter P */
+.logo-p {
+    background: linear-gradient(180deg, #ffb700 0%, #ff6a00 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* For the span of the letter K */
+.logo-k {
+    background: linear-gradient(180deg, #6ce5ff 0%, #0095ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
 }

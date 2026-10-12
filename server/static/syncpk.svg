@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Fondo oscuro uniforme igual al del segundo logo -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#181b20" />
+      <stop offset="100%" stop-color="#101216" />
+    </linearGradient>
+
+    <!-- Degradado Naranja (Plex) -->
+    <linearGradient id="orangeGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffb700" />
+      <stop offset="100%" stop-color="#ff6a00" />
+    </linearGradient>
+
+    <!-- Degradado Azul (Kodi) -->
+    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#6ce5ff" />
+      <stop offset="100%" stop-color="#0095ff" />
+    </linearGradient>
+
+    <!-- Degradado de la flecha S bidireccional -->
+    <linearGradient id="sGrad" x1="65%" y1="15%" x2="35%" y2="85%">
+      <stop offset="0%" stop-color="#6ce5ff" />
+      <stop offset="30%" stop-color="#38b6ff" />
+      <stop offset="52%" stop-color="#a3966a" />
+      <stop offset="72%" stop-color="#ff8800" />
+      <stop offset="100%" stop-color="#ff5500" />
+    </linearGradient>
+
+    <!-- Sombra suave para dar la misma profundidad 3D -->
+    <filter id="dropShadow" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000000" flood-opacity="0.65" />
+    </filter>
+
+    <!-- Máscara para el recorte limpio entre las pantallas y la S -->
+    <mask id="sCutout">
+      <rect width="512" height="512" fill="white" />
+      <path d="M 335 128 C 215 128, 200 220, 256 268 C 312 316, 297 408, 177 408"
+            fill="none" stroke="black" stroke-width="64" stroke-linecap="butt" />
+    </mask>
+  </defs>
+
+  <!-- Lienzo completo sin caja contenedora -->
+  <!-- <rect width="512" height="512" fill="url(#bgGrad)" /> -->
+
+  <!-- Pantallas de reproductor (Naranja izquierda, Azul derecha) -->
+  <g mask="url(#sCutout)" filter="url(#dropShadow)">
+    
+    <!-- Reproductor Naranja (Izquierda) -->
+    <g transform="translate(42, 162)">
+      <rect width="196" height="150" rx="22" fill="url(#orangeGrad)" />
+      <!-- Círculo y Play -->
+      <circle cx="94" cy="62" r="34" fill="#16191e" />
+      <polygon points="85,45 85,79 112,62" fill="url(#orangeGrad)" stroke="url(#orangeGrad)" stroke-width="3" stroke-linejoin="round" />
+      <!-- Barra de progreso -->
+      <rect x="20" y="118" width="150" height="8" rx="4" fill="#16191e" />
+      <circle cx="62" cy="122" r="10" fill="#16191e" />
+    </g>
+
+    <!-- Reproductor Azul (Derecha) -->
+    <g transform="translate(274, 200)">
+      <rect width="196" height="150" rx="22" fill="url(#blueGrad)" />
+      <!-- Círculo y Play -->
+      <circle cx="102" cy="62" r="34" fill="#16191e" />
+      <polygon points="93,45 93,79 120,62" fill="url(#blueGrad)" stroke="url(#blueGrad)" stroke-width="3" stroke-linejoin="round" />
+      <!-- Barra de progreso -->
+      <rect x="26" y="118" width="150" height="8" rx="4" fill="#16191e" />
+      <circle cx="68" cy="122" r="10" fill="#16191e" />
+    </g>
+
+  </g>
+
+  <!-- Flecha S central con degradado Azul -> Naranja -->
+  <g filter="url(#dropShadow)">
+    <!-- Cuerpo de la S -->
+    <path d="M 322 128 C 215 128, 200 220, 256 268 C 312 316, 297 408, 190 408"
+          fill="none" stroke="url(#sGrad)" stroke-width="36" stroke-linecap="round" />
+    <!-- Punta superior derecha (Azul) -->
+    <polygon points="312,84 378,128 312,172" fill="#62e1ff" />
+    <!-- Punta inferior izquierda (Naranja) -->
+    <polygon points="200,364 134,408 200,452" fill="#ff5d00" />
+  </g>
+</svg>

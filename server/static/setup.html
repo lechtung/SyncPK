@@ -29,8 +29,9 @@
   </div>
   <div id="setup-shell">
     <div id="setup-logo">
-      <img src="/logo.png" alt="SyncPK" onerror="this.style.display='none'" />
-      <span>Sync<span style="color:#e5a00d; font-style:normal;">P</span><span style="color:#17B2E7; font-style:normal;">K</span></span>
+      <img src="syncpk.svg?v=1.10" alt="SyncPK" onerror="this.style.display='none'" />
+      <span>Sync<span class="logo-p" style="font-style:normal;">P</span><span class="logo-k"
+          style="font-style:normal;">K</span></span>
     </div>
     <div class="wizard-card glass-panel">
       <!-- STEP 1: LANGUAGE -->
@@ -165,15 +166,16 @@
         <label class="setup-label" data-i18n="setup_pwd_label">MASTER PASSWORD</label>
         <div class="input-wrap">
           <i class="input-icon fa-solid fa-lock"></i>
-          <input type="password" id="pwd-input" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="new-password" />
+          <input type="password" id="pwd-input" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;"
+            autocomplete="new-password" />
           <button class="toggle-pw" onclick="togglePw('pwd-input',this)" tabindex="-1"><i
               class="fa-solid fa-eye"></i></button>
         </div>
         <label class="setup-label" data-i18n="setup_pwd_confirm_label">CONFIRM PASSWORD</label>
         <div class="input-wrap">
           <i class="input-icon fa-solid fa-lock-open"></i>
-          <input type="password" id="pwd-confirm-input"
-            placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="new-password" />
+          <input type="password" id="pwd-confirm-input" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;"
+            autocomplete="new-password" />
           <button class="toggle-pw" onclick="togglePw('pwd-confirm-input',this)" tabindex="-1"><i
               class="fa-solid fa-eye"></i></button>
         </div>
@@ -267,7 +269,8 @@
         <div class="c-dropdown config-input setup-dropdown" id="posterPref-dd">
           <div class="c-dropdown-trigger" id="posterPref-trigger">
             <div class="c-dropdown-bottom">
-              <span class="c-dropdown-value" id="poster-pref-select-val" data-i18n="poster_pref_season">Season Poster</span>
+              <span class="c-dropdown-value" id="poster-pref-select-val" data-i18n="poster_pref_season">Season
+                Poster</span>
               <span class="c-dropdown-arrow">▾</span>
             </div>
           </div>
@@ -282,12 +285,14 @@
         <div class="c-dropdown config-input setup-dropdown" id="posterQuality-dd">
           <div class="c-dropdown-trigger" id="posterQuality-trigger">
             <div class="c-dropdown-bottom">
-              <span class="c-dropdown-value" id="poster-quality-select-val" data-i18n="quality_dynamic">Card Size (Dynamic)</span>
+              <span class="c-dropdown-value" id="poster-quality-select-val" data-i18n="quality_dynamic">Card Size
+                (Dynamic)</span>
               <span class="c-dropdown-arrow">▼</span>
             </div>
           </div>
           <div class="c-dropdown-menu glass-panel" id="posterQuality-menu">
-            <div class="c-dropdown-item selected" data-value="dynamic" data-i18n="quality_dynamic">Card Size (Dynamic)</div>
+            <div class="c-dropdown-item selected" data-value="dynamic" data-i18n="quality_dynamic">Card Size (Dynamic)
+            </div>
             <div class="c-dropdown-item" data-value="w185" data-i18n="quality_w185">185px (Low)</div>
             <div class="c-dropdown-item" data-value="w342" data-i18n="quality_w342">342px (Medium)</div>
             <div class="c-dropdown-item" data-value="w500" data-i18n="quality_w500">500px (High)</div>
@@ -316,12 +321,14 @@
         <div class="c-dropdown config-input setup-dropdown" id="fanartQuality-dd">
           <div class="c-dropdown-trigger" id="fanartQuality-trigger">
             <div class="c-dropdown-bottom">
-              <span class="c-dropdown-value" id="fanart-quality-select-val" data-i18n="quality_dynamic">Card Size (Dynamic)</span>
+              <span class="c-dropdown-value" id="fanart-quality-select-val" data-i18n="quality_dynamic">Card Size
+                (Dynamic)</span>
               <span class="c-dropdown-arrow">▼</span>
             </div>
           </div>
           <div class="c-dropdown-menu glass-panel" id="fanartQuality-menu">
-            <div class="c-dropdown-item selected" data-value="dynamic" data-i18n="quality_dynamic">Card Size (Dynamic)</div>
+            <div class="c-dropdown-item selected" data-value="dynamic" data-i18n="quality_dynamic">Card Size (Dynamic)
+            </div>
             <div class="c-dropdown-item" data-value="w92" data-i18n="quality_w92">92px (Min)</div>
             <div class="c-dropdown-item" data-value="w185" data-i18n="quality_w185">185px (Low)</div>
             <div class="c-dropdown-item" data-value="w342" data-i18n="quality_w342">300px (Medium)</div>
@@ -499,15 +506,15 @@
       if (n === 4) renderPlexPassBadge();
       if (n === 9) renderSummary();
     }
-    
-    document.addEventListener('keydown', function(e) {
+
+    document.addEventListener('keydown', function (e) {
       if (e.key === 'Enter') {
         e.preventDefault();
-        switch(state._step) {
+        switch (state._step) {
           case 1: goNext(); break;
           case 2: validatePlexUrl(); break;
           case 3: startPlexAuth(); break;
-          case 4: 
+          case 4:
             const nxtBtn = document.getElementById('btn-plex-auth-next');
             if (!nxtBtn.disabled) nxtBtn.click();
             break;
@@ -636,7 +643,7 @@
           body: JSON.stringify({ api_key: key })
         });
         const data = await res.json();
-        
+
         if (data.success) {
           msgBox.className = 'test-feedback success';
           msgBox.innerHTML = '<i class="fa-solid fa-circle-check"></i> ' + t('setup_test_tmdb_success');
@@ -654,10 +661,10 @@
       const p1 = document.getElementById('pwd-input').value;
       const p2 = document.getElementById('pwd-confirm-input').value;
       const e = document.getElementById('pwd-error');
-      if (!p1 || p1 !== p2) { 
-        e.classList.add('visible'); 
+      if (!p1 || p1 !== p2) {
+        e.classList.add('visible');
         document.getElementById('pwd-input').focus();
-        return; 
+        return;
       }
       e.classList.remove('visible'); state.password = p1; goNext();
     }
@@ -692,7 +699,7 @@
           body: JSON.stringify({ api_key: key })
         });
         const data = await res.json();
-        
+
         if (data.success) {
           state.tmdbKey = key;
           _tmdbWarnedVal = null;
@@ -749,18 +756,18 @@
         }
       } catch { }
     }
-    function copyAuthLink() { 
-        if (!_authUrl) return;
-        if (navigator.clipboard && window.isSecureContext) {
-            navigator.clipboard.writeText(_authUrl).catch(() => { });
-        } else {
-            let temp = document.createElement("input");
-            temp.value = _authUrl;
-            document.body.appendChild(temp);
-            temp.select();
-            try { document.execCommand("copy"); } catch (err) {}
-            document.body.removeChild(temp);
-        }
+    function copyAuthLink() {
+      if (!_authUrl) return;
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(_authUrl).catch(() => { });
+      } else {
+        let temp = document.createElement("input");
+        temp.value = _authUrl;
+        document.body.appendChild(temp);
+        temp.select();
+        try { document.execCommand("copy"); } catch (err) { }
+        document.body.removeChild(temp);
+      }
     }
     function cancelPlexAuth() {
       if (_pinPollTimer) { clearInterval(_pinPollTimer); _pinPollTimer = null; }
