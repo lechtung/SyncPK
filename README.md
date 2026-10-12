@@ -44,7 +44,7 @@ We provide multiple installation options. The initial installation is very quick
 If you are running a Proxmox server, you can use our interactive script to automatically create a brand-new LXC container, install all dependencies, and set up the services. Run this command directly in your **Proxmox Host Shell**:
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/lechtung/SyncPK/main/install_proxmox.sh)"
+bash -c "$(curl -fsSL https://github.com/lechtung/SyncPK/releases/latest/download/install_proxmox.sh)"
 ```
 
 **Next step:** Open your browser and go to `http://<YOUR_LXC_IP>:8000` to start the Web Setup.
@@ -53,7 +53,7 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/lechtung/SyncPK/main/ins
 If you want to install SyncPK on a Raspberry Pi, an existing Debian/Ubuntu server, or inside a container you already created, use this script. Run this command as **root** inside your Linux machine:
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/lechtung/SyncPK/main/install.sh)"
+bash -c "$(curl -fsSL https://github.com/lechtung/SyncPK/releases/latest/download/install.sh)"
 ```
 
 **Next step:** Open your browser and go to `http://<YOUR_SERVER_IP>:8000` to start the Web Setup.
