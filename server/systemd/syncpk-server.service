@@ -11,6 +11,7 @@ Group=syncpk
 UMask=0077
 WorkingDirectory=/opt/syncpk
 Environment="DATA_DIR=/var/lib/syncpk"
+Environment="PYTHONUNBUFFERED=1"
 ExecStart=/opt/syncpk/venv/bin/python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --no-access-log
 Restart=on-failure
 RestartSec=10

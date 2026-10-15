@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 
+main() {
 GITHUB_USER="lechtung"
 GITHUB_REPO="SyncPK"
 CTID=""
 CT_CREATED=0
 
-function cleanup_on_error() {
+cleanup_on_error() {
     if [ "$CT_CREATED" -eq 1 ] && [ -n "$CTID" ] && pvesm status &>/dev/null; then
         echo -e "\n\e[31m[ERROR] Installation failed.\e[0m"
         if whiptail --title "SyncPK - Installation Failed" --yesno "An error occurred during the installation.\n\nDo you want to destroy the incomplete LXC container ($CTID)?" 10 60; then
@@ -20,7 +21,7 @@ function cleanup_on_error() {
     exit 1
 }
 
-function error() {
+error() {
     echo -e "\e[31m[ERROR] $1\e[0m"
     cleanup_on_error
 }
@@ -131,7 +132,8 @@ fi
 echo "[Info] Gathering local and available templates..."
 pveam update &>/dev/null
 DOWNLOADED_TEMPLATES=$(pvesm list $TEMPLATE_STORAGE --content vztmpl | awk 'NR>1 {print $1}')
-AVAILABLE_TEMPLATES=$(pveam available | awk '$1=="system" && $2 ~ /^(debian-12-standard|debian-13-standard|ubuntu-24\.04-standard)/ {print $2}')
+# Only offer modern Debian 11+ and Ubuntu 22.04+ (requires Python 3.10+)
+AVAILABLE_TEMPLATES=$(pveam available 2>/dev/null | awk '$1=="system" && $2 ~ /^(debian-(1[1-9]|[2-9][0-9])-standard|ubuntu-(2[2-9]|[3-9][0-9])\.[0-9]+-standard)/ {print $2}')
 
 TEMPLATE_MENU=()
 declare -A TPL_MAP
@@ -140,8 +142,8 @@ DEFAULT_ITEM=""
 
 for t in $DOWNLOADED_TEMPLATES; do
     filename=$(basename "$t")
-    # Only offer apt-compatible templates (Debian/Ubuntu); skip Alpine, Rocky, etc.
-    if ! echo "$filename" | grep -qE '^(debian|ubuntu)-'; then continue; fi
+    # Only offer modern Debian 11+ and Ubuntu 22.04+
+    if ! echo "$filename" | grep -qE '^(debian-(1[1-9]|[2-9][0-9])|ubuntu-(2[2-9]|[3-9][0-9])\.)'; then continue; fi
     shortname=$(echo "$filename" | sed -E 's/(-standard|_amd64.*\.tar\.[a-z]+)//g')
     TEMPLATE_MENU+=("$idx" "[Local] $shortname")
     TPL_MAP[$idx]="$filename"
@@ -178,14 +180,14 @@ LATEST_TEMPLATE_FILE="${TPL_MAP[$CHOICE]}"
 
 if ! pvesm list $TEMPLATE_STORAGE --content vztmpl | grep -q "$LATEST_TEMPLATE_FILE"; then
     echo "[Info] Downloading selected template ($LATEST_TEMPLATE_FILE)..."
-    pveam download $TEMPLATE_STORAGE $LATEST_TEMPLATE_FILE &>/dev/null || error "Failed to download the template."
+    pveam download $TEMPLATE_STORAGE "$LATEST_TEMPLATE_FILE" &>/dev/null || error "Failed to download the template."
 fi
 
 LATEST_TEMPLATE="$TEMPLATE_STORAGE:vztmpl/$LATEST_TEMPLATE_FILE"
 
-# Medium Priority: Install with 1024MB to avoid OOM killer during pip compilation
+# Create container with 1024MB RAM during install to prevent OOM killer during pip builds
 echo "[Info] Creating CT container $CTID with 1024MB RAM for installation..."
-pct create $CTID $LATEST_TEMPLATE -storage $TARGET_STORAGE -rootfs $TARGET_STORAGE:8 -password "$ROOT_PASSWORD" -arch amd64 -hostname syncpk -cores 1 -memory 1024 -net0 name=eth0,bridge=$BRIDGE,$NET_CONFIG -unprivileged 1 -features nesting=1 -timezone host -onboot 1 || error "Failed to create LXC container (pct create failed)."
+pct create $CTID "$LATEST_TEMPLATE" -storage "$TARGET_STORAGE" -rootfs "$TARGET_STORAGE:8" -password "$ROOT_PASSWORD" -arch amd64 -hostname syncpk -cores 1 -memory 1024 -net0 name=eth0,bridge="$BRIDGE",$NET_CONFIG -unprivileged 1 -features nesting=1 -timezone host -onboot 1 || error "Failed to create LXC container (pct create failed)."
 CT_CREATED=1
 
 pct start $CTID || error "Failed to start container $CTID."
@@ -212,13 +214,11 @@ else
     echo "[Info] DHCP-assigned IP: $CT_IP"
 fi
 
-echo "[Info] Launching automated system installer inside LXC..."
-# Use GitHub Releases API endpoint for install.sh to fix main vs release desync
-
 echo "[Info] Configuring Welcome Message (MOTD)..."
 pct exec $CTID -- bash -c "cat << 'EOF' > /etc/profile.d/syncpk-motd.sh
 case \$- in *i*) ;; *) return ;; esac
-LOCAL_IP=\$(hostname -I 2>/dev/null | awk '{print \$1}')
+LOCAL_IP=\$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if(\$i==\"src\") print \$(i+1)}')
+if [ -z \"\$LOCAL_IP\" ]; then LOCAL_IP=\$(hostname -I 2>/dev/null | awk '{print \$1}'); fi
 if [ -z \"\$LOCAL_IP\" ]; then LOCAL_IP=\"127.0.0.1\"; fi
 echo \"\"
 echo \"================================================================\"
@@ -233,6 +233,10 @@ echo \"\"
 EOF"
 pct exec $CTID -- chmod +x /etc/profile.d/syncpk-motd.sh
 
+echo "[Info] Launching automated system installer inside LXC..."
 pct exec $CTID -- bash -c "set -euo pipefail; apt-get update && apt-get install -y curl ca-certificates && curl -fsSL https://github.com/$GITHUB_USER/$GITHUB_REPO/releases/latest/download/install.sh > install.sh && bash install.sh && rm -f install.sh" || error "install.sh failed inside LXC."
 
 pct set $CTID -memory 512 &>/dev/null || true
+}
+
+main "$@"

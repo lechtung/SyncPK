@@ -2,7 +2,7 @@
 {
 set -euo pipefail
 
-# Priority High 1: Secure lock file in /run
+# Acquire exclusive update lock in /run
 exec 9> /run/syncpk_update.lock
 if ! flock -n 9; then
     echo "[Error] Another update process is running. Exiting."
@@ -17,73 +17,106 @@ API_URL="https://api.github.com/repos/lechtung/SyncPK/releases/latest"
 PYTHON_BIN="$CODE_DIR/venv/bin/python3"
 PIP_BIN="$CODE_DIR/venv/bin/pip"
 
-# Priority High 1: Secure backup directory
+# Ensure secure backup directory exists
 install -d -m 700 -o root -g root "$BACKUP_DIR"
 
-# Cleanup function for safe rollback
+# State tracking for safe rollback
 UPDATE_PHASE="init"
 BACKUP_OK=0
 CURRENT_BACKUP_FILE=""
+ROLLED_BACK=0
 
 cleanup() {
     local exit_code=$?
-    
+    trap - EXIT  # Prevent nested trigger
+
     if [ -n "${TMP_DIR:-}" ] && [ -d "$TMP_DIR" ]; then
         rm -rf "$TMP_DIR"
     fi
-    
+
+    # Always clean temporary staging copy of code
+    rm -rf "$CODE_DIR.prev.tmp"
+
     if [ $exit_code -ne 0 ] || [ "$UPDATE_PHASE" = "error" ]; then
+        if [ "$ROLLED_BACK" -eq 1 ]; then
+            exit $exit_code
+        fi
+        ROLLED_BACK=1
+
         echo "[Error] Update failed at phase: $UPDATE_PHASE. Initiating rollback..."
-        
-        systemctl stop syncpk-server || true
-        
-        # Rollback code
-        if [ "$UPDATE_PHASE" != "init" ] && [ -d "$CODE_DIR.prev" ]; then
-            rm -rf "$CODE_DIR"
-            mv "$CODE_DIR.prev" "$CODE_DIR"
+
+        # Only stop/restore service if the update actually progressed past initialization
+        if [ "$UPDATE_PHASE" != "init" ]; then
+            systemctl stop syncpk-server 2>/dev/null || true
+
+            # Rollback code if previous code snapshot exists
+            if [ -d "$CODE_DIR.prev" ]; then
+                rm -rf "$CODE_DIR"
+                mv "$CODE_DIR.prev" "$CODE_DIR"
+
+                # Restore previous systemd units if available in code dir
+                if [ -d "$CODE_DIR/systemd" ]; then
+                    cp -a "$CODE_DIR/systemd/"* /etc/systemd/system/ 2>/dev/null || true
+                    systemctl daemon-reload 2>/dev/null || true
+                fi
+
+                if command -v restorecon >/dev/null 2>&1; then
+                    restorecon -R "$CODE_DIR" 2>/dev/null || true
+                fi
+            fi
+
+            # Rollback data (extract verified tarball backup for this run)
+            if [ "$BACKUP_OK" -eq 1 ] && [ -n "$CURRENT_BACKUP_FILE" ] && [ -f "$CURRENT_BACKUP_FILE" ]; then
+                echo "[Info] Restoring data from verified backup: $CURRENT_BACKUP_FILE"
+                # Use -maxdepth 1 to avoid recursing into and wiping cache contents
+                find "$DATA_DIR" -mindepth 1 -maxdepth 1 ! -name 'cache' -exec rm -rf {} +
+                tar -xzf "$CURRENT_BACKUP_FILE" -C "$DATA_DIR"
+            fi
+
+            systemctl reset-failed syncpk-server 2>/dev/null || true
+            if ! systemctl is-active -q syncpk-server; then
+                systemctl start syncpk-server || true
+            fi
         fi
-        
-        # Rollback data (extract verified tarball backup for this run)
-        if [ "$UPDATE_PHASE" != "init" ] && [ "$BACKUP_OK" -eq 1 ] && [ -n "$CURRENT_BACKUP_FILE" ] && [ -f "$CURRENT_BACKUP_FILE" ]; then
-            echo "[Info] Restoring data from verified backup: $CURRENT_BACKUP_FILE"
-            find "$DATA_DIR" -mindepth 1 ! -name 'cache' -exec rm -rf {} +
-            tar -xzf "$CURRENT_BACKUP_FILE" -C "$DATA_DIR"
-        fi
-        
-        if ! systemctl is-active -q syncpk-server; then
-            systemctl start syncpk-server || true
-        fi
+
         echo "[Error] Update failed. Rollback completed."
     elif [ "$UPDATE_PHASE" = "done" ]; then
+        # Clean previous code backup on success to save disk space
+        rm -rf "$CODE_DIR.prev"
+
+        systemctl reset-failed syncpk-server 2>/dev/null || true
         if ! systemctl is-active -q syncpk-server; then
             systemctl start syncpk-server || true
         fi
         echo "[Info] Update completed successfully."
-        rm -f "$DATA_DIR/update_status.json"
+        rm -f "$DATA_DIR/update_status.json" "$DATA_DIR/.trigger_update"
     fi
-    
+
     exit $exit_code
 }
-trap cleanup EXIT ERR
+trap cleanup EXIT
 
 # Check if we are running the newly downloaded script
 if [ "${1:-}" != "--exec-new" ]; then
     TMP_DIR=$(mktemp -d)
     echo "[Info] Fetching latest version from GitHub..."
     curl -fsSL --max-time 30 "$API_URL" > "$TMP_DIR/api_resp.json" || { echo "[Error] Could not fetch release info"; exit 1; }
-    TAR_URL=$("$PYTHON_BIN" -c 'import json,sys; print(json.load(sys.stdin).get("tarball_url", ""))' < "$TMP_DIR/api_resp.json")
-    RELEASE_TAG=$("$PYTHON_BIN" -c 'import json,sys; print(json.load(sys.stdin).get("tag_name", "unknown"))' < "$TMP_DIR/api_resp.json")
-    
+
+    # Prefer system python3 for release parsing in case venv is damaged
+    SYS_PYTHON=$(command -v python3 2>/dev/null || echo "$PYTHON_BIN")
+    TAR_URL=$("$SYS_PYTHON" -c 'import json,sys; print(json.load(sys.stdin).get("tarball_url", ""))' < "$TMP_DIR/api_resp.json")
+    RELEASE_TAG=$("$SYS_PYTHON" -c 'import json,sys; print(json.load(sys.stdin).get("tag_name", "unknown"))' < "$TMP_DIR/api_resp.json")
+
     if [ -z "$TAR_URL" ]; then
         echo "[Error] Download URL is empty."
         exit 1
     fi
-    
+
     echo "[Info] Found release: $RELEASE_TAG"
     echo "[Info] Downloading and extracting source code..."
     mkdir -p "$TMP_DIR/src"
     curl -fsSL --max-time 300 "$TAR_URL" | tar -xz -C "$TMP_DIR/src" --strip-components=1 || { echo "[Error] Failed to download/extract"; exit 1; }
-    
+
     echo "[Info] Executing new update script to apply the update..."
     # exec replaces the current shell process. The new script will have its own trap and variables.
     exec /bin/bash "$TMP_DIR/src/update.sh" --exec-new "$TMP_DIR" "$RELEASE_TAG"
@@ -103,14 +136,22 @@ systemctl stop syncpk-server
 
 UPDATE_PHASE="backup"
 echo "[Info] Creating local backup (code and DB)..."
+# Atomic code backup via temporary directory
+rm -rf "$CODE_DIR.prev.tmp"
+cp -a "$CODE_DIR" "$CODE_DIR.prev.tmp"
 rm -rf "$CODE_DIR.prev"
-cp -a "$CODE_DIR" "$CODE_DIR.prev"
+mv "$CODE_DIR.prev.tmp" "$CODE_DIR.prev"
 
-# Priority High 2: Full Backup with rotation (we keep latest 3 to save space, delete others)
+# Full backup with rotation (keep latest 3, delete older)
 BACKUP_FILE="$BACKUP_DIR/syncpk_data_backup_$(date +%Y%m%d_%H%M%S).tar.gz"
-tar -czf "$BACKUP_FILE" --exclude="./cache" -C "$DATA_DIR" . && tar -tzf "$BACKUP_FILE" >/dev/null && BACKUP_OK=1
+if ! tar -czf "$BACKUP_FILE" --exclude="./cache" -C "$DATA_DIR" . || ! tar -tzf "$BACKUP_FILE" >/dev/null 2>&1; then
+    echo "[Error] Data backup creation or verification failed."
+    rm -f "$BACKUP_FILE"
+    exit 1
+fi
+BACKUP_OK=1
 CURRENT_BACKUP_FILE="$BACKUP_FILE"
-ls -t "$BACKUP_DIR"/syncpk_data_backup_*.tar.gz | tail -n +4 | xargs -r rm -f
+ls -t "$BACKUP_DIR"/syncpk_data_backup_*.tar.gz 2>/dev/null | tail -n +4 | xargs -r rm -f
 
 UPDATE_PHASE="applying"
 echo "[Info] Cleaning old code..."
@@ -156,8 +197,13 @@ if [ -f "$CODE_DIR/uninstall.sh" ]; then
     chmod +x "$CODE_DIR/uninstall.sh"
 fi
 
+if command -v restorecon >/dev/null 2>&1; then
+    restorecon -R "$CODE_DIR" 2>/dev/null || true
+fi
+
 UPDATE_PHASE="starting"
 echo "[Info] Starting service..."
+systemctl reset-failed syncpk-server 2>/dev/null || true
 systemctl start syncpk-server
 
 echo "[Info] Checking service health..."

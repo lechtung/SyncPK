@@ -7,11 +7,25 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 PURGE=0
+ASSUME_YES=0
+
 for arg in "$@"; do
-    if [ "$arg" == "--purge" ]; then
-        PURGE=1
-    fi
+    case "$arg" in
+        --purge)
+            PURGE=1
+            ;;
+        -y|--yes)
+            ASSUME_YES=1
+            ;;
+    esac
 done
+
+# Prevent running while an update is in progress
+exec 9> /run/syncpk_update.lock
+if ! flock -n 9; then
+    echo -e "\e[31m[ERROR] An update is currently in progress. Please wait for it to finish.\e[0m"
+    exit 1
+fi
 
 echo -e "\e[31m======================================================\e[0m"
 echo -e "\e[31m          SyncPK Uninstaller (System Cleanup)         \e[0m"
@@ -29,24 +43,24 @@ else
     echo "The syncpk user will also be kept so files aren't orphaned."
 fi
 
-# Ensure read works even if piped (by reading from /dev/tty)
-if [ -t 0 ]; then
-    read -p "Are you sure you want to proceed? (y/N) " -r REPLY < /dev/tty
-else
-    # If not interactive, require a force flag to proceed. Here we just abort.
-    echo "[Error] Script must be run interactively to confirm, or implement a force flag."
-    exit 1
-fi
+if [ "$ASSUME_YES" -eq 0 ]; then
+    if [ -t 0 ]; then
+        read -p "Are you sure you want to proceed? (y/N) " -r REPLY < /dev/tty
+    else
+        echo "[Error] Script is running non-interactively. Pass -y or --yes to confirm uninstallation."
+        exit 1
+    fi
 
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "Aborted."
-    exit 1
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Aborted."
+        exit 1
+    fi
 fi
 
 echo "[Info] Stopping and disabling systemd services..."
 systemctl stop syncpk-server syncpk-updater.path syncpk-checker.timer 2>/dev/null || true
-# Stop oneshots if running
+# Stop oneshot services if currently active
 systemctl stop syncpk-updater.service syncpk-checker.service 2>/dev/null || true
 
 systemctl disable syncpk-server syncpk-updater.path syncpk-checker.timer 2>/dev/null || true
@@ -59,23 +73,22 @@ rm -f /etc/systemd/system/syncpk-checker.timer
 rm -f /etc/systemd/system/syncpk-checker.service
 systemctl daemon-reload
 
-echo "[Info] Deleting application code..."
-rm -rf /opt/syncpk
-rm -rf /opt/syncpk.prev
+echo "[Info] Deleting application code and temporary directories..."
+rm -rf /opt/syncpk /opt/syncpk.prev /opt/syncpk.prev.tmp /opt/syncpk.old
 rm -f /var/log/syncpk-install.log
 
 if [ "$PURGE" -eq 1 ]; then
     echo "[Info] Purging all data and backups..."
     rm -rf /var/lib/syncpk
     rm -rf /var/backups/syncpk
-    
+
     echo "[Info] Removing syncpk user..."
     if id "syncpk" &>/dev/null; then
         userdel syncpk || true
     fi
 fi
 
-# Clean MOTD if we added it (LXC specific)
+# Clean MOTD if present (e.g. created by Proxmox installer)
 rm -f /etc/profile.d/syncpk-motd.sh
 if [ -f "/etc/motd" ]; then
     sed -i '/SyncPK/d' /etc/motd 2>/dev/null || true

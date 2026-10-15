@@ -1,5 +1,5 @@
 [Unit]
-Description=Vigila peticiones de actualizacion de SyncPK
+Description=SyncPK Update Trigger Watcher
 
 [Path]
 PathExists=/var/lib/syncpk/.trigger_update

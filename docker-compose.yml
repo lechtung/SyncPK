@@ -4,7 +4,9 @@ services:
     container_name: syncpk-server
     restart: unless-stopped
     environment:
-      - TZ=${TZ:-Europe/Madrid}
+      # Optional: Uncomment and set if you want to override the container timezone manually,
+      # or if running on Windows where /etc/localtime is not available.
+      # - TZ=Europe/Madrid
       # - PUID=1000 # Uncomment and set your local user ID if running on a NAS (e.g. Synology, Unraid)
       # - PGID=1000 # Uncomment and set your local group ID if running on a NAS
     ports:

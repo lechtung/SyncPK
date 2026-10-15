@@ -37,8 +37,8 @@ This is required to fetch movie/show posters and durations for your dashboard.
 
 ## 🛠️ Installation
 
-SyncPK requires Linux with `systemd` (for baremetal/LXC) and Python 3.9+. We support `amd64` and `arm64` architectures.
-Supported Linux distributions: **Debian 11+**, **Ubuntu 20.04+**, **Raspberry Pi OS**, **Fedora 38+**, **AlmaLinux / Rocky / RHEL 9+**, and **Arch Linux**.
+SyncPK requires Linux with `systemd` (for baremetal/LXC) and Python 3.10+. We support `amd64` and `arm64` architectures.
+Supported Linux distributions: **Debian 12+**, **Ubuntu 22.04+**, **Raspberry Pi OS (64-bit, Bookworm recommended)**, **Fedora 38+**, **AlmaLinux / Rocky / RHEL 9+**, and **Arch Linux**.
 
 We provide multiple installation options. The initial installation is very quick, and once it finishes, you will complete the configuration (Plex Auth, TMDB, passwords) through a beautiful Web UI.
 
@@ -78,7 +78,9 @@ For the standard self-hosted stack, SyncPK can be deployed seamlessly using Dock
        container_name: syncpk-server
        restart: unless-stopped
        environment:
-         - TZ=Europe/Madrid
+         # Optional: Uncomment and set if you want to override the container timezone manually,
+         # or if running on Windows where /etc/localtime is not available.
+         # - TZ=Europe/Madrid
          # - PUID=1000 # Uncomment if running on a NAS (e.g. Synology, Unraid)
          # - PGID=1000
        ports:
@@ -88,7 +90,9 @@ For the standard self-hosted stack, SyncPK can be deployed seamlessly using Dock
          - /etc/localtime:/etc/localtime:ro
    ```
 
-   *(Alternatively, download it directly via terminal)*:
+   > 💡 **Portainer / Dockge Note:** When using web managers like Portainer, relative paths like `./data` are stored in the engine's internal stack folder. If you prefer to store data in a specific host path, replace `./data` with an absolute path (e.g. `/opt/syncpk-data:/app/data`).
+
+   *(Alternatively, download the compose file directly via terminal)*:
    ```bash
    curl -O https://raw.githubusercontent.com/lechtung/SyncPK/main/docker-compose.yml
    ```
@@ -129,10 +133,21 @@ Once the server is running, you need to install the Kodi addon on your media pla
 
 ## 🔄 Updates & Maintenance
 
-- **UI Auto-Update**: If you enabled auto-updates in the Web Setup (Baremetal/LXC), the server updates itself automatically.
+- **UI Auto-Update**: If you enabled auto-updates in the Web Setup (Baremetal/LXC), the server updates itself automatically via systemd timer.
 - **Manual Baremetal Update**: If auto-update is disabled, run `sudo /opt/syncpk/update.sh`.
 - **Docker Updates**: Run `docker compose pull && docker compose up -d`.
 - **View Logs**: To troubleshoot, run `journalctl -u syncpk-server -f` (Baremetal/LXC) or `docker compose logs -f` (Docker).
+- **Custom Port/Host (Baremetal)**: To change the listening port or IP, create a systemd drop-in override:
+  ```bash
+  sudo systemctl edit syncpk-server
+  ```
+  Add the following lines (replacing 8080 with your desired port):
+  ```ini
+  [Service]
+  ExecStart=
+  ExecStart=/opt/syncpk/venv/bin/python3 -m uvicorn main:app --host 0.0.0.0 --port 8080 --no-access-log
+  ```
+  Then reload and restart: `sudo systemctl restart syncpk-server`.
 
 ---
 
@@ -154,23 +169,24 @@ sudo ufw allow from 192.168.0.0/16 to any port 8000 proto tcp
 
 ## 💾 Backup & Restore
 
-All your configuration, hashed passwords, and the synchronized watch history are securely stored in a single folder. 
+All your configuration, hashed passwords, and the synchronized watch history are securely stored in `/var/lib/syncpk`.
 
 **Backup:**
-To avoid database corruption, stop the service before copying the data:
+To guarantee database consistency without locking errors, stop the service before creating a compressed archive:
 ```bash
 sudo systemctl stop syncpk-server
 sudo mkdir -p /var/backups/syncpk
-sudo cp -r /var/lib/syncpk /var/backups/syncpk/manual_backup
+sudo tar -czf /var/backups/syncpk/manual_backup_$(date +%Y%m%d_%H%M%S).tar.gz --exclude="./cache" -C /var/lib/syncpk .
 sudo systemctl start syncpk-server
 ```
 *(For Docker, simply backup your mapped `./data` directory or named volume).*
 
 **Restore:**
-Place the contents back into `/var/lib/syncpk` and ensure the proper ownership before starting the service:
+Restore the archive into `/var/lib/syncpk` and ensure ownership before starting the service:
 ```bash
 sudo systemctl stop syncpk-server
-sudo cp -r /var/backups/syncpk/manual_backup/. /var/lib/syncpk/
+sudo find /var/lib/syncpk -mindepth 1 -maxdepth 1 ! -name 'cache' -exec rm -rf {} +
+sudo tar -xzf /var/backups/syncpk/YOUR_BACKUP_FILE.tar.gz -C /var/lib/syncpk
 sudo chown -R syncpk:syncpk /var/lib/syncpk
 sudo systemctl start syncpk-server
 ```
@@ -179,7 +195,7 @@ sudo systemctl start syncpk-server
 
 ## 🗑️ Uninstallation
 
-**Warning:** Uninstalling will permanently delete your entire watch history database and configuration. Make a backup first!
+**Warning:** Uninstalling will permanently delete your application files.
 
 **For Proxmox LXC**: Destroy the container from your Proxmox web interface.
 
@@ -187,9 +203,9 @@ sudo systemctl start syncpk-server
 ```bash
 sudo /opt/syncpk/uninstall.sh
 ```
-To also delete all data and backups:
+To also purge all data and backups non-interactively:
 ```bash
-sudo /opt/syncpk/uninstall.sh --purge
+sudo /opt/syncpk/uninstall.sh --purge -y
 ```
 
 **For Docker**: Run `docker compose down` and delete the persistent folder or volume:

@@ -1,5 +1,5 @@
 [Unit]
-Description=Actualizador root de SyncPK
+Description=SyncPK Automatic Background Updater
 After=network-online.target
 Wants=network-online.target
 

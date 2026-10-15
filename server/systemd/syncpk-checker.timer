@@ -1,5 +1,5 @@
 [Unit]
-Description=Temporizador para SyncPK Checker
+Description=SyncPK Daily Update Check Timer
 
 [Timer]
 OnBootSec=5min
