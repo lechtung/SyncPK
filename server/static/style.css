@@ -1585,7 +1585,8 @@ button:disabled {
 
 .import-progress-bar {
     height: 100%;
-    background: linear-gradient(90deg, var(--accent-1, #e5a00d), var(--accent-2, #17b2e7));
+    background: linear-gradient(90deg, #ff6a00 0%, #ff8800 30%, #0095ff 70%, #6ce5ff 100%);
+    background: linear-gradient(in oklab 90deg, #ff6a00 0%, #ff8800 25%, #0095ff 75%, #6ce5ff 100%);
     border-radius: 4px;
     transition: width 0.3s ease-out;
     position: relative;
