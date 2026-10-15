@@ -71,6 +71,7 @@ rm -f /etc/systemd/system/syncpk-updater.path
 rm -f /etc/systemd/system/syncpk-updater.service
 rm -f /etc/systemd/system/syncpk-checker.timer
 rm -f /etc/systemd/system/syncpk-checker.service
+rm -rf /etc/systemd/system/syncpk-*.d /etc/systemd/system/syncpk-*.service.d
 systemctl daemon-reload
 
 echo "[Info] Deleting application code and temporary directories..."

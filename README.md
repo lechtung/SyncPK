@@ -94,7 +94,7 @@ For the standard self-hosted stack, SyncPK can be deployed seamlessly using Dock
 
    *(Alternatively, download the compose file directly via terminal)*:
    ```bash
-   curl -O https://raw.githubusercontent.com/lechtung/SyncPK/main/docker-compose.yml
+   curl -fsSL -O https://raw.githubusercontent.com/lechtung/SyncPK/main/docker-compose.yml
    ```
 
 2. Start the container:
@@ -102,6 +102,35 @@ For the standard self-hosted stack, SyncPK can be deployed seamlessly using Dock
    docker compose up -d
    ```
 3. **Next step:** Open your browser and go to `http://<YOUR_SERVER_IP>:8000` to start the Web Setup.
+
+#### 🪟 Windows Users (Docker Desktop / Podman)
+Running SyncPK natively as a Windows service is not officially supported. However, you can run it seamlessly using **Docker Desktop** (with WSL2 backend).
+
+1. **Download compose file in PowerShell**:
+   In PowerShell, invoke `curl.exe` directly (as `curl` is a PowerShell alias):
+   ```powershell
+   curl.exe -fsSL -O https://raw.githubusercontent.com/lechtung/SyncPK/main/docker-compose.yml
+   ```
+
+2. **Recommended Storage (Named Volume)**:
+   SyncPK uses SQLite in WAL mode. Due to filesystem locking limitations between Windows NTFS and WSL2 bind mounts, we **strongly recommend** using a Docker Named Volume instead of mapping a local Windows folder. This guarantees maximum performance and eliminates database lock errors:
+
+   ```yaml
+   services:
+     syncpk-server:
+       image: ghcr.io/lechtung/syncpk:latest
+       container_name: syncpk-server
+       restart: unless-stopped
+       environment:
+         - TZ=UTC # Change to your local timezone (e.g. America/New_York, Europe/Madrid)
+       ports:
+         - "8000:8000"
+       volumes:
+         - syncpk-data:/app/data
+
+   volumes:
+     syncpk-data:
+   ```
 
 ---
 
@@ -149,18 +178,24 @@ Once the server is running, you need to install the Kodi addon on your media pla
   ```
   Then reload and restart: `sudo systemctl restart syncpk-server`.
 
+  > ⚠️ **Note on systemd overrides:** The drop-in replaces the entire `ExecStart=` directive. SyncPK's updater automatically detects your overridden port to perform health checks and rollbacks reliably.
+
 ---
 
 ## 🔒 Security & Firewall
 
 **Important:** SyncPK runs entirely over HTTP and tokens are passed in the URL. **DO NOT** expose port 8000 directly to the Internet. If you need external access, use a secure Reverse Proxy (like NGINX, Traefik, or Cloudflare Tunnels) with SSL/TLS termination.
 
-If your server has an active firewall (like `ufw`), allow connections to port 8000 from your local network:
+If your server has an active firewall, allow connections to port 8000 from your local network:
 
 ```bash
+# For UFW (Ubuntu / Debian / Raspberry Pi OS):
 sudo ufw allow from 192.168.0.0/16 to any port 8000 proto tcp
 # Or to allow unconditionally on a trusted local network:
 # sudo ufw allow 8000/tcp
+
+# For firewalld (AlmaLinux / Rocky / Fedora / RHEL):
+# sudo firewall-cmd --add-port=8000/tcp --permanent && sudo firewall-cmd --reload
 ```
 
 > ⚠️ **Docker & UFW:** If you expose port `8000:8000` in Docker, it will **bypass UFW**. To strictly bind the server to localhost for a reverse proxy, use `127.0.0.1:8000:8000` in your compose file.
@@ -171,15 +206,20 @@ sudo ufw allow from 192.168.0.0/16 to any port 8000 proto tcp
 
 All your configuration, hashed passwords, and the synchronized watch history are securely stored in `/var/lib/syncpk`.
 
+> ⚠️ **Filesystem Compatibility:** SyncPK uses SQLite in WAL mode. **Do not** locate `/var/lib/syncpk` or your Docker data directory on network storage like NFS or SMB/CIFS, as network filesystem locking limitations can cause database corruption.
+
 **Backup:**
 To guarantee database consistency without locking errors, stop the service before creating a compressed archive:
 ```bash
 sudo systemctl stop syncpk-server
-sudo mkdir -p /var/backups/syncpk
-sudo tar -czf /var/backups/syncpk/manual_backup_$(date +%Y%m%d_%H%M%S).tar.gz --exclude="./cache" -C /var/lib/syncpk .
+sudo install -d -m 700 /var/backups/syncpk
+(umask 077 && sudo tar -czf /var/backups/syncpk/manual_backup_$(date +%Y%m%d_%H%M%S).tar.gz --exclude="./cache" -C /var/lib/syncpk .)
 sudo systemctl start syncpk-server
 ```
+*(Note: In Proxmox LXC or when running directly as root, omit 'sudo')*  
 *(For Docker, simply backup your mapped `./data` directory or named volume).*
+
+> 💡 **Automated Backups:** The updater (`update.sh`) automatically takes a verified compressed backup before every update in `/var/backups/syncpk/syncpk_data_backup_*.tar.gz`, retaining the latest 3 copies.
 
 **Restore:**
 Restore the archive into `/var/lib/syncpk` and ensure ownership before starting the service:
@@ -210,40 +250,9 @@ sudo /opt/syncpk/uninstall.sh --purge -y
 
 **For Docker**: Run `docker compose down` and delete the persistent folder or volume:
 ```bash
-docker compose down
+docker compose down -v
 rm -rf data
 ```
-
----
-
-### 🪟 Windows Users (Docker / Podman)
-Running SyncPK natively as a service on Windows is not officially supported. However, you can run it seamlessly using **Docker Desktop** (with WSL2 backend).
-
-1. **Download compose file in PowerShell**:
-   In PowerShell, invoke `curl.exe` directly (as `curl` is a PowerShell alias):
-   ```powershell
-   curl.exe -O https://raw.githubusercontent.com/lechtung/SyncPK/main/docker-compose.yml
-   ```
-
-2. **Recommended Storage (Named Volume)**:
-   SyncPK uses SQLite in WAL mode. Due to filesystem locking limitations between Windows NTFS and WSL2 bind mounts, we **strongly recommend** using a Docker Named Volume instead of mapping a local Windows folder. This guarantees maximum performance and eliminates database lock errors:
-
-   ```yaml
-   services:
-     syncpk-server:
-       image: ghcr.io/lechtung/syncpk:latest
-       container_name: syncpk-server
-       restart: unless-stopped
-       environment:
-         - TZ=Europe/Madrid
-       ports:
-         - "8000:8000"
-       volumes:
-         - syncpk-data:/app/data
-
-   volumes:
-     syncpk-data:
-   ```
 
 ---
 

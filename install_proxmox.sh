@@ -86,6 +86,10 @@ if [ -n "$HOST_GW" ]; then
     SUBNET_PREFIX=$(echo "$HOST_GW" | sed 's/\.[0-9]*$//')
 fi
 
+# Detect CIDR subnet mask from the host bridge (e.g. 24, 23, 16)
+DETECTED_CIDR=$(ip -o -4 addr show dev "$BRIDGE" 2>/dev/null | awk '{print $4}' | head -n1 | cut -d/ -f2)
+SUBNET_CIDR="${DETECTED_CIDR:-24}"
+
 NET_CONFIG="ip=dhcp"
 CT_IP=""
 
@@ -107,9 +111,27 @@ if [ -n "$HOST_GW" ] && [ -n "$SUBNET_PREFIX" ]; then
             if [[ "$LAST_OCTET" =~ ^[0-9]+$ ]] && [ "$((10#$LAST_OCTET))" -ge 1 ] && [ "$((10#$LAST_OCTET))" -le 254 ]; then
                 LAST_OCTET=$((10#$LAST_OCTET))
                 CT_IP="${SUBNET_PREFIX}.${LAST_OCTET}"
-                NET_CONFIG="ip=${CT_IP}/24,gw=${HOST_GW}"
+
+                # Allow user to confirm or customize subnet mask CIDR
+                SUBNET_CIDR_INPUT=$(whiptail --title "SyncPK - Subnet Mask" \
+                    --inputbox "Subnet mask prefix in CIDR notation:\nDetected on ${BRIDGE}: /${SUBNET_CIDR}\n\nPress Enter to accept or type a different mask (e.g. 24, 23, 16):" \
+                    12 65 "$SUBNET_CIDR" 3>&1 1>&2 2>&3)
+                if [ $? -ne 0 ]; then exit 1; fi
+                SUBNET_CIDR_INPUT=$(echo "$SUBNET_CIDR_INPUT" | tr -d '/')
+                if [[ "$SUBNET_CIDR_INPUT" =~ ^[0-9]+$ ]] && [ "$SUBNET_CIDR_INPUT" -ge 8 ] && [ "$SUBNET_CIDR_INPUT" -le 30 ]; then
+                    SUBNET_CIDR="$SUBNET_CIDR_INPUT"
+                fi
+
+                # Check if chosen IP is already active on the network
+                if ping -c 1 -W 1 "$CT_IP" &>/dev/null; then
+                    whiptail --title "SyncPK - IP Warning" --msgbox \
+                        "Warning: The IP ${CT_IP} is currently responding to ping on your network.\n\nMake sure it is not assigned to another active device to avoid IP conflicts." \
+                        11 65
+                fi
+
+                NET_CONFIG="ip=${CT_IP}/${SUBNET_CIDR},gw=${HOST_GW}"
                 whiptail --title "SyncPK - Static IP" --msgbox \
-                    "Static IP configured: ${CT_IP}\nGateway: ${HOST_GW}\n\nMake sure this IP is excluded from your router's DHCP pool or configured with a static reservation to prevent conflicts." \
+                    "Static IP configured: ${CT_IP}/${SUBNET_CIDR}\nGateway: ${HOST_GW}\n\nMake sure this IP is excluded from your router's DHCP pool or configured with a static reservation to prevent conflicts." \
                     11 65
                 break
             else
@@ -132,8 +154,8 @@ fi
 echo "[Info] Gathering local and available templates..."
 pveam update &>/dev/null
 DOWNLOADED_TEMPLATES=$(pvesm list $TEMPLATE_STORAGE --content vztmpl | awk 'NR>1 {print $1}')
-# Only offer modern Debian 11+ and Ubuntu 22.04+ (requires Python 3.10+)
-AVAILABLE_TEMPLATES=$(pveam available 2>/dev/null | awk '$1=="system" && $2 ~ /^(debian-(1[1-9]|[2-9][0-9])-standard|ubuntu-(2[2-9]|[3-9][0-9])\.[0-9]+-standard)/ {print $2}')
+# Only offer modern Debian 12+ and Ubuntu 22.04+ (requires Python 3.10+)
+AVAILABLE_TEMPLATES=$(pveam available 2>/dev/null | awk '$1=="system" && $2 ~ /^(debian-(1[2-9]|[2-9][0-9])-standard|ubuntu-(2[2-9]|[3-9][0-9])\.[0-9]+-standard)/ {print $2}')
 
 TEMPLATE_MENU=()
 declare -A TPL_MAP
@@ -142,8 +164,8 @@ DEFAULT_ITEM=""
 
 for t in $DOWNLOADED_TEMPLATES; do
     filename=$(basename "$t")
-    # Only offer modern Debian 11+ and Ubuntu 22.04+
-    if ! echo "$filename" | grep -qE '^(debian-(1[1-9]|[2-9][0-9])|ubuntu-(2[2-9]|[3-9][0-9])\.)'; then continue; fi
+    # Only offer modern Debian 12+ and Ubuntu 22.04+
+    if ! echo "$filename" | grep -qE '^(debian-(1[2-9]|[2-9][0-9])|ubuntu-(2[2-9]|[3-9][0-9])\.)'; then continue; fi
     shortname=$(echo "$filename" | sed -E 's/(-standard|_amd64.*\.tar\.[a-z]+)//g')
     TEMPLATE_MENU+=("$idx" "[Local] $shortname")
     TPL_MAP[$idx]="$filename"
@@ -178,9 +200,9 @@ if [ $? -ne 0 ]; then exit 1; fi
 
 LATEST_TEMPLATE_FILE="${TPL_MAP[$CHOICE]}"
 
-if ! pvesm list $TEMPLATE_STORAGE --content vztmpl | grep -q "$LATEST_TEMPLATE_FILE"; then
+if ! pvesm list "$TEMPLATE_STORAGE" --content vztmpl | grep -q "$LATEST_TEMPLATE_FILE"; then
     echo "[Info] Downloading selected template ($LATEST_TEMPLATE_FILE)..."
-    pveam download $TEMPLATE_STORAGE "$LATEST_TEMPLATE_FILE" &>/dev/null || error "Failed to download the template."
+    pveam download "$TEMPLATE_STORAGE" "$LATEST_TEMPLATE_FILE" || error "Failed to download the template."
 fi
 
 LATEST_TEMPLATE="$TEMPLATE_STORAGE:vztmpl/$LATEST_TEMPLATE_FILE"

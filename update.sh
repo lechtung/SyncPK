@@ -20,6 +20,13 @@ PIP_BIN="$CODE_DIR/venv/bin/pip"
 # Ensure secure backup directory exists
 install -d -m 700 -o root -g root "$BACKUP_DIR"
 
+# Extract effective listening port from systemd unit and drop-in overrides
+get_port() {
+    local p
+    p=$(systemctl cat syncpk-server 2>/dev/null | grep -oP -- '--port\s+\K[0-9]+' | tail -n1)
+    echo "${p:-8000}"
+}
+
 # State tracking for safe rollback
 UPDATE_PHASE="init"
 BACKUP_OK=0
@@ -28,6 +35,7 @@ ROLLED_BACK=0
 
 cleanup() {
     local exit_code=$?
+    set +e  # Ensure rollback commands continue even if an intermediate step fails
     trap - EXIT  # Prevent nested trigger
 
     if [ -n "${TMP_DIR:-}" ] && [ -d "$TMP_DIR" ]; then
@@ -56,7 +64,10 @@ cleanup() {
 
                 # Restore previous systemd units if available in code dir
                 if [ -d "$CODE_DIR/systemd" ]; then
-                    cp -a "$CODE_DIR/systemd/"* /etc/systemd/system/ 2>/dev/null || true
+                    install -m 644 -o root -g root "$CODE_DIR/systemd/"* /etc/systemd/system/ 2>/dev/null || true
+                    if command -v restorecon >/dev/null 2>&1; then
+                        restorecon -R /etc/systemd/system/syncpk-* 2>/dev/null || true
+                    fi
                     systemctl daemon-reload 2>/dev/null || true
                 fi
 
@@ -128,7 +139,10 @@ RELEASE_TAG="$3"
 
 echo "[Info] Downloading dependencies..."
 mkdir -p "$TMP_DIR/wheels"
-"$PIP_BIN" download -q -r "$TMP_DIR/src/server/requirements.txt" -d "$TMP_DIR/wheels" || { echo "[Error] Failed to download Python dependencies"; exit 1; }
+"$PIP_BIN" download -q -r "$TMP_DIR/src/server/requirements.txt" -d "$TMP_DIR/wheels" || {
+    echo "[Error] Failed to download Python dependencies. If the virtual environment is corrupted, run 'sudo $CODE_DIR/install.sh --force' to recreate it."
+    exit 1
+}
 
 UPDATE_PHASE="stopping"
 echo "[Info] Stopping service..."
@@ -136,10 +150,9 @@ systemctl stop syncpk-server
 
 UPDATE_PHASE="backup"
 echo "[Info] Creating local backup (code and DB)..."
-# Atomic code backup via temporary directory
-rm -rf "$CODE_DIR.prev.tmp"
+# Clean any stale previous backups before starting new code snapshot
+rm -rf "$CODE_DIR.prev.tmp" "$CODE_DIR.prev"
 cp -a "$CODE_DIR" "$CODE_DIR.prev.tmp"
-rm -rf "$CODE_DIR.prev"
 mv "$CODE_DIR.prev.tmp" "$CODE_DIR.prev"
 
 # Full backup with rotation (keep latest 3, delete older)
@@ -171,7 +184,10 @@ if [ -f "$TMP_DIR/src/uninstall.sh" ]; then
 fi
 
 if [ -d "$TMP_DIR/src/server/systemd" ]; then
-    cp -a "$TMP_DIR/src/server/systemd/"* /etc/systemd/system/
+    install -m 644 -o root -g root "$TMP_DIR/src/server/systemd/"* /etc/systemd/system/
+    if command -v restorecon >/dev/null 2>&1; then
+        restorecon -R /etc/systemd/system/syncpk-* 2>/dev/null || true
+    fi
     systemctl daemon-reload
 fi
 
@@ -207,9 +223,10 @@ systemctl reset-failed syncpk-server 2>/dev/null || true
 systemctl start syncpk-server
 
 echo "[Info] Checking service health..."
+PORT=$(get_port)
 HEALTH_OK=0
 for i in $(seq 1 15); do
-    if curl -fsSL --max-time 5 "http://127.0.0.1:8000/api/time" >/dev/null 2>&1; then
+    if curl -fsSL --max-time 5 "http://127.0.0.1:${PORT}/api/time" >/dev/null 2>&1; then
         HEALTH_OK=1
         break
     fi
@@ -217,9 +234,10 @@ for i in $(seq 1 15); do
 done
 
 if [ "$HEALTH_OK" -eq 0 ]; then
-    echo "[Error] Service is unresponsive after update."
+    echo "[Error] Service is unresponsive on port ${PORT} after update."
     exit 1
 fi
 
+echo "[Info] Update to ${RELEASE_TAG} completed successfully!"
 UPDATE_PHASE="done"
 }

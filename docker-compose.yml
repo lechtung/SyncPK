@@ -6,7 +6,7 @@ services:
     environment:
       # Optional: Uncomment and set if you want to override the container timezone manually,
       # or if running on Windows where /etc/localtime is not available.
-      # - TZ=Europe/Madrid
+      # - TZ=UTC # e.g. Europe/Madrid, America/New_York
       # - PUID=1000 # Uncomment and set your local user ID if running on a NAS (e.g. Synology, Unraid)
       # - PGID=1000 # Uncomment and set your local group ID if running on a NAS
     ports:
