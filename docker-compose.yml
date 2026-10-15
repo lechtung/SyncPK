@@ -3,15 +3,15 @@ services:
     image: ghcr.io/lechtung/syncpk:latest
     container_name: syncpk-server
     restart: unless-stopped
-    # user: "1000:1000" # Uncomment and change to your local UID:GID if you encounter permission issues (e.g., on a NAS)
-    # environment:
-      # - TZ=Europe/Madrid # Uncomment if your system does not support mapping /etc/localtime
+    environment:
+      - TZ=${TZ:-Europe/Madrid}
+      # - PUID=1000 # Uncomment and set your local user ID if running on a NAS (e.g. Synology, Unraid)
+      # - PGID=1000 # Uncomment and set your local group ID if running on a NAS
     ports:
       # If you are publishing directly to the internet, use a reverse proxy and switch to "127.0.0.1:8000:8000" to avoid bypassing the ufw firewall.
       - "8000:8000"
     volumes:
       # All persistence (DB, JSON config, .env, and image cache) resides in ./data
       - ./data:/app/data
-      # Automatic time zone mapping from the host (Optional but recommended)
+      # Automatic time zone mapping from Linux host (adopts host timezone)
       - /etc/localtime:/etc/localtime:ro
-      - /etc/timezone:/etc/timezone:ro

@@ -3,9 +3,10 @@
 GITHUB_USER="lechtung"
 GITHUB_REPO="SyncPK"
 CTID=""
+CT_CREATED=0
 
 function cleanup_on_error() {
-    if [ -n "$CTID" ] && pvesm status &>/dev/null; then
+    if [ "$CT_CREATED" -eq 1 ] && [ -n "$CTID" ] && pvesm status &>/dev/null; then
         echo -e "\n\e[31m[ERROR] Installation failed.\e[0m"
         if whiptail --title "SyncPK - Installation Failed" --yesno "An error occurred during the installation.\n\nDo you want to destroy the incomplete LXC container ($CTID)?" 10 60; then
             echo "[Info] Destroying container $CTID..."
@@ -102,7 +103,8 @@ if [ -n "$HOST_GW" ] && [ -n "$SUBNET_PREFIX" ]; then
             if [ $? -ne 0 ]; then exit 1; fi
 
             # Validate: must be a number between 1 and 254
-            if [[ "$LAST_OCTET" =~ ^[0-9]+$ ]] && [ "$LAST_OCTET" -ge 1 ] && [ "$LAST_OCTET" -le 254 ]; then
+            if [[ "$LAST_OCTET" =~ ^[0-9]+$ ]] && [ "$((10#$LAST_OCTET))" -ge 1 ] && [ "$((10#$LAST_OCTET))" -le 254 ]; then
+                LAST_OCTET=$((10#$LAST_OCTET))
                 CT_IP="${SUBNET_PREFIX}.${LAST_OCTET}"
                 NET_CONFIG="ip=${CT_IP}/24,gw=${HOST_GW}"
                 whiptail --title "SyncPK - Static IP" --msgbox \
@@ -184,6 +186,7 @@ LATEST_TEMPLATE="$TEMPLATE_STORAGE:vztmpl/$LATEST_TEMPLATE_FILE"
 # Medium Priority: Install with 1024MB to avoid OOM killer during pip compilation
 echo "[Info] Creating CT container $CTID with 1024MB RAM for installation..."
 pct create $CTID $LATEST_TEMPLATE -storage $TARGET_STORAGE -rootfs $TARGET_STORAGE:8 -password "$ROOT_PASSWORD" -arch amd64 -hostname syncpk -cores 1 -memory 1024 -net0 name=eth0,bridge=$BRIDGE,$NET_CONFIG -unprivileged 1 -features nesting=1 -timezone host -onboot 1 || error "Failed to create LXC container (pct create failed)."
+CT_CREATED=1
 
 pct start $CTID || error "Failed to start container $CTID."
 
@@ -230,6 +233,6 @@ echo \"\"
 EOF"
 pct exec $CTID -- chmod +x /etc/profile.d/syncpk-motd.sh
 
-pct exec $CTID -- bash -c "set -euo pipefail; apt-get update && apt-get install -y curl ca-certificates && curl -fsSL https://github.com/$GITHUB_USER/$GITHUB_REPO/releases/latest/download/install.sh > install.sh && bash install.sh" || error "install.sh failed inside LXC."
+pct exec $CTID -- bash -c "set -euo pipefail; apt-get update && apt-get install -y curl ca-certificates && curl -fsSL https://github.com/$GITHUB_USER/$GITHUB_REPO/releases/latest/download/install.sh > install.sh && bash install.sh && rm -f install.sh" || error "install.sh failed inside LXC."
 
 pct set $CTID -memory 512 &>/dev/null || true

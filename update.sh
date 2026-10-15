@@ -22,6 +22,9 @@ install -d -m 700 -o root -g root "$BACKUP_DIR"
 
 # Cleanup function for safe rollback
 UPDATE_PHASE="init"
+BACKUP_OK=0
+CURRENT_BACKUP_FILE=""
+
 cleanup() {
     local exit_code=$?
     
@@ -40,14 +43,11 @@ cleanup() {
             mv "$CODE_DIR.prev" "$CODE_DIR"
         fi
         
-        # Rollback data (extract full tarball backup)
-        if [ "$UPDATE_PHASE" != "init" ] && ls "$BACKUP_DIR"/syncpk_data_backup_*.tar.gz 1> /dev/null 2>&1; then
-            LATEST_BACKUP=$(ls -t "$BACKUP_DIR"/syncpk_data_backup_*.tar.gz | head -1)
-            if [ -n "$LATEST_BACKUP" ]; then
-                echo "[Info] Restoring data from $LATEST_BACKUP"
-                rm -rf "$DATA_DIR"/*
-                tar -xzf "$LATEST_BACKUP" -C "$DATA_DIR"
-            fi
+        # Rollback data (extract verified tarball backup for this run)
+        if [ "$UPDATE_PHASE" != "init" ] && [ "$BACKUP_OK" -eq 1 ] && [ -n "$CURRENT_BACKUP_FILE" ] && [ -f "$CURRENT_BACKUP_FILE" ]; then
+            echo "[Info] Restoring data from verified backup: $CURRENT_BACKUP_FILE"
+            find "$DATA_DIR" -mindepth 1 ! -name 'cache' -exec rm -rf {} +
+            tar -xzf "$CURRENT_BACKUP_FILE" -C "$DATA_DIR"
         fi
         
         if ! systemctl is-active -q syncpk-server; then
@@ -108,12 +108,13 @@ cp -a "$CODE_DIR" "$CODE_DIR.prev"
 
 # Priority High 2: Full Backup with rotation (we keep latest 3 to save space, delete others)
 BACKUP_FILE="$BACKUP_DIR/syncpk_data_backup_$(date +%Y%m%d_%H%M%S).tar.gz"
-tar -czf "$BACKUP_FILE" -C "$DATA_DIR" .
+tar -czf "$BACKUP_FILE" --exclude="./cache" -C "$DATA_DIR" . && tar -tzf "$BACKUP_FILE" >/dev/null && BACKUP_OK=1
+CURRENT_BACKUP_FILE="$BACKUP_FILE"
 ls -t "$BACKUP_DIR"/syncpk_data_backup_*.tar.gz | tail -n +4 | xargs -r rm -f
 
 UPDATE_PHASE="applying"
 echo "[Info] Cleaning old code..."
-find "$CODE_DIR" -mindepth 1 -maxdepth 1 ! -name 'venv' ! -name '.ver' ! -name 'update.sh' ! -name 'check_update.sh' -exec rm -rf {} +
+find "$CODE_DIR" -mindepth 1 -maxdepth 1 ! -name 'venv' ! -name '.ver' ! -name 'update.sh' ! -name 'check_update.sh' ! -name 'uninstall.sh' -exec rm -rf {} +
 
 echo "[Info] Applying new code..."
 cp -a "$TMP_DIR/src/server/." "$CODE_DIR/"
@@ -122,6 +123,10 @@ mv "$CODE_DIR/update.sh.tmp" "$CODE_DIR/update.sh"
 if [ -f "$TMP_DIR/src/check_update.sh" ]; then
     cp -a "$TMP_DIR/src/check_update.sh" "$CODE_DIR/check_update.sh.tmp"
     mv "$CODE_DIR/check_update.sh.tmp" "$CODE_DIR/check_update.sh"
+fi
+if [ -f "$TMP_DIR/src/uninstall.sh" ]; then
+    cp -a "$TMP_DIR/src/uninstall.sh" "$CODE_DIR/uninstall.sh.tmp"
+    mv "$CODE_DIR/uninstall.sh.tmp" "$CODE_DIR/uninstall.sh"
 fi
 
 if [ -d "$TMP_DIR/src/server/systemd" ]; then
@@ -146,6 +151,9 @@ find "$CODE_DIR" -type f ! -path "*/venv/*" ! -path "*/.git/*" -exec chmod 644 {
 chmod +x "$CODE_DIR/update.sh"
 if [ -f "$CODE_DIR/check_update.sh" ]; then
     chmod +x "$CODE_DIR/check_update.sh"
+fi
+if [ -f "$CODE_DIR/uninstall.sh" ]; then
+    chmod +x "$CODE_DIR/uninstall.sh"
 fi
 
 UPDATE_PHASE="starting"

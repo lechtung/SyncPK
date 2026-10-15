@@ -4,17 +4,19 @@ FROM python:3.12-slim
 RUN useradd -m -u 1000 syncpkuser
 
 # Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV DATA_DIR=/app/data
-ENV SYNC_IS_DOCKER=true
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    DATA_DIR=/app/data \
+    SYNC_IS_DOCKER=true
 
 # Set working directory
 WORKDIR /app
 
-# Install necessary system packages (using gosu for stepping down from root)
+# Install necessary system packages (tzdata for timezones, gosu for stepping down from root)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     gosu \
+    tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy python dependencies
@@ -40,7 +42,7 @@ RUN chmod +x /entrypoint.sh
 
 # Configure Healthcheck using the time API endpoint
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:8000/api/time || exit 1
+  CMD curl -f http://127.0.0.1:8000/api/time || exit 1
 
 EXPOSE 8000
 

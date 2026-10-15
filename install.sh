@@ -35,8 +35,14 @@ if [ -d "$CODE_DIR" ] && [ "$FORCE" -eq 0 ]; then
 fi
 
 echo "[Info] Validating environment..."
+if [ ! -d "/run/systemd/system" ]; then
+    echo -e "\e[31m[ERROR] systemd must be running as PID 1 on this system.\e[0m"
+    echo "Baremetal installation requires systemd. For containers or WSL without systemd, please use Docker."
+    exit 1
+fi
+
 if ! command -v python3 >/dev/null 2>&1; then
-    echo -e "\e[33m[Warning] python3 not found, it will be installed via apt-get.\e[0m"
+    echo -e "\e[33m[Warning] python3 not found, it will be installed via system package manager.\e[0m"
 else
     if ! python3 -c 'import sys; exit(0) if sys.version_info >= (3,9) else exit(1)'; then
         echo -e "\e[31m[ERROR] Python version must be >= 3.9. Current version is $(python3 --version).\e[0m"
@@ -48,20 +54,28 @@ INSTALL_SUCCESS=0
 TMP_DIR=$(mktemp -d)
 cleanup() { 
     rm -rf "$TMP_DIR"
-    if [ "$INSTALL_SUCCESS" -eq 0 ] && [ -d "$CODE_DIR" ]; then
+    if [ "$INSTALL_SUCCESS" -eq 0 ]; then
         echo -e "\e[31m[ERROR] Installation failed. Rolling back partial changes...\e[0m"
         systemctl disable --now syncpk-server syncpk-checker.timer syncpk-updater.path 2>/dev/null || true
         rm -f /etc/systemd/system/syncpk-*.service /etc/systemd/system/syncpk-*.timer /etc/systemd/system/syncpk-*.path 2>/dev/null || true
         systemctl daemon-reload 2>/dev/null || true
         rm -rf "$CODE_DIR"
+        if [ -d "$CODE_DIR.old" ]; then
+            echo "[Info] Restoring previous installation..."
+            mv "$CODE_DIR.old" "$CODE_DIR"
+            systemctl enable --now syncpk-server syncpk-checker.timer syncpk-updater.path 2>/dev/null || true
+        fi
+    else
+        rm -rf "$CODE_DIR.old"
     fi
 }
 trap cleanup EXIT ERR
 
 if [ "$FORCE" -eq 1 ] && [ -d "$CODE_DIR" ]; then
-    echo "[Info] Force mode: stopping services and cleaning up old installation..."
+    echo "[Info] Force mode: stopping existing services..."
     systemctl stop syncpk-server syncpk-checker.timer syncpk-updater.path 2>/dev/null || true
-    rm -rf "$CODE_DIR"
+    rm -rf "$CODE_DIR.old"
+    mv "$CODE_DIR" "$CODE_DIR.old"
 fi
 
 echo "[Info] Creating dedicated system user 'syncpk'..."
@@ -70,19 +84,36 @@ if ! id "syncpk" &>/dev/null; then
 fi
 
 echo "[Info] Installing OS dependencies..."
-export DEBIAN_FRONTEND=noninteractive
-apt-get -o DPkg::Lock::Timeout=120 update > /var/log/syncpk-install.log 2>&1 || {
-    tail -n 20 /var/log/syncpk-install.log
-    echo -e "\e[31m[ERROR] apt-get update failed. Check the log.\e[0m"
+if command -v apt-get >/dev/null 2>&1; then
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get -o DPkg::Lock::Timeout=120 update > /var/log/syncpk-install.log 2>&1 || {
+        tail -n 20 /var/log/syncpk-install.log
+        echo -e "\e[31m[ERROR] apt-get update failed. Check /var/log/syncpk-install.log\e[0m"
+        exit 1
+    }
+    apt-get -o DPkg::Lock::Timeout=120 install -y curl python3 python3-venv ca-certificates >> /var/log/syncpk-install.log 2>&1 || {
+        tail -n 20 /var/log/syncpk-install.log
+        echo -e "\e[31m[ERROR] Package installation failed. Check /var/log/syncpk-install.log\e[0m"
+        exit 1
+    }
+elif command -v dnf >/dev/null 2>&1; then
+    dnf install -y curl python3 ca-certificates > /var/log/syncpk-install.log 2>&1 || {
+        tail -n 20 /var/log/syncpk-install.log
+        echo -e "\e[31m[ERROR] dnf install failed. Check /var/log/syncpk-install.log\e[0m"
+        exit 1
+    }
+elif command -v pacman >/dev/null 2>&1; then
+    pacman -Sy --noconfirm curl python ca-certificates > /var/log/syncpk-install.log 2>&1 || {
+        tail -n 20 /var/log/syncpk-install.log
+        echo -e "\e[31m[ERROR] pacman install failed. Check /var/log/syncpk-install.log\e[0m"
+        exit 1
+    }
+else
+    echo -e "\e[31m[ERROR] Unsupported package manager. Please install curl, python3, and venv manually or use Docker.\e[0m"
     exit 1
-}
-apt-get -o DPkg::Lock::Timeout=120 install -y curl python3 python3-venv ca-certificates >> /var/log/syncpk-install.log 2>&1 || {
-    tail -n 20 /var/log/syncpk-install.log
-    echo -e "\e[31m[ERROR] Package installation failed. Check the log.\e[0m"
-    exit 1
-}
+fi
 
-# Second check after apt-get just in case it was installed
+# Second check after package install
 if ! python3 -c 'import sys; exit(0) if sys.version_info >= (3,9) else exit(1)'; then
     echo -e "\e[31m[ERROR] Python version must be >= 3.9. Current version is $(python3 --version).\e[0m"
     exit 1
@@ -147,9 +178,16 @@ if [ -f "$CODE_DIR/uninstall.sh" ]; then
     chmod +x $CODE_DIR/uninstall.sh
 fi
 
+if [ -f "$CODE_DIR/.env.example" ] && [ ! -f "$DATA_DIR/.env.bak" ]; then
+    cp "$CODE_DIR/.env.example" "$DATA_DIR/.env.bak"
+fi
+
 chown -R syncpk:syncpk $DATA_DIR
 find $DATA_DIR -type d -exec chmod 750 {} +
 find $DATA_DIR -type f -exec chmod 640 {} +
+if [ -f "$DATA_DIR/.env.bak" ]; then
+    chmod 600 "$DATA_DIR/.env.bak"
+fi
 
 echo "[Info] Installing systemd services..."
 if [ -d "$TMP_DIR/src/server/systemd" ]; then
@@ -165,14 +203,14 @@ systemctl enable --now syncpk-server.service
 systemctl enable --now syncpk-checker.timer
 systemctl enable --now syncpk-updater.path
 
-LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+LOCAL_IP=$( (hostname -I 2>/dev/null || true) | awk '{print $1}')
 if [ -z "$LOCAL_IP" ]; then
     LOCAL_IP="127.0.0.1"
 fi
 
-echo "[Info] Checking service health..."
+echo "[Info] Checking service health (up to 90s)..."
 HEALTH_OK=0
-for i in $(seq 1 15); do
+for i in $(seq 1 45); do
     if curl -fsSL --max-time 5 "http://127.0.0.1:8000/api/time" >/dev/null 2>&1; then
         HEALTH_OK=1
         break
@@ -181,9 +219,15 @@ for i in $(seq 1 15); do
 done
 
 if [ "$HEALTH_OK" -eq 0 ]; then
-    echo -e "\e[31m[ERROR] Service is unresponsive. Check the logs:\e[0m"
-    journalctl -u syncpk-server -n 30 --no-pager
-    exit 1
+    if systemctl is-active -q syncpk-server; then
+        echo -e "\e[33m[Warning] Service is active but took longer than expected to respond to HTTP healthcheck.\e[0m"
+        echo -e "Installation completed, but please check the logs: journalctl -u syncpk-server -n 30"
+        HEALTH_OK=1
+    else
+        echo -e "\e[31m[ERROR] Service failed to start. Check the logs:\e[0m"
+        journalctl -u syncpk-server -n 30 --no-pager
+        exit 1
+    fi
 fi
 
 INSTALL_SUCCESS=1

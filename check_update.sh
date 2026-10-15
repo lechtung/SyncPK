@@ -47,7 +47,7 @@ if [ "$REMOTE_VER" != "$LOCAL_VER" ] && [ "$(printf '%s\n%s\n' "$LOCAL_VER" "$RE
         touch "$TRIGGER_FILE"
     else
         echo "Auto-update disabled. Notifying UI."
-        python3 -c "import json; print(json.dumps({'update_available': '$REMOTE_VER'}))" > "$STATUS_FILE"
+        python3 -c "import json, sys; print(json.dumps({'update_available': sys.argv[1]}))" "$REMOTE_VER" > "$STATUS_FILE"
         chmod 644 "$STATUS_FILE"
     fi
 else

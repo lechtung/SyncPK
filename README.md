@@ -38,6 +38,8 @@ This is required to fetch movie/show posters and durations for your dashboard.
 ## 🛠️ Installation
 
 SyncPK requires Linux with `systemd` (for baremetal/LXC) and Python 3.9+. We support `amd64` and `arm64` architectures.
+Supported Linux distributions: **Debian 11+**, **Ubuntu 20.04+**, **Raspberry Pi OS**, **Fedora 38+**, **AlmaLinux / Rocky / RHEL 9+**, and **Arch Linux**.
+
 We provide multiple installation options. The initial installation is very quick, and once it finishes, you will complete the configuration (Plex Auth, TMDB, passwords) through a beautiful Web UI.
 
 ### Option A: Proxmox Automatic LXC
@@ -52,13 +54,13 @@ bash -c "$(curl -fsSL https://github.com/lechtung/SyncPK/releases/latest/downloa
 > ⚠️ **Note about DHCP:** If you rely on DHCP for the LXC container's IP, create a **DHCP reservation** in your router so the IP doesn't change and break your Kodi/Plex webhook URLs.
 
 ### Option B: Baremetal / Existing Linux Machine
-If you want to install SyncPK on a Raspberry Pi, an existing Debian/Ubuntu server, or inside a container you already created, use this script. Run this command as **root** inside your Linux machine:
+If you want to install SyncPK on a Raspberry Pi, an existing Linux server, or inside a container you already created, use this script. Run this command as **root** inside your Linux machine:
 
 ```bash
 bash -c "$(curl -fsSL https://github.com/lechtung/SyncPK/releases/latest/download/install.sh)"
 ```
 
-**To reinstall** (overwriting an existing installation):
+**To reinstall** (overwriting an existing installation safely):
 ```bash
 bash -c "$(curl -fsSL https://github.com/lechtung/SyncPK/releases/latest/download/install.sh)" _ --force
 ```
@@ -68,11 +70,29 @@ bash -c "$(curl -fsSL https://github.com/lechtung/SyncPK/releases/latest/downloa
 ### Option C: Docker Compose (r/selfhosted)
 For the standard self-hosted stack, SyncPK can be deployed seamlessly using Docker. We provide a pre-built image hosted on GitHub Container Registry (GHCR).
 
-1. Create a `data` directory to store your persistent files and download the `docker-compose.yml`:
+1. Create a `docker-compose.yml` file (or paste this into Portainer / Dockge):
+   ```yaml
+   services:
+     syncpk-server:
+       image: ghcr.io/lechtung/syncpk:latest
+       container_name: syncpk-server
+       restart: unless-stopped
+       environment:
+         - TZ=Europe/Madrid
+         # - PUID=1000 # Uncomment if running on a NAS (e.g. Synology, Unraid)
+         # - PGID=1000
+       ports:
+         - "8000:8000"
+       volumes:
+         - ./data:/app/data
+         - /etc/localtime:/etc/localtime:ro
+   ```
+
+   *(Alternatively, download it directly via terminal)*:
    ```bash
-   mkdir data
    curl -O https://raw.githubusercontent.com/lechtung/SyncPK/main/docker-compose.yml
    ```
+
 2. Start the container:
    ```bash
    docker compose up -d
@@ -110,6 +130,7 @@ Once the server is running, you need to install the Kodi addon on your media pla
 ## 🔄 Updates & Maintenance
 
 - **UI Auto-Update**: If you enabled auto-updates in the Web Setup (Baremetal/LXC), the server updates itself automatically.
+- **Manual Baremetal Update**: If auto-update is disabled, run `sudo /opt/syncpk/update.sh`.
 - **Docker Updates**: Run `docker compose pull && docker compose up -d`.
 - **View Logs**: To troubleshoot, run `journalctl -u syncpk-server -f` (Baremetal/LXC) or `docker compose logs -f` (Docker).
 
@@ -119,10 +140,12 @@ Once the server is running, you need to install the Kodi addon on your media pla
 
 **Important:** SyncPK runs entirely over HTTP and tokens are passed in the URL. **DO NOT** expose port 8000 directly to the Internet. If you need external access, use a secure Reverse Proxy (like NGINX, Traefik, or Cloudflare Tunnels) with SSL/TLS termination.
 
-If your server has an active firewall (like `ufw`), you must open port 8000 to allow connections from your local network:
+If your server has an active firewall (like `ufw`), allow connections to port 8000 from your local network:
 
 ```bash
-sudo ufw allow 8000/tcp
+sudo ufw allow from 192.168.0.0/16 to any port 8000 proto tcp
+# Or to allow unconditionally on a trusted local network:
+# sudo ufw allow 8000/tcp
 ```
 
 > ⚠️ **Docker & UFW:** If you expose port `8000:8000` in Docker, it will **bypass UFW**. To strictly bind the server to localhost for a reverse proxy, use `127.0.0.1:8000:8000` in your compose file.
@@ -134,16 +157,23 @@ sudo ufw allow 8000/tcp
 All your configuration, hashed passwords, and the synchronized watch history are securely stored in a single folder. 
 
 **Backup:**
-To avoid database corruption, stop the service before copying the data, or use SQLite's backup feature.
+To avoid database corruption, stop the service before copying the data:
 ```bash
 sudo systemctl stop syncpk-server
-sudo cp -r /var/lib/syncpk /var/lib/syncpk_backup
+sudo mkdir -p /var/backups/syncpk
+sudo cp -r /var/lib/syncpk /var/backups/syncpk/manual_backup
 sudo systemctl start syncpk-server
 ```
-*(For Docker, backup your mapped `./data` folder).*
+*(For Docker, simply backup your mapped `./data` directory or named volume).*
 
 **Restore:**
-Simply place the contents back into `/var/lib/syncpk` (or `./data` for Docker) before starting a fresh installation, and the server will pick up where it left off.
+Place the contents back into `/var/lib/syncpk` and ensure the proper ownership before starting the service:
+```bash
+sudo systemctl stop syncpk-server
+sudo cp -r /var/backups/syncpk/manual_backup/. /var/lib/syncpk/
+sudo chown -R syncpk:syncpk /var/lib/syncpk
+sudo systemctl start syncpk-server
+```
 
 ---
 
@@ -162,18 +192,42 @@ To also delete all data and backups:
 sudo /opt/syncpk/uninstall.sh --purge
 ```
 
-**For Docker**: Run `docker compose down -v` and delete the folder.
+**For Docker**: Run `docker compose down` and delete the persistent folder or volume:
+```bash
+docker compose down
+rm -rf data
+```
 
 ---
 
 ### 🪟 Windows Users (Docker / Podman)
-Running SyncPK natively as a service on Windows is not officially supported. However, you can run it perfectly using **Docker Desktop** (Free for personal use) or **Podman Desktop** (Open Source).
-Make sure you use absolute Windows paths for your volumes in your docker-compose.yml or docker run command:
+Running SyncPK natively as a service on Windows is not officially supported. However, you can run it seamlessly using **Docker Desktop** (with WSL2 backend).
 
-```yaml
-volumes:
-  - C:\path\to\your\data:/app/data
-```
+1. **Download compose file in PowerShell**:
+   In PowerShell, invoke `curl.exe` directly (as `curl` is a PowerShell alias):
+   ```powershell
+   curl.exe -O https://raw.githubusercontent.com/lechtung/SyncPK/main/docker-compose.yml
+   ```
+
+2. **Recommended Storage (Named Volume)**:
+   SyncPK uses SQLite in WAL mode. Due to filesystem locking limitations between Windows NTFS and WSL2 bind mounts, we **strongly recommend** using a Docker Named Volume instead of mapping a local Windows folder. This guarantees maximum performance and eliminates database lock errors:
+
+   ```yaml
+   services:
+     syncpk-server:
+       image: ghcr.io/lechtung/syncpk:latest
+       container_name: syncpk-server
+       restart: unless-stopped
+       environment:
+         - TZ=Europe/Madrid
+       ports:
+         - "8000:8000"
+       volumes:
+         - syncpk-data:/app/data
+
+   volumes:
+     syncpk-data:
+   ```
 
 ---
 

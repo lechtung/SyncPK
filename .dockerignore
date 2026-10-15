@@ -1,0 +1,37 @@
+# Git
+.git
+.gitignore
+.gitattributes
+.github
+
+# Environments and Secrets (Prevent leaking local tokens)
+.env
+.env.*
+!.env.example
+
+# Database and Data persistence
+*.db
+*.db-*
+data/
+sync.db
+
+# Logs
+*.log
+syncpk.log
+
+# Python cache & virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# Cache & Artwork
+cache/
+server/cache/
+
+# Systemd units (unused in Docker)
+server/systemd/
+
+# Plans and docs
+*.md

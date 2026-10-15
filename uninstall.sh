@@ -75,10 +75,10 @@ if [ "$PURGE" -eq 1 ]; then
     fi
 fi
 
-# Clean MOTD if we added it (LXC specific but safe to check)
+# Clean MOTD if we added it (LXC specific)
+rm -f /etc/profile.d/syncpk-motd.sh
 if [ -f "/etc/motd" ]; then
-    sed -i '/SyncPK/d' /etc/motd || true
-    sed -i '/http:/d' /etc/motd || true
+    sed -i '/SyncPK/d' /etc/motd 2>/dev/null || true
 fi
 
 echo "======================================================"
