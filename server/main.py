@@ -17,6 +17,7 @@ import requests, time
 import secrets
 import shutil
 import sqlite3
+import socket
 import string
 import subprocess
 import sys
@@ -40,6 +41,50 @@ from pydantic import BaseModel
 from typing import Optional, List, Any
 
 #v8
+
+# --- IN-MEMORY DNS CACHE ---
+# Prevents router DNS rate-limiting and EAI_AGAIN (Temporary failure in name resolution)
+# during high-volume TMDB rescans by caching resolved hostnames in RAM.
+_orig_getaddrinfo = socket.getaddrinfo
+_dns_cache = {}
+_dns_lock = threading.Lock()
+
+def _cached_getaddrinfo(host, port, *args, **kwargs):
+    now = time.time()
+    cache_key = (host, port, args, tuple(sorted(kwargs.items())))
+    with _dns_lock:
+        if cache_key in _dns_cache:
+            entry = _dns_cache[cache_key]
+            # Fresh cache hit (valid for 1 hour)
+            if now - entry["timestamp"] < 3600:
+                return entry["result"]
+
+    try:
+        res = _orig_getaddrinfo(host, port, *args, **kwargs)
+        with _dns_lock:
+            _dns_cache[cache_key] = {"result": res, "timestamp": now}
+        return res
+    except socket.gaierror as e:
+        # Fallback to cached IPs if router/upstream DNS refuses resolution
+        with _dns_lock:
+            if cache_key in _dns_cache:
+                print(f"⚠️ [DNS Cache] Lookup failed for {host} ({e}). Using cached IP.", flush=True)
+                return _dns_cache[cache_key]["result"]
+            for k, entry in _dns_cache.items():
+                if k[0] == host and entry.get("result"):
+                    adapted = []
+                    for fam, typ, proto, canon, sockaddr in entry["result"]:
+                        if isinstance(sockaddr, tuple) and len(sockaddr) >= 2:
+                            new_sockaddr = (sockaddr[0], port) + sockaddr[2:]
+                            adapted.append((fam, typ, proto, canon, new_sockaddr))
+                        else:
+                            adapted.append((fam, typ, proto, canon, sockaddr))
+                    print(f"⚠️ [DNS Cache] Lookup failed for {host} ({e}). Using previous IP for host.", flush=True)
+                    return adapted
+        raise
+
+socket.getaddrinfo = _cached_getaddrinfo
+# --- END IN-MEMORY DNS CACHE ---
 
 # WebSocket Manager for real-time events
 class ConnectionManager:
@@ -727,6 +772,13 @@ async def execute_full_rescan(sync_lang, tmdb_key, poster_pref, fanart_pref, is_
 
         # Announce total immediately so frontend shows "0 de X" before first batch arrives
         await manager.broadcast(json.dumps({"type": "step3_init", "total": total}))
+
+        # Pre-warm DNS cache for TMDB hosts
+        for tmdb_host in ("api.themoviedb.org", "image.tmdb.org"):
+            try:
+                socket.getaddrinfo(tmdb_host, 443)
+            except Exception:
+                pass
 
         async def process_item(client, idx, row):
             h_id, m_tmdb_id, s_tmdb_id, m_type, s_season, s_ep, db_title, db_show_title, db_poster, db_fanart = row
