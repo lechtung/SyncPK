@@ -518,22 +518,25 @@ def get_artwork_semaphore() -> asyncio.Semaphore:
     loop = asyncio.get_running_loop()
     sem = _artwork_semaphores.get(loop)
     if sem is None:
+        # Up to 15 concurrent artwork download workers
         sem = asyncio.Semaphore(15)
         _artwork_semaphores[loop] = sem
     return sem
 
 async def _download_single_image(client, url_suffix, local_filename, folder, target_size):
-    if not url_suffix: return False
+    if not url_suffix:
+        return False
     local_path = os.path.join(CACHE_PATH, folder, local_filename)
-    if os.path.exists(local_path): return True
+    if os.path.exists(local_path) and os.path.getsize(local_path) > 0:
+        return True
+
     img_url = f"https://image.tmdb.org/t/p/{target_size}{url_suffix}"
-    for attempt in range(4):
+    max_attempts = 15  # Up to 10-15 minutes of retries on network/rate-limit errors
+    for attempt in range(max_attempts):
         try:
             async with get_artwork_semaphore():
-                resp = await client.get(img_url, timeout=15)
-            if resp.status_code == 429:
-                await asyncio.sleep(2 ** attempt)
-                continue
+                resp = await client.get(img_url, timeout=20)
+
             if resp.status_code == 200:
                 os.makedirs(os.path.join(CACHE_PATH, folder), exist_ok=True)
                 tmp_path = local_path + ".tmp"
@@ -541,24 +544,69 @@ async def _download_single_image(client, url_suffix, local_filename, folder, tar
                     f.write(resp.content)
                 os.replace(tmp_path, local_path)
                 return True
-            return False
-        except Exception:
-            await asyncio.sleep(2 ** attempt)
+
+            if resp.status_code == 404:
+                print(f"[TMDB Image] Image not found on CDN (HTTP 404): {img_url}", flush=True)
+                return False
+
+            if resp.status_code == 429:
+                retry_after_str = resp.headers.get("Retry-After")
+                try:
+                    wait_time = int(retry_after_str) if retry_after_str else min(60, 2 ** attempt)
+                except ValueError:
+                    wait_time = min(60, 2 ** attempt)
+                wait_time = max(5, wait_time)
+                print(f"⚠️ [TMDB Image] Rate limit (HTTP 429) on {img_url}. Waiting {wait_time}s before retrying (attempt {attempt + 1}/{max_attempts})...", flush=True)
+                await asyncio.sleep(wait_time)
+                continue
+
+            wait_time = min(60, 2 ** attempt + 3)
+            print(f"⚠️ [TMDB Image] Unexpected HTTP {resp.status_code} for {img_url}. Waiting {wait_time}s before retrying (attempt {attempt + 1}/{max_attempts})...", flush=True)
+            await asyncio.sleep(wait_time)
+
+        except Exception as e:
+            wait_time = min(60, 2 ** attempt + 3)
+            print(f"⚠️ [TMDB Image] Download error ({type(e).__name__}: {e}) for {local_filename}. Waiting {wait_time}s before retrying (attempt {attempt + 1}/{max_attempts})...", flush=True)
+            await asyncio.sleep(wait_time)
+
+    print(f"❌ [TMDB Image] FAILED to download {local_filename} from {img_url} after {max_attempts} attempts.", flush=True)
     return False
 
 async def fetch_json(client, url, headers=None):
-    for attempt in range(4):
+    max_attempts = 15  # Up to 10-15 minutes of retries on network/rate-limit errors
+    for attempt in range(max_attempts):
         try:
             async with get_artwork_semaphore():
-                resp = await client.get(url, headers=headers, timeout=15)
-            if resp.status_code == 429:
-                await asyncio.sleep(2 ** attempt)
-                continue
+                resp = await client.get(url, headers=headers, timeout=20)
+
             if resp.status_code == 200:
                 return resp.json()
-            return None
-        except Exception:
-            await asyncio.sleep(2 ** attempt)
+
+            if resp.status_code == 404:
+                print(f"[TMDB] Resource not found (HTTP 404): {url}", flush=True)
+                return None
+
+            if resp.status_code == 429:
+                retry_after_str = resp.headers.get("Retry-After")
+                try:
+                    wait_time = int(retry_after_str) if retry_after_str else min(60, 2 ** attempt)
+                except ValueError:
+                    wait_time = min(60, 2 ** attempt)
+                wait_time = max(5, wait_time)
+                print(f"⚠️ [TMDB] Rate limit (HTTP 429) for {url}. Waiting {wait_time}s before retrying (attempt {attempt + 1}/{max_attempts})...", flush=True)
+                await asyncio.sleep(wait_time)
+                continue
+
+            wait_time = min(60, 2 ** attempt + 3)
+            print(f"⚠️ [TMDB] Unexpected HTTP {resp.status_code} for {url}. Waiting {wait_time}s before retrying (attempt {attempt + 1}/{max_attempts})...", flush=True)
+            await asyncio.sleep(wait_time)
+
+        except Exception as e:
+            wait_time = min(60, 2 ** attempt + 3)
+            print(f"⚠️ [TMDB] Connection error ({type(e).__name__}: {e}) for {url}. Waiting {wait_time}s before retrying (attempt {attempt + 1}/{max_attempts})...", flush=True)
+            await asyncio.sleep(wait_time)
+
+    print(f"❌ [TMDB] FAILED to fetch {url} after {max_attempts} attempts.", flush=True)
     return None
 
 async def download_artwork_async(client, media_type, tmdb_id, show_tmdb_id, season, episode, title, show_title):
@@ -573,16 +621,34 @@ async def download_artwork_async(client, media_type, tmdb_id, show_tmdb_id, seas
     p_filename = _extract_filename(tmdb_id, True, media_type, show_tmdb_id, season, episode, p_size, f_size)
     f_filename = _extract_filename(tmdb_id, False, media_type, show_tmdb_id, season, episode, p_size, f_size)
     
-    updated_info = {"title": title, "show_title": show_title, "poster_path": p_filename, "fanart_path": f_filename}
+    p_path = os.path.join(CACHE_PATH, "posters", p_filename)
+    f_path = os.path.join(CACHE_PATH, "fanarts", f_filename)
     
-    has_poster = os.path.exists(os.path.join(CACHE_PATH, "posters", p_filename))
-    has_fanart = os.path.exists(os.path.join(CACHE_PATH, "fanarts", f_filename))
+    has_poster = os.path.exists(p_path) and os.path.getsize(p_path) > 0
+    has_fanart = os.path.exists(f_path) and os.path.getsize(f_path) > 0
     
+    current_title = title
+    current_show_title = show_title
+    poster_ok = has_poster
+    fanart_ok = has_fanart
+    
+    # If both poster and fanart exist on disk, return immediately
     if has_poster and has_fanart:
-        return updated_info
+        return {
+            "title": title,
+            "show_title": show_title,
+            "poster_path": p_filename,
+            "fanart_path": f_filename
+        }
         
     if not TMDB_API_KEY:
-        return updated_info
+        print("[TMDB] TMDB_API_KEY is not configured. Skipping artwork download.", flush=True)
+        return {
+            "title": title,
+            "show_title": show_title,
+            "poster_path": p_filename if has_poster else None,
+            "fanart_path": f_filename if has_fanart else None
+        }
 
     tmdb_headers = {}
     if len(TMDB_API_KEY) > 40:
@@ -594,9 +660,11 @@ async def download_artwork_async(client, media_type, tmdb_id, show_tmdb_id, seas
     if media_type == "movie" and tmdb_id:
         data = await fetch_json(client, f"https://api.themoviedb.org/3/movie/{tmdb_id}?{auth_param}language={sync_lang}", headers=tmdb_headers)
         if data:
-            updated_info["title"] = data.get("title", title)
-            await _download_single_image(client, data.get("poster_path"), p_filename, "posters", p_size)
-            await _download_single_image(client, data.get("backdrop_path"), f_filename, "fanarts", f_size)
+            current_title = data.get("title", title)
+            if not has_poster:
+                poster_ok = await _download_single_image(client, data.get("poster_path"), p_filename, "posters", p_size)
+            if not has_fanart:
+                fanart_ok = await _download_single_image(client, data.get("backdrop_path"), f_filename, "fanarts", f_size)
 
     elif media_type == "episode" and show_tmdb_id:
         ep_data, show_data, season_data = await asyncio.gather(
@@ -606,20 +674,28 @@ async def download_artwork_async(client, media_type, tmdb_id, show_tmdb_id, seas
         )
         
         if show_data:
-            updated_info["show_title"] = show_data.get("name", show_title)
+            current_show_title = show_data.get("name", show_title)
             
         if ep_data:
-            updated_info["title"] = ep_data.get("name", title)
-            f_url = ep_data.get("still_path")
-            if fanart_pref == "show" and show_data: f_url = show_data.get("backdrop_path")
-            await _download_single_image(client, f_url, f_filename, "fanarts", f_size)
+            current_title = ep_data.get("name", title)
+            if not has_fanart:
+                f_url = ep_data.get("still_path")
+                if fanart_pref == "show" and show_data:
+                    f_url = show_data.get("backdrop_path")
+                fanart_ok = await _download_single_image(client, f_url, f_filename, "fanarts", f_size)
             
-        if poster_pref == "season" and season_data:
-            await _download_single_image(client, season_data.get("poster_path"), p_filename, "posters", p_size)
-        elif poster_pref == "show" and show_data:
-            await _download_single_image(client, show_data.get("poster_path"), p_filename, "posters", p_size)
+        if not has_poster:
+            if poster_pref == "season" and season_data:
+                poster_ok = await _download_single_image(client, season_data.get("poster_path"), p_filename, "posters", p_size)
+            elif poster_pref == "show" and show_data:
+                poster_ok = await _download_single_image(client, show_data.get("poster_path"), p_filename, "posters", p_size)
 
-    return updated_info
+    return {
+        "title": current_title,
+        "show_title": current_show_title,
+        "poster_path": p_filename if poster_ok else None,
+        "fanart_path": f_filename if fanart_ok else None
+    }
 
 def download_artwork_sync(media_type, tmdb_id, show_tmdb_id, season, episode, title, show_title):
     async def wrapper():
@@ -681,11 +757,22 @@ async def execute_full_rescan(sync_lang, tmdb_key, poster_pref, fanart_pref, is_
                 batch_updates = []
                 for res in results:
                     if res["m_type"] == "movie":
-                        cursor.execute("UPDATE watch_history SET title=?, poster_path=?, fanart_path=? WHERE id=?", 
-                                       (res["title"], res["poster_path"], res["fanart_path"], res["id"]))
+                        cursor.execute("""
+                            UPDATE watch_history 
+                            SET title=?, 
+                                poster_path=COALESCE(?, poster_path), 
+                                fanart_path=COALESCE(?, fanart_path) 
+                            WHERE id=?
+                        """, (res["title"], res["poster_path"], res["fanart_path"], res["id"]))
                     else:
-                        cursor.execute("UPDATE watch_history SET title=?, show_title=?, poster_path=?, fanart_path=? WHERE id=?", 
-                                       (res["title"], res["show_title"], res["poster_path"], res["fanart_path"], res["id"]))
+                        cursor.execute("""
+                            UPDATE watch_history 
+                            SET title=?, 
+                                show_title=?, 
+                                poster_path=COALESCE(?, poster_path), 
+                                fanart_path=COALESCE(?, fanart_path) 
+                            WHERE id=?
+                        """, (res["title"], res["show_title"], res["poster_path"], res["fanart_path"], res["id"]))
                     
                     res.pop("m_type", None)
                     batch_updates.append(res)
@@ -693,6 +780,9 @@ async def execute_full_rescan(sync_lang, tmdb_key, poster_pref, fanart_pref, is_
                 conn.commit()
                 await _notify_frontend(batch_updates)
                 print(f"[Import TMDB] Processed chunk {i//chunk_size + 1}, items {i+1} to {min(i+chunk_size, len(rows))}/{len(rows)}")
+                
+                # Brief pause between chunks to keep request rate healthy and prevent IP blocks
+                await asyncio.sleep(0.5)
             
         conn.close()
         # Notify frontend that TMDB is fully done.
