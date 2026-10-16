@@ -157,6 +157,29 @@ else
     NET_CONFIG="ip=dhcp"
 fi
 
+while true; do
+    RAM_INPUT=$(whiptail --title "SyncPK - RAM Allocation" \
+        --inputbox "Enter container RAM in MiB (minimum 256 MiB):" 10 60 "512" 3>&1 1>&2 2>&3)
+    if [ $? -ne 0 ]; then exit 1; fi
+    if [[ "$RAM_INPUT" =~ ^[0-9]+$ ]] && [ "$RAM_INPUT" -ge 256 ]; then
+        RAM_SIZE="$RAM_INPUT"
+        break
+    else
+        whiptail --title "Error - Invalid RAM" \
+            --msgbox "Invalid RAM value: '$RAM_INPUT'. Please enter a numeric value greater than or equal to 256 MiB." 10 60
+    fi
+done
+
+if [ "$RAM_SIZE" -lt 1024 ]; then
+    BUILD_RAM=1024
+    DO_DOWNGRADE=1
+    RAM_SUMMARY=" \e[36m🛠️  RAM Size: \e[1;32m${RAM_SIZE} MiB\e[0m \e[36m(1024 MiB temporary during installation)\e[0m"
+else
+    BUILD_RAM="$RAM_SIZE"
+    DO_DOWNGRADE=0
+    RAM_SUMMARY=" \e[36m🛠️  RAM Size: \e[1;32m${RAM_SIZE} MiB\e[0m"
+fi
+
 CTID=$(pvesh get /cluster/nextid)
 TEMPLATE_STORAGE=$(pvesm status -content vztmpl | awk 'NR>1 {print $1}' | head -n 1)
 
@@ -259,7 +282,7 @@ echo -e " \e[36m📦  Operating System: \e[4;32m${DISTRO_NAME}\e[0m"
 echo -e " \e[36m🖥️  Container Type: \e[4;32mUnprivileged\e[0m"
 echo -e " \e[36m💾  Disk Size: \e[1;32m8 GB\e[0m"
 echo -e " \e[36m🧠  CPU Cores: \e[1;32m1\e[0m"
-echo -e " \e[36m🛠️  RAM Size: \e[1;32m1024 MiB\e[0m \e[36m(512 MiB operational)\e[0m"
+echo -e "$RAM_SUMMARY"
 echo -e " \e[36m🚀  Creating SyncPK LXC using the above settings\e[0m"
 echo ""
 
@@ -283,8 +306,8 @@ else
     CT_ARCH="amd64"
 fi
 
-# Create container with 1024MB RAM during install to prevent OOM killer during pip builds
-pct create $CTID "$LATEST_TEMPLATE" -storage "$TARGET_STORAGE" -rootfs "$TARGET_STORAGE:8" -arch "$CT_ARCH" -hostname syncpk -cores 1 -memory 1024 -net0 name=eth0,bridge="$BRIDGE",$NET_CONFIG -unprivileged 1 -features nesting=1 -timezone host -onboot 1 &>/dev/null || error "Failed to create LXC container (pct create failed)."
+# Create container with temporary memory if needed to prevent OOM killer during pip builds
+pct create $CTID "$LATEST_TEMPLATE" -storage "$TARGET_STORAGE" -rootfs "$TARGET_STORAGE:8" -arch "$CT_ARCH" -hostname syncpk -cores 1 -memory "$BUILD_RAM" -net0 name=eth0,bridge="$BRIDGE",$NET_CONFIG -unprivileged 1 -features nesting=1 -timezone host -onboot 1 &>/dev/null || error "Failed to create LXC container (pct create failed)."
 CT_CREATED=1
 msg_ok "Created LXC container ${CTID} (${CT_ARCH})"
 
@@ -350,8 +373,10 @@ rm -f install.sh
 }
 msg_ok "SyncPK successfully installed"
 
-pct set $CTID -memory 512 &>/dev/null || true
-msg_ok "Optimized container memory to 512 MiB"
+if [ "$DO_DOWNGRADE" -eq 1 ]; then
+    pct set $CTID -memory "$RAM_SIZE" &>/dev/null || true
+    msg_ok "Optimized container memory to ${RAM_SIZE} MiB"
+fi
 
 # Refresh CT_IP if not already known
 if [ -z "$CT_IP" ] || [ "$CT_IP" = "unknown" ]; then
@@ -361,7 +386,7 @@ fi
 echo ""
 echo -e " \e[1;32m✔ Completed Successfully!\e[0m"
 echo ""
-echo -e " \e[36m🚀 SyncPK is ready! Access the Web Dashboard at:\e[0m"
+echo -e " \e[36m🚀  SyncPK is ready! Access the Web Dashboard at:\e[0m"
 echo -e "   \e[1;32mhttp://${CT_IP:-<container-ip>}:8000\e[0m"
 echo ""
 }

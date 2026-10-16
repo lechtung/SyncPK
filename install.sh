@@ -429,12 +429,12 @@ main() {
 
                 echo ""
                 echo -e "\e[1;33m${APP_TITLE}\e[0m"
-                echo -e "  \e[33m🌐 Provided by:\e[0m \e[32mSyncPK\e[0m \e[33m| GitHub:\e[0m \e[32mhttps://github.com/lechtung/SyncPK\e[0m"
+                echo -e "  \e[33m🌐  Provided by:\e[0m \e[32mSyncPK\e[0m \e[33m| GitHub:\e[0m \e[32mhttps://github.com/lechtung/SyncPK\e[0m"
                 echo ""
-                echo -e "  \e[33m🖥 OS:\e[0m \e[32m${OS_STR}\e[0m"
-                echo -e "  \e[33m🏠 Hostname:\e[0m \e[32m${HOST_NAME}\e[0m"
-                echo -e "  \e[33m💡 IP Address:\e[0m \e[32m${LOCAL_IP}\e[0m"
-                echo -e "  \e[33m🚀 Web Dashboard:\e[0m \e[1;32mhttp://${LOCAL_IP}:${PORT}\e[0m"
+                echo -e "  \e[33m🖥️  OS:\e[0m \e[32m${OS_STR}\e[0m"
+                echo -e "  \e[33m🏠  Hostname:\e[0m \e[32m${HOST_NAME}\e[0m"
+                echo -e "  \e[33m💡  IP Address:\e[0m \e[32m${LOCAL_IP}\e[0m"
+                echo -e "  \e[33m🚀  Web Dashboard:\e[0m \e[1;32mhttp://${LOCAL_IP}:${PORT}\e[0m"
                 echo ""
             }
             _syncpk_motd
@@ -448,7 +448,7 @@ EOF
         echo ""
         echo -e " \e[1;32m✔ Installation Completed Successfully!\e[0m"
         echo ""
-        echo -e " \e[36m🚀 SyncPK is ready! Access the Web Dashboard at:\e[0m"
+        echo -e " \e[36m🚀  SyncPK is ready! Access the Web Dashboard at:\e[0m"
         echo -e "   \e[1;32mhttp://${LOCAL_IP}:${PORT}\e[0m"
 
         # Firewall friendly notices (capture in variable to prevent SIGPIPE under pipefail)
