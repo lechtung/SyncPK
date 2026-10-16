@@ -398,18 +398,43 @@ main() {
             cat << 'EOF' | sed 's/^[ ]\{12\}//' > /etc/profile.d/syncpk-motd.sh
             case $- in *i*) ;; *) return ;; esac
             _syncpk_motd() {
-                local LOCAL_IP PORT
+                local LOCAL_IP PORT HOST_NAME OS_STR APP_TITLE
+                if systemd-detect-virt --container 2>/dev/null | grep -qi "lxc" || grep -qa "container=lxc" /proc/1/environ 2>/dev/null; then
+                    APP_TITLE="SyncPK LXC Container"
+                else
+                    APP_TITLE="SyncPK Server"
+                fi
+
+                if [ -f /etc/os-release ]; then
+                    # shellcheck disable=SC1091
+                    . /etc/os-release
+                    if [ -n "${NAME:-}" ] && [ -n "${VERSION_ID:-}" ]; then
+                        OS_STR="${NAME} - Version: ${VERSION_ID}"
+                    elif [ -n "${PRETTY_NAME:-}" ]; then
+                        OS_STR="${PRETTY_NAME}"
+                    else
+                        OS_STR="Linux"
+                    fi
+                else
+                    OS_STR="Linux"
+                fi
+
+                HOST_NAME=$(hostname 2>/dev/null || echo "syncpk")
                 LOCAL_IP=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1); exit}')
                 if [ -z "$LOCAL_IP" ]; then LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}'); fi
                 if [ -z "$LOCAL_IP" ]; then LOCAL_IP="127.0.0.1"; fi
+
                 PORT=$(systemctl cat syncpk-server 2>/dev/null | grep -oP -- '--port[=\s]+\K[0-9]+' | tail -n1)
                 PORT=${PORT:-8000}
+
                 echo ""
-                echo "================================================================"
-                echo -e " \e[32m\e[1mSyncPK - Two-Way Kodi & Plex Sync Server\e[0m"
-                echo "================================================================"
-                echo -e " \e[1mWeb Dashboard:\e[0m http://${LOCAL_IP}:${PORT}"
-                echo "================================================================"
+                echo -e "\e[1;33m${APP_TITLE}\e[0m"
+                echo -e "  \e[33m🌐 Provided by:\e[0m \e[32mSyncPK\e[0m \e[33m| GitHub:\e[0m \e[32mhttps://github.com/lechtung/SyncPK\e[0m"
+                echo ""
+                echo -e "  \e[33m🖥 OS:\e[0m \e[32m${OS_STR}\e[0m"
+                echo -e "  \e[33m🏠 Hostname:\e[0m \e[32m${HOST_NAME}\e[0m"
+                echo -e "  \e[33m💡 IP Address:\e[0m \e[32m${LOCAL_IP}\e[0m"
+                echo -e "  \e[33m🚀 Web Dashboard:\e[0m \e[1;32mhttp://${LOCAL_IP}:${PORT}\e[0m"
                 echo ""
             }
             _syncpk_motd
@@ -419,21 +444,23 @@ EOF
         } 2>/dev/null || true
     fi
 
-    echo "================================================================"
-    echo -e " \e[32m\e[1mSyncPK - Installation Completed Successfully!\e[0m"
-    echo "================================================================"
-    echo -e "Open your browser to launch the Web Setup Wizard:"
-    echo -e "➡️  \e[1mhttp://${LOCAL_IP}:${PORT}\e[0m"
+    echo ""
+    echo -e " \e[1;32m✔ Installation Completed Successfully!\e[0m"
+    echo ""
+    echo -e " \e[36m🚀 SyncPK is ready! Access the Web Dashboard at:\e[0m"
+    echo -e "   \e[1;32mhttp://${LOCAL_IP}:${PORT}\e[0m"
 
     # Firewall friendly notices (capture in variable to prevent SIGPIPE under pipefail)
     UFW_STATUS=$(ufw status 2>/dev/null || true)
     FW_STATE=$(firewall-cmd --state 2>/dev/null || true)
     if command -v ufw >/dev/null 2>&1 && echo "$UFW_STATUS" | grep -qw "active"; then
-        echo -e "\e[33m[Note] UFW firewall is active. If needed, allow port ${PORT}: sudo ufw allow ${PORT}/tcp\e[0m"
+        echo ""
+        echo -e "   \e[33m💡 Note: UFW firewall is active. If needed, allow port ${PORT}: sudo ufw allow ${PORT}/tcp\e[0m"
     elif command -v firewall-cmd >/dev/null 2>&1 && echo "$FW_STATE" | grep -qw "running"; then
-        echo -e "\e[33m[Note] firewalld is active. Allow port ${PORT}: sudo firewall-cmd --add-port=${PORT}/tcp --permanent && sudo firewall-cmd --reload\e[0m"
+        echo ""
+        echo -e "   \e[33m💡 Note: firewalld is active. Allow port ${PORT}: sudo firewall-cmd --add-port=${PORT}/tcp --permanent && sudo firewall-cmd --reload\e[0m"
     fi
-    echo "================================================================"
+    echo ""
 }
 
 main "$@"

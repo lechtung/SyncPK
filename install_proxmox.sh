@@ -6,25 +6,38 @@ GITHUB_REPO="SyncPK"
 CTID=""
 CT_CREATED=0
 
-cleanup_on_error() {
-    if [ "$CT_CREATED" -eq 1 ] && [ -n "$CTID" ] && pvesm status &>/dev/null; then
-        echo -e "\n\e[31m[ERROR] Installation failed.\e[0m"
-        if whiptail --title "SyncPK - Installation Failed" --yesno "An error occurred during the installation.\n\nDo you want to destroy the incomplete LXC container ($CTID)?" 10 60; then
-            echo "[Info] Destroying container $CTID..."
-            pct stop $CTID 2>/dev/null || true
-            pct destroy $CTID 2>/dev/null || true
-            echo "[Info] Container destroyed."
-        else
-            echo "[Info] Container $CTID kept as-is."
-        fi
-    fi
-    exit 1
-}
+    msg_ok() {
+        echo -e " \e[35m✔\e[0m \e[32m$1\e[0m"
+    }
 
-error() {
-    echo -e "\e[31m[ERROR] $1\e[0m"
-    cleanup_on_error
-}
+    msg_info() {
+        echo -e " \e[34mℹ\e[0m \e[36m$1\e[0m"
+    }
+
+    msg_err() {
+        echo -e " \e[31m✖\e[0m \e[31m$1\e[0m"
+    }
+
+    cleanup_on_error() {
+        if [ "$CT_CREATED" -eq 1 ] && [ -n "$CTID" ] && pvesm status &>/dev/null; then
+            echo -e "\n \e[31m✖\e[0m \e[1;31mInstallation failed.\e[0m"
+            if whiptail --title "SyncPK - Installation Failed" --yesno "An error occurred during the installation.\n\nDo you want to destroy the incomplete LXC container ($CTID)?" 10 60; then
+                msg_info "Destroying container $CTID..."
+                pct stop $CTID 2>/dev/null || true
+                pct destroy $CTID 2>/dev/null || true
+                msg_ok "Container destroyed."
+            else
+                msg_info "Container $CTID kept as-is."
+            fi
+        fi
+        exit 1
+    }
+
+    error() {
+        echo ""
+        msg_err "$1"
+        cleanup_on_error
+    }
 
 trap cleanup_on_error INT TERM
 
@@ -43,7 +56,7 @@ if ! command -v whiptail &> /dev/null || ! command -v curl &> /dev/null; then
     apt-get install -y whiptail curl &>/dev/null
 fi
 
-echo "[Info] Searching for storages compatible with LXC containers..."
+msg_info "Searching for storages compatible with LXC containers..."
 STORAGES=$(pvesm status -content rootdir | awk 'NR>1 {print $1}')
 if [ -z "$STORAGES" ]; then
     error "No container-compatible storage (rootdir) found."
@@ -151,7 +164,7 @@ if [ -z "$TEMPLATE_STORAGE" ]; then
     error "No storage found that supports LXC templates (vztmpl)."
 fi
 
-echo "[Info] Gathering local and available templates..."
+msg_info "Gathering local and available templates..."
 pveam update &>/dev/null
 DOWNLOADED_TEMPLATES=$(pvesm list $TEMPLATE_STORAGE --content vztmpl | awk 'NR>1 {print $1}')
 
@@ -219,10 +232,45 @@ CHOICE=$(whiptail --title "SyncPK - Template Selection" --default-item "$DEFAULT
 if [ $? -ne 0 ]; then exit 1; fi
 
 LATEST_TEMPLATE_FILE="${TPL_MAP[$CHOICE]}"
+DISTRO_NAME=$(echo "$LATEST_TEMPLATE_FILE" | sed -E 's/(-standard|-default|_amd64.*\.tar\.[a-z]+|_arm64.*\.tar\.[a-z]+|\.tar\.[a-z]+)//g')
+
+# Clear screen after whiptail dialogs and display Proxmox style banner
+clear 2>/dev/null || echo -e "\n\n"
+
+echo -e "\e[36m"
+cat << "EOF"
+   ______                 ____  __ __
+  / ___/__  ______  _____/ __ \/ //_/
+  \__ \/ / / / __ \/ ___/ /_/ / ,<   
+ ___/ / /_/ / / / / /__/ ____/ /| |  
+/____/\__, /_/ /_/\___/_/   /_/ |_|  
+     /____/                          
+EOF
+echo -e "\e[0m"
+
+NODE=$(hostname 2>/dev/null || echo "pve")
+PVE_VER=$(pveversion 2>/dev/null | cut -d/ -f2 | awk '{print $1}' || echo "PVE")
+KERNEL=$(uname -r 2>/dev/null || echo "unknown")
+
+echo -e " \e[36m⚙️  Using Configuration on node \e[1;32m${NODE}\e[0m"
+echo -e " \e[36m💡 PVE Version \e[1;32m${PVE_VER}\e[0m \e[36m(Kernel: \e[1;32m${KERNEL}\e[0m\e[36m)\e[0m"
+echo -e " \e[36m🆔 Container ID: \e[1;32m${CTID}\e[0m"
+echo -e " \e[36m📦 Operating System: \e[4;32m${DISTRO_NAME}\e[0m"
+echo -e " \e[36m🖥️  Container Type: \e[4;32mUnprivileged\e[0m"
+echo -e " \e[36m💾 Disk Size: \e[1;32m8 GB\e[0m"
+echo -e " \e[36m🧠 CPU Cores: \e[1;32m1\e[0m"
+echo -e " \e[36m🛠️  RAM Size: \e[1;32m1024 MiB\e[0m \e[36m(512 MiB operational)\e[0m"
+echo -e " \e[36m🚀 Creating SyncPK LXC using the above settings\e[0m"
+echo ""
+
+msg_ok "Storage '${TARGET_STORAGE}' validated"
 
 if ! pvesm list "$TEMPLATE_STORAGE" --content vztmpl | grep -q "$LATEST_TEMPLATE_FILE"; then
-    echo "[Info] Downloading selected template ($LATEST_TEMPLATE_FILE)..."
-    pveam download "$TEMPLATE_STORAGE" "$LATEST_TEMPLATE_FILE" || error "Failed to download the template."
+    msg_info "Downloading template (${LATEST_TEMPLATE_FILE})..."
+    pveam download "$TEMPLATE_STORAGE" "$LATEST_TEMPLATE_FILE" &>/dev/null || error "Failed to download the template."
+    msg_ok "Template downloaded (${LATEST_TEMPLATE_FILE})"
+else
+    msg_ok "Template ready (${LATEST_TEMPLATE_FILE})"
 fi
 
 LATEST_TEMPLATE="$TEMPLATE_STORAGE:vztmpl/$LATEST_TEMPLATE_FILE"
@@ -236,14 +284,16 @@ else
 fi
 
 # Create container with 1024MB RAM during install to prevent OOM killer during pip builds
-echo "[Info] Creating CT container $CTID ($CT_ARCH) with 1024MB RAM for installation..."
-pct create $CTID "$LATEST_TEMPLATE" -storage "$TARGET_STORAGE" -rootfs "$TARGET_STORAGE:8" -arch "$CT_ARCH" -hostname syncpk -cores 1 -memory 1024 -net0 name=eth0,bridge="$BRIDGE",$NET_CONFIG -unprivileged 1 -features nesting=1 -timezone host -onboot 1 || error "Failed to create LXC container (pct create failed)."
+pct create $CTID "$LATEST_TEMPLATE" -storage "$TARGET_STORAGE" -rootfs "$TARGET_STORAGE:8" -arch "$CT_ARCH" -hostname syncpk -cores 1 -memory 1024 -net0 name=eth0,bridge="$BRIDGE",$NET_CONFIG -unprivileged 1 -features nesting=1 -timezone host -onboot 1 &>/dev/null || error "Failed to create LXC container (pct create failed)."
 CT_CREATED=1
+msg_ok "Created LXC container ${CTID} (${CT_ARCH})"
 
-pct start $CTID || error "Failed to start container $CTID."
-printf '%s\n' "root:$ROOT_PASSWORD" | pct exec $CTID -- chpasswd || error "Failed to set container root password."
+pct start $CTID &>/dev/null || error "Failed to start container $CTID."
+msg_ok "Container ${CTID} started"
 
-echo "[Info] Waiting for the container to get network access..."
+printf '%s\n' "root:$ROOT_PASSWORD" | pct exec $CTID -- chpasswd &>/dev/null || error "Failed to set container root password."
+msg_ok "Root password configured"
+
 NET_OK=0
 for i in $(seq 1 30); do
     if pct exec $CTID -- getent hosts github.com >/dev/null 2>&1; then
@@ -258,14 +308,14 @@ if [ "$NET_OK" -eq 0 ]; then
 fi
 
 # Resolve CT IP: use known static IP or detect via DHCP
-if [ -n "$CT_IP" ]; then
-    echo "[Info] Static IP: $CT_IP"
-else
-    CT_IP=$(pct exec $CTID -- ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n 1)
-    echo "[Info] DHCP-assigned IP: $CT_IP"
+if [ -z "$CT_IP" ]; then
+    CT_IP=$(pct exec $CTID -- ip -4 addr show eth0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n 1)
 fi
+msg_ok "Network connection established (IP: ${CT_IP:-unknown})"
 
-echo "[Info] Launching automated system installer inside LXC..."
+msg_ok "Launching automated system installer inside LXC"
+echo ""
+
 pct exec $CTID -- bash -c "
 set -euo pipefail
 if command -v apt-get >/dev/null 2>&1; then
@@ -292,6 +342,20 @@ rm -f install.sh
 " || error "install.sh failed inside LXC."
 
 pct set $CTID -memory 512 &>/dev/null || true
+echo ""
+msg_ok "Optimized container memory to 512 MiB"
+
+# Refresh CT_IP if not already known
+if [ -z "$CT_IP" ] || [ "$CT_IP" = "unknown" ]; then
+    CT_IP=$(pct exec $CTID -- ip -4 addr show eth0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n 1 || echo "")
+fi
+
+echo ""
+echo -e " \e[1;32m✔ Completed Successfully!\e[0m"
+echo ""
+echo -e " \e[36m🚀 SyncPK is ready! Access the Web Dashboard at:\e[0m"
+echo -e "   \e[1;32mhttp://${CT_IP:-<container-ip>}:8000\e[0m"
+echo ""
 }
 
 main "$@"
