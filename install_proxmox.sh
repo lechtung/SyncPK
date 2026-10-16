@@ -272,15 +272,17 @@ if command -v apt-get >/dev/null 2>&1; then
     export DEBIAN_FRONTEND=noninteractive
     apt-get update && apt-get install -y curl ca-certificates
 elif command -v pacman >/dev/null 2>&1; then
-    if [ ! -d /etc/pacman.d/gnupg ]; then
-        pacman-key --init
-        pacman-key --populate archlinux 2>/dev/null || true
+    if ! command -v curl >/dev/null 2>&1; then
+        if [ ! -d /etc/pacman.d/gnupg ]; then
+            pacman-key --init
+            pacman-key --populate archlinux 2>/dev/null || true
+        fi
+        if [ -f /etc/pacman.conf ]; then
+            sed -i 's/^#DisableSandbox/DisableSandbox/' /etc/pacman.conf 2>/dev/null || true
+            grep -q "^DisableSandbox" /etc/pacman.conf || sed -i '/\[options\]/a DisableSandbox' /etc/pacman.conf 2>/dev/null || true
+        fi
+        pacman -Syu --noconfirm --needed curl ca-certificates
     fi
-    if [ -f /etc/pacman.conf ]; then
-        sed -i 's/^#DisableSandbox/DisableSandbox/' /etc/pacman.conf 2>/dev/null || true
-        grep -q "^DisableSandbox" /etc/pacman.conf || sed -i '/\[options\]/a DisableSandbox' /etc/pacman.conf 2>/dev/null || true
-    fi
-    pacman -Sy --noconfirm --needed curl ca-certificates
 elif command -v dnf >/dev/null 2>&1; then
     dnf install -y curl ca-certificates
 fi
