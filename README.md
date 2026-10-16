@@ -132,6 +132,16 @@ For the standard self-hosted stack, SyncPK can be deployed seamlessly using Dock
    docker compose up -d
    ```
 3. **Next step:** Open your browser and go to `http://<YOUR_SERVER_IP>:8000` to start the Web Setup.
+   - If you need to check your server's local IP address, run:
+     ```bash
+     hostname -I | awk '{print $1}'
+     ```
+   - The Web Setup Wizard and Dashboard will be available at `http://<YOUR_SERVER_IP>:8000` (unless you modified the host port mapping in `docker-compose.yml`).
+
+> 💡 **Proxmox LXC Note:** If you choose to run Docker inside an **unprivileged LXC container** on Proxmox, AppArmor may block the Docker container runtime (`runc: open sysctl net.ipv4.ip_unprivileged_port_start: permission denied`). To resolve this, run this directly in your **Proxmox Host Shell** (replace `<CTID>` with your container ID):
+> ```bash
+> echo "lxc.apparmor.profile: unconfined" >> /etc/pve/lxc/<CTID>.conf && pct reboot <CTID>
+> ```
 
 #### 🪟 Windows Users (Docker Desktop / Podman)
 Running SyncPK natively as a Windows service is not officially supported. However, you can run it seamlessly using **Docker Desktop** (with WSL2 backend).
