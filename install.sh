@@ -405,9 +405,6 @@ main() {
                 echo -e " \e[32m\e[1mSyncPK - Two-Way Kodi & Plex Sync Server\e[0m"
                 echo "================================================================"
                 echo -e " \e[1mWeb Dashboard:\e[0m http://${LOCAL_IP}:${PORT}"
-                echo -e " \e[1mKodi Webhook:\e[0m  http://${LOCAL_IP}:${PORT}/webhook/kodi"
-                echo -e " \e[1mPlex Webhook:\e[0m  http://${LOCAL_IP}:${PORT}/webhook/plex"
-                echo "(Make sure to append your ?token=... in Plex/Kodi if configured)"
                 echo "================================================================"
                 echo ""
             }
@@ -421,11 +418,6 @@ EOF
     echo "================================================================"
     echo -e " \e[32m\e[1mSyncPK - Installation Completed Successfully!\e[0m"
     echo "================================================================"
-    echo -e " \e[1mWeb Dashboard:\e[0m http://${LOCAL_IP}:${PORT}"
-    echo -e " \e[1mKodi Webhook:\e[0m  http://${LOCAL_IP}:${PORT}/webhook/kodi"
-    echo -e " \e[1mPlex Webhook:\e[0m  http://${LOCAL_IP}:${PORT}/webhook/plex"
-    echo "(Make sure to append your ?token=... in Plex/Kodi if configured)"
-    echo "----------------------------------------------------------------"
     echo -e "Open your browser to launch the Web Setup Wizard:"
     echo -e "➡️  \e[1mhttp://${LOCAL_IP}:${PORT}\e[0m"
 
