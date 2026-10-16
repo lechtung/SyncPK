@@ -223,6 +223,10 @@ main() {
             pacman-key --init > /var/log/syncpk-install.log 2>&1 || true
             pacman-key --populate archlinux >> /var/log/syncpk-install.log 2>&1 || true
         fi
+        if [ -f /etc/pacman.conf ]; then
+            sed -i 's/^#DisableSandbox/DisableSandbox/' /etc/pacman.conf 2>/dev/null || true
+            grep -q "^DisableSandbox" /etc/pacman.conf || sed -i '/\[options\]/a DisableSandbox' /etc/pacman.conf 2>/dev/null || true
+        fi
         pacman -Sy --needed --noconfirm curl python ca-certificates tar > /var/log/syncpk-install.log 2>&1 || {
             tail -n 20 /var/log/syncpk-install.log
             echo -e "\e[31m[ERROR] pacman install failed. If repositories are out of date, run 'pacman -Syu' and retry.\e[0m"

@@ -276,6 +276,10 @@ elif command -v pacman >/dev/null 2>&1; then
         pacman-key --init
         pacman-key --populate archlinux 2>/dev/null || true
     fi
+    if [ -f /etc/pacman.conf ]; then
+        sed -i 's/^#DisableSandbox/DisableSandbox/' /etc/pacman.conf 2>/dev/null || true
+        grep -q "^DisableSandbox" /etc/pacman.conf || sed -i '/\[options\]/a DisableSandbox' /etc/pacman.conf 2>/dev/null || true
+    fi
     pacman -Sy --noconfirm --needed curl ca-certificates
 elif command -v dnf >/dev/null 2>&1; then
     dnf install -y curl ca-certificates
