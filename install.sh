@@ -144,7 +144,8 @@ main() {
 
     echo "[Info] Creating dedicated system user 'syncpk'..."
     if ! id "syncpk" &>/dev/null; then
-        useradd -r -s /usr/sbin/nologin -d "$DATA_DIR" syncpk
+        NOLOGIN_BIN=$(command -v nologin 2>/dev/null || which nologin 2>/dev/null || echo "/usr/sbin/nologin")
+        useradd -r -s "$NOLOGIN_BIN" -d "$DATA_DIR" syncpk
     fi
 
     echo "[Info] Installing OS dependencies..."
@@ -174,13 +175,21 @@ main() {
         if ! command -v curl >/dev/null 2>&1; then
             CURL_PKG="curl"
         fi
-        dnf install -y $CURL_PKG "$PY_PKG" ca-certificates > /var/log/syncpk-install.log 2>&1 || {
+        TAR_PKG=""
+        if ! command -v tar >/dev/null 2>&1; then
+            TAR_PKG="tar"
+        fi
+        dnf install -y $CURL_PKG $TAR_PKG "$PY_PKG" ca-certificates > /var/log/syncpk-install.log 2>&1 || {
             tail -n 20 /var/log/syncpk-install.log
             echo -e "\e[31m[ERROR] dnf install failed. Check /var/log/syncpk-install.log\e[0m"
             exit 1
         }
     elif command -v pacman >/dev/null 2>&1; then
-        pacman -S --needed --noconfirm curl python ca-certificates > /var/log/syncpk-install.log 2>&1 || {
+        if [ ! -d /etc/pacman.d/gnupg ]; then
+            pacman-key --init > /var/log/syncpk-install.log 2>&1 || true
+            pacman-key --populate archlinux >> /var/log/syncpk-install.log 2>&1 || true
+        fi
+        pacman -Sy --needed --noconfirm curl python ca-certificates tar > /var/log/syncpk-install.log 2>&1 || {
             tail -n 20 /var/log/syncpk-install.log
             echo -e "\e[31m[ERROR] pacman install failed. If repositories are out of date, run 'pacman -Syu' and retry.\e[0m"
             exit 1

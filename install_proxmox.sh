@@ -154,8 +154,19 @@ fi
 echo "[Info] Gathering local and available templates..."
 pveam update &>/dev/null
 DOWNLOADED_TEMPLATES=$(pvesm list $TEMPLATE_STORAGE --content vztmpl | awk 'NR>1 {print $1}')
-# Only offer modern Debian 12+ and Ubuntu 22.04+ (requires Python 3.10+)
-AVAILABLE_TEMPLATES=$(pveam available 2>/dev/null | awk '$1=="system" && $2 ~ /^(debian-(1[2-9]|[2-9][0-9])-standard|ubuntu-(2[2-9]|[3-9][0-9])\.[0-9]+-standard)/ {print $2}')
+
+# Offer only the single latest stable version per supported distro family from pveam
+PVEAM_SYSTEM=$(pveam available 2>/dev/null | awk '$1=="system" {print $2}')
+AVAILABLE_TEMPLATES=()
+for tpl in \
+    $(echo "$PVEAM_SYSTEM" | grep -E '^debian-(1[2-9]|[2-9][0-9])-standard' | sort -V | tail -n 1) \
+    $(echo "$PVEAM_SYSTEM" | grep -E '^ubuntu-(2[2468]\.04)-standard' | sort -V | tail -n 1) \
+    $(echo "$PVEAM_SYSTEM" | grep -E '^fedora-(3[8-9]|[4-9][0-9])-default' | sort -V | tail -n 1) \
+    $(echo "$PVEAM_SYSTEM" | grep -E '^almalinux-([9-9]|[1-9][0-9])-default' | sort -V | tail -n 1) \
+    $(echo "$PVEAM_SYSTEM" | grep -E '^rockylinux-([9-9]|[1-9][0-9])-default' | sort -V | tail -n 1) \
+    $(echo "$PVEAM_SYSTEM" | grep -E '^archlinux-base' | sort -V | tail -n 1); do
+    [ -n "$tpl" ] && AVAILABLE_TEMPLATES+=("$tpl")
+done
 
 TEMPLATE_MENU=()
 declare -A TPL_MAP
@@ -164,28 +175,37 @@ DEFAULT_ITEM=""
 
 for t in $DOWNLOADED_TEMPLATES; do
     filename=$(basename "$t")
-    # Only offer modern Debian 12+ and Ubuntu 22.04+
-    if ! echo "$filename" | grep -qE '^(debian-(1[2-9]|[2-9][0-9])|ubuntu-(2[2-9]|[3-9][0-9])\.)'; then continue; fi
-    shortname=$(echo "$filename" | sed -E 's/(-standard|_amd64.*\.tar\.[a-z]+)//g')
+    # Only offer modern supported distros (requires Python 3.10+ and systemd)
+    if ! echo "$filename" | grep -qE '^(debian-(1[2-9]|[2-9][0-9])|ubuntu-(2[2-9]|[3-9][0-9])\.|fedora-(3[8-9]|[4-9][0-9])|almalinux-([9-9]|[1-9][0-9])|rockylinux-([9-9]|[1-9][0-9])|archlinux-base)'; then continue; fi
+    shortname=$(echo "$filename" | sed -E 's/(-standard|-default|_amd64.*\.tar\.[a-z]+|_arm64.*\.tar\.[a-z]+|\.tar\.[a-z]+)//g')
     TEMPLATE_MENU+=("$idx" "[Local] $shortname")
     TPL_MAP[$idx]="$filename"
-    if [[ "$filename" == *"debian-13-standard"* ]]; then
+    if [[ "$filename" == *"debian-13"* ]]; then
         DEFAULT_ITEM="$idx"
     fi
     ((idx++))
 done
 
-for t in $AVAILABLE_TEMPLATES; do
+for t in "${AVAILABLE_TEMPLATES[@]}"; do
     if ! echo "$DOWNLOADED_TEMPLATES" | grep -q "$t"; then
-        shortname=$(echo "$t" | sed -E 's/(-standard|_amd64.*\.tar\.[a-z]+)//g')
+        shortname=$(echo "$t" | sed -E 's/(-standard|-default|_amd64.*\.tar\.[a-z]+|_arm64.*\.tar\.[a-z]+|\.tar\.[a-z]+)//g')
         TEMPLATE_MENU+=("$idx" "[Download] $shortname")
         TPL_MAP[$idx]="$t"
-        if [ -z "$DEFAULT_ITEM" ] && [[ "$t" == *"debian-13-standard"* ]]; then
+        if [ -z "$DEFAULT_ITEM" ] && [[ "$t" == *"debian-13"* ]]; then
             DEFAULT_ITEM="$idx"
         fi
         ((idx++))
     fi
 done
+
+if [ -z "$DEFAULT_ITEM" ]; then
+    for k in "${!TPL_MAP[@]}"; do
+        if [[ "${TPL_MAP[$k]}" == *"debian-12"* ]]; then
+            DEFAULT_ITEM="$k"
+            break
+        fi
+    done
+fi
 
 if [ -z "$DEFAULT_ITEM" ] && [ ${#TEMPLATE_MENU[@]} -gt 0 ]; then
     DEFAULT_ITEM="1"
@@ -246,7 +266,24 @@ else
 fi
 
 echo "[Info] Launching automated system installer inside LXC..."
-pct exec $CTID -- bash -c "set -euo pipefail; apt-get update && apt-get install -y curl ca-certificates && curl -fsSL https://github.com/$GITHUB_USER/$GITHUB_REPO/releases/latest/download/install.sh > install.sh && bash install.sh && rm -f install.sh" || error "install.sh failed inside LXC."
+pct exec $CTID -- bash -c "
+set -euo pipefail
+if command -v apt-get >/dev/null 2>&1; then
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update && apt-get install -y curl ca-certificates
+elif command -v pacman >/dev/null 2>&1; then
+    if [ ! -d /etc/pacman.d/gnupg ]; then
+        pacman-key --init
+        pacman-key --populate archlinux 2>/dev/null || true
+    fi
+    pacman -Sy --noconfirm --needed curl ca-certificates
+elif command -v dnf >/dev/null 2>&1; then
+    dnf install -y curl ca-certificates
+fi
+curl -fsSL https://github.com/$GITHUB_USER/$GITHUB_REPO/releases/latest/download/install.sh > install.sh
+bash install.sh
+rm -f install.sh
+" || error "install.sh failed inside LXC."
 
 pct set $CTID -memory 512 &>/dev/null || true
 }
