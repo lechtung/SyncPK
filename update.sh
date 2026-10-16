@@ -2,6 +2,12 @@
 {
 set -euo pipefail
 
+# Require root privileges before attempting lock or services
+if [ "${EUID:-$(id -u)}" -ne 0 ]; then
+    echo "[Error] This script must be run as root (use sudo)."
+    exit 1
+fi
+
 # Acquire exclusive update lock in /run
 exec 9> /run/syncpk_update.lock
 if ! flock -n 9; then
@@ -23,13 +29,25 @@ install -d -m 700 -o root -g root "$BACKUP_DIR"
 # Extract effective listening port from systemd unit and drop-in overrides
 get_port() {
     local p
-    p=$(systemctl cat syncpk-server 2>/dev/null | grep -oP -- '--port\s+\K[0-9]+' | tail -n1)
+    p=$(systemctl cat syncpk-server 2>/dev/null | grep -oP -- '--port[=\s]+\K[0-9]+' | tail -n1)
     echo "${p:-8000}"
+}
+
+# Extract effective listening host for healthcheck (fallback to 127.0.0.1 for 0.0.0.0 or default)
+get_host() {
+    local h
+    h=$(systemctl cat syncpk-server 2>/dev/null | grep -oP -- '--host[=\s]+\K[^\s]+' | tail -n1)
+    if [ -z "$h" ] || [ "$h" = "0.0.0.0" ]; then
+        echo "127.0.0.1"
+    else
+        echo "$h"
+    fi
 }
 
 # State tracking for safe rollback
 UPDATE_PHASE="init"
 BACKUP_OK=0
+SNAPSHOT_OK=0
 CURRENT_BACKUP_FILE=""
 ROLLED_BACK=0
 
@@ -57,10 +75,11 @@ cleanup() {
         if [ "$UPDATE_PHASE" != "init" ]; then
             systemctl stop syncpk-server 2>/dev/null || true
 
-            # Rollback code if previous code snapshot exists
-            if [ -d "$CODE_DIR.prev" ]; then
+            # Rollback code if this execution took a verified snapshot
+            if [ "$SNAPSHOT_OK" -eq 1 ] && [ -d "$CODE_DIR.prev" ]; then
                 rm -rf "$CODE_DIR"
                 mv "$CODE_DIR.prev" "$CODE_DIR"
+                SNAPSHOT_OK=0
 
                 # Restore previous systemd units if available in code dir
                 if [ -d "$CODE_DIR/systemd" ]; then
@@ -76,12 +95,19 @@ cleanup() {
                 fi
             fi
 
-            # Rollback data (extract verified tarball backup for this run)
-            if [ "$BACKUP_OK" -eq 1 ] && [ -n "$CURRENT_BACKUP_FILE" ] && [ -f "$CURRENT_BACKUP_FILE" ]; then
+            # Rollback data only if the update progressed to running new code
+            if [ "$BACKUP_OK" -eq 1 ] && [ -n "$CURRENT_BACKUP_FILE" ] && [ -f "$CURRENT_BACKUP_FILE" ] && { [ "$UPDATE_PHASE" = "starting" ] || [ "$UPDATE_PHASE" = "healthcheck" ]; }; then
                 echo "[Info] Restoring data from verified backup: $CURRENT_BACKUP_FILE"
-                # Use -maxdepth 1 to avoid recursing into and wiping cache contents
-                find "$DATA_DIR" -mindepth 1 -maxdepth 1 ! -name 'cache' -exec rm -rf {} +
-                tar -xzf "$CURRENT_BACKUP_FILE" -C "$DATA_DIR"
+                RESTORE_TMP="$DATA_DIR.restore_tmp"
+                rm -rf "$RESTORE_TMP"
+                mkdir -p "$RESTORE_TMP"
+                if tar -xzf "$CURRENT_BACKUP_FILE" -C "$RESTORE_TMP" 2>/dev/null; then
+                    find "$DATA_DIR" -mindepth 1 -maxdepth 1 ! -name 'cache' -exec rm -rf {} +
+                    cp -a "$RESTORE_TMP/." "$DATA_DIR/"
+                else
+                    echo "[Warning] Staged data extraction failed. Retaining existing data."
+                fi
+                rm -rf "$RESTORE_TMP"
             fi
 
             systemctl reset-failed syncpk-server 2>/dev/null || true
@@ -92,8 +118,7 @@ cleanup() {
 
         echo "[Error] Update failed. Rollback completed."
     elif [ "$UPDATE_PHASE" = "done" ]; then
-        # Clean previous code backup on success to save disk space
-        rm -rf "$CODE_DIR.prev"
+        # Preserve previous code backup in $CODE_DIR.prev as a rollback safety net until next update
 
         systemctl reset-failed syncpk-server 2>/dev/null || true
         if ! systemctl is-active -q syncpk-server; then
@@ -154,6 +179,7 @@ echo "[Info] Creating local backup (code and DB)..."
 rm -rf "$CODE_DIR.prev.tmp" "$CODE_DIR.prev"
 cp -a "$CODE_DIR" "$CODE_DIR.prev.tmp"
 mv "$CODE_DIR.prev.tmp" "$CODE_DIR.prev"
+SNAPSHOT_OK=1
 
 # Full backup with rotation (keep latest 3, delete older)
 BACKUP_FILE="$BACKUP_DIR/syncpk_data_backup_$(date +%Y%m%d_%H%M%S).tar.gz"
@@ -168,12 +194,16 @@ ls -t "$BACKUP_DIR"/syncpk_data_backup_*.tar.gz 2>/dev/null | tail -n +4 | xargs
 
 UPDATE_PHASE="applying"
 echo "[Info] Cleaning old code..."
-find "$CODE_DIR" -mindepth 1 -maxdepth 1 ! -name 'venv' ! -name '.ver' ! -name 'update.sh' ! -name 'check_update.sh' ! -name 'uninstall.sh' -exec rm -rf {} +
+find "$CODE_DIR" -mindepth 1 -maxdepth 1 ! -name 'venv' ! -name '.ver' ! -name 'update.sh' ! -name 'check_update.sh' ! -name 'uninstall.sh' ! -name 'install.sh' -exec rm -rf {} +
 
 echo "[Info] Applying new code..."
 cp -a "$TMP_DIR/src/server/." "$CODE_DIR/"
 cp -a "$TMP_DIR/src/update.sh" "$CODE_DIR/update.sh.tmp"
 mv "$CODE_DIR/update.sh.tmp" "$CODE_DIR/update.sh"
+if [ -f "$TMP_DIR/src/install.sh" ]; then
+    cp -a "$TMP_DIR/src/install.sh" "$CODE_DIR/install.sh.tmp"
+    mv "$CODE_DIR/install.sh.tmp" "$CODE_DIR/install.sh"
+fi
 if [ -f "$TMP_DIR/src/check_update.sh" ]; then
     cp -a "$TMP_DIR/src/check_update.sh" "$CODE_DIR/check_update.sh.tmp"
     mv "$CODE_DIR/check_update.sh.tmp" "$CODE_DIR/check_update.sh"
@@ -189,6 +219,7 @@ if [ -d "$TMP_DIR/src/server/systemd" ]; then
         restorecon -R /etc/systemd/system/syncpk-* 2>/dev/null || true
     fi
     systemctl daemon-reload
+    systemctl restart syncpk-checker.timer syncpk-updater.path 2>/dev/null || true
 fi
 
 echo "[Info] Installing new dependencies offline..."
@@ -206,6 +237,9 @@ chown -R root:root "$CODE_DIR"
 find "$CODE_DIR" -type d ! -path "*/venv/*" ! -path "*/.git/*" -exec chmod 755 {} +
 find "$CODE_DIR" -type f ! -path "*/venv/*" ! -path "*/.git/*" -exec chmod 644 {} +
 chmod +x "$CODE_DIR/update.sh"
+if [ -f "$CODE_DIR/install.sh" ]; then
+    chmod +x "$CODE_DIR/install.sh"
+fi
 if [ -f "$CODE_DIR/check_update.sh" ]; then
     chmod +x "$CODE_DIR/check_update.sh"
 fi
@@ -222,11 +256,13 @@ echo "[Info] Starting service..."
 systemctl reset-failed syncpk-server 2>/dev/null || true
 systemctl start syncpk-server
 
+UPDATE_PHASE="healthcheck"
 echo "[Info] Checking service health..."
 PORT=$(get_port)
+HOST=$(get_host)
 HEALTH_OK=0
 for i in $(seq 1 15); do
-    if curl -fsSL --max-time 5 "http://127.0.0.1:${PORT}/api/time" >/dev/null 2>&1; then
+    if curl -fsSL --max-time 5 "http://${HOST}:${PORT}/api/time" >/dev/null 2>&1; then
         HEALTH_OK=1
         break
     fi

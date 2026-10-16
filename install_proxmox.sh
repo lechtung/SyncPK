@@ -97,7 +97,7 @@ if [ -n "$HOST_GW" ] && [ -n "$SUBNET_PREFIX" ]; then
     if whiptail --title "SyncPK - Network Configuration" \
         --yes-button "DHCP (Default)" \
         --no-button "Static IP" \
-        --yesno "Select network configuration method for the LXC container:\n\nDetected Gateway: ${HOST_GW}\nDetected Subnet:  ${SUBNET_PREFIX}.0/24\n\nUse DHCP (recommended)?\nOr select 'Static IP' to specify a fixed address in this subnet." \
+        --yesno "Select network configuration method for the LXC container:\n\nDetected Gateway: ${HOST_GW}\nDetected Subnet:  ${SUBNET_PREFIX}.0/${SUBNET_CIDR}\n\nUse DHCP (recommended)?\nOr select 'Static IP' to specify a fixed address in this subnet." \
         13 68; then
         NET_CONFIG="ip=dhcp"
     else
@@ -207,9 +207,17 @@ fi
 
 LATEST_TEMPLATE="$TEMPLATE_STORAGE:vztmpl/$LATEST_TEMPLATE_FILE"
 
+# Detect host architecture for LXC container
+PVE_ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m)
+if [ "$PVE_ARCH" = "aarch64" ] || [ "$PVE_ARCH" = "arm64" ]; then
+    CT_ARCH="arm64"
+else
+    CT_ARCH="amd64"
+fi
+
 # Create container with 1024MB RAM during install to prevent OOM killer during pip builds
-echo "[Info] Creating CT container $CTID with 1024MB RAM for installation..."
-pct create $CTID "$LATEST_TEMPLATE" -storage "$TARGET_STORAGE" -rootfs "$TARGET_STORAGE:8" -password "$ROOT_PASSWORD" -arch amd64 -hostname syncpk -cores 1 -memory 1024 -net0 name=eth0,bridge="$BRIDGE",$NET_CONFIG -unprivileged 1 -features nesting=1 -timezone host -onboot 1 || error "Failed to create LXC container (pct create failed)."
+echo "[Info] Creating CT container $CTID ($CT_ARCH) with 1024MB RAM for installation..."
+pct create $CTID "$LATEST_TEMPLATE" -storage "$TARGET_STORAGE" -rootfs "$TARGET_STORAGE:8" -password "$ROOT_PASSWORD" -arch "$CT_ARCH" -hostname syncpk -cores 1 -memory 1024 -net0 name=eth0,bridge="$BRIDGE",$NET_CONFIG -unprivileged 1 -features nesting=1 -timezone host -onboot 1 || error "Failed to create LXC container (pct create failed)."
 CT_CREATED=1
 
 pct start $CTID || error "Failed to start container $CTID."
@@ -242,13 +250,15 @@ case \$- in *i*) ;; *) return ;; esac
 LOCAL_IP=\$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if(\$i==\"src\") print \$(i+1)}')
 if [ -z \"\$LOCAL_IP\" ]; then LOCAL_IP=\$(hostname -I 2>/dev/null | awk '{print \$1}'); fi
 if [ -z \"\$LOCAL_IP\" ]; then LOCAL_IP=\"127.0.0.1\"; fi
+PORT=\$(systemctl cat syncpk-server 2>/dev/null | grep -oP -- '--port[=\\s]+\\K[0-9]+' | tail -n1)
+PORT=\${PORT:-8000}
 echo \"\"
 echo \"================================================================\"
 echo -e \" \e[32m\e[1mSyncPK - Two-Way Kodi & Plex Sync Server\e[0m\"
 echo \"================================================================\"
-echo -e \" \e[1mWeb Dashboard:\e[0m http://\$LOCAL_IP:8000\"
-echo -e \" \e[1mKodi Webhook:\e[0m  http://\$LOCAL_IP:8000/webhook/kodi\"
-echo -e \" \e[1mPlex Webhook:\e[0m  http://\$LOCAL_IP:8000/webhook/plex\"
+echo -e \" \e[1mWeb Dashboard:\e[0m http://\$LOCAL_IP:\$PORT\"
+echo -e \" \e[1mKodi Webhook:\e[0m  http://\$LOCAL_IP:\$PORT/webhook/kodi\"
+echo -e \" \e[1mPlex Webhook:\e[0m  http://\$LOCAL_IP:\$PORT/webhook/plex\"
 echo \"(Make sure to append your ?token=... in Plex/Kodi if configured)\"
 echo \"================================================================\"
 echo \"\"

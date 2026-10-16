@@ -56,14 +56,6 @@ def get_db_connection():
             last_error TEXT
         )
     """)
-    try:
-        conn.execute("ALTER TABLE webhook_queue ADD COLUMN attempts INTEGER DEFAULT 0")
-    except Exception:
-        pass
-    try:
-        conn.execute("ALTER TABLE webhook_queue ADD COLUMN last_error TEXT")
-    except Exception:
-        pass
     return conn
 
 def _split_server_url(base_url):

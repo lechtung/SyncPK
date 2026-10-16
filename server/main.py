@@ -463,19 +463,6 @@ def init_db():
               AND episode = new.episode;
         END;
     """)
-    try:
-        cursor.execute("ALTER TABLE watch_history ADD COLUMN duration INTEGER DEFAULT 0")
-    except sqlite3.OperationalError:
-        pass
-    try:
-        cursor.execute("ALTER TABLE watch_history ADD COLUMN poster_path TEXT")
-    except sqlite3.OperationalError:
-        pass
-    try:
-        cursor.execute("ALTER TABLE watch_history ADD COLUMN fanart_path TEXT")
-    except sqlite3.OperationalError:
-        pass
-
     # Cleanup old tombstones based on retention setting
     try:
         tombstone_cutoff = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=DELETED_HISTORY_RETENTION_DAYS)).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -4052,23 +4039,16 @@ async def save_config(payload: ConfigPayload):
 
 @app.post("/api/config/restore", dependencies=[Depends(verify_api_key)])
 def restore_config():
-    bak_path = ENV_PATH + ".bak"
-    if not os.path.exists(bak_path):
+    example_path = os.path.join(DATA_DIR, ".env.example")
+    if not os.path.exists(example_path):
         example_path = os.path.join(BASE_DIR, ".env.example")
-        if os.path.exists(example_path):
-            shutil.copy(example_path, bak_path)
-            if os.name != 'nt':
-                try:
-                    os.chmod(bak_path, 0o600)
-                except Exception:
-                    pass
-        else:
-            return {"status": "error", "message": "No backup found (.env.bak)"}
+    if not os.path.exists(example_path):
+        return {"status": "error", "message": "Default configuration template (.env.example) not found."}
     
     if os.name == 'nt' and os.path.exists(ENV_PATH):
         ctypes.windll.kernel32.SetFileAttributesW(ENV_PATH, 128)
         
-    shutil.copy(bak_path, ENV_PATH)
+    shutil.copy(example_path, ENV_PATH)
     
     if os.name == 'nt':
         ctypes.windll.kernel32.SetFileAttributesW(ENV_PATH, 2)

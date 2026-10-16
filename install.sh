@@ -24,6 +24,13 @@ main() {
     echo "          SyncPK Installer (System Setup)             "
     echo "======================================================"
 
+    # Acquire exclusive install/update lock in /run
+    exec 9> /run/syncpk_update.lock
+    if ! flock -n 9; then
+        echo -e "\e[31m[ERROR] Another SyncPK install or update process is currently running.\e[0m"
+        exit 1
+    fi
+
     CODE_DIR="/opt/syncpk"
     DATA_DIR="/var/lib/syncpk"
     API_URL="https://api.github.com/repos/lechtung/SyncPK/releases/latest"
@@ -31,7 +38,7 @@ main() {
     # Extract effective listening port from systemd unit and drop-in overrides
     get_port() {
         local p
-        p=$(systemctl cat syncpk-server 2>/dev/null | grep -oP -- '--port\s+\K[0-9]+' | tail -n1)
+        p=$(systemctl cat syncpk-server 2>/dev/null | grep -oP -- '--port[=\s]+\K[0-9]+' | tail -n1)
         echo "${p:-8000}"
     }
 
@@ -65,18 +72,13 @@ main() {
     fi
 
     PYTHON_CMD="python3"
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo -e "\e[33m[Warning] python3 not found, it will be installed via system package manager.\e[0m"
-    else
+    if command -v python3 >/dev/null 2>&1; then
         if python3 -c 'import sys; exit(0) if sys.version_info >= (3,10) else exit(1)' 2>/dev/null; then
             PYTHON_CMD="python3"
         elif command -v python3.11 >/dev/null 2>&1; then
             PYTHON_CMD="python3.11"
         elif command -v python3.12 >/dev/null 2>&1; then
             PYTHON_CMD="python3.12"
-        else
-            echo -e "\e[31m[ERROR] Python version must be >= 3.10. Current python3 version is $(python3 --version).\e[0m"
-            exit 1
         fi
     fi
 
@@ -134,7 +136,11 @@ main() {
             echo -e "\e[31m[ERROR] apt-get update failed. Check /var/log/syncpk-install.log\e[0m"
             exit 1
         }
-        apt-get -o DPkg::Lock::Timeout=120 install -y curl python3 python3-venv ca-certificates >> /var/log/syncpk-install.log 2>&1 || {
+        PKGS="python3 python3-venv ca-certificates"
+        if ! command -v curl >/dev/null 2>&1; then
+            PKGS="curl $PKGS"
+        fi
+        apt-get -o DPkg::Lock::Timeout=120 install -y $PKGS >> /var/log/syncpk-install.log 2>&1 || {
             tail -n 20 /var/log/syncpk-install.log
             echo -e "\e[31m[ERROR] Package installation failed. Check /var/log/syncpk-install.log\e[0m"
             exit 1
@@ -145,13 +151,17 @@ main() {
         if ! command -v python3 >/dev/null 2>&1 || ! python3 -c 'import sys; exit(0) if sys.version_info >= (3,10) else exit(1)' 2>/dev/null; then
             PY_PKG="python3.11"
         fi
-        dnf install -y curl "$PY_PKG" ca-certificates > /var/log/syncpk-install.log 2>&1 || {
+        CURL_PKG=""
+        if ! command -v curl >/dev/null 2>&1; then
+            CURL_PKG="curl"
+        fi
+        dnf install -y $CURL_PKG "$PY_PKG" ca-certificates > /var/log/syncpk-install.log 2>&1 || {
             tail -n 20 /var/log/syncpk-install.log
             echo -e "\e[31m[ERROR] dnf install failed. Check /var/log/syncpk-install.log\e[0m"
             exit 1
         }
     elif command -v pacman >/dev/null 2>&1; then
-        pacman -S --needed --noconfirm curl python ca-certificates > /var/log/syncpk-install.log 2>&1 || {
+        pacman -Sy --needed --noconfirm curl python ca-certificates > /var/log/syncpk-install.log 2>&1 || {
             tail -n 20 /var/log/syncpk-install.log
             echo -e "\e[31m[ERROR] pacman install failed. Check /var/log/syncpk-install.log\e[0m"
             exit 1
@@ -201,6 +211,11 @@ main() {
     VERSION_NUMBER="${RELEASE_TAG#[vV]}"
     echo "$VERSION_NUMBER" > "$CODE_DIR/.ver"
     cp -a "$TMP_DIR/src/update.sh" "$CODE_DIR/update.sh"
+    if [ -f "$TMP_DIR/src/install.sh" ]; then
+        cp -a "$TMP_DIR/src/install.sh" "$CODE_DIR/install.sh"
+    elif [ -f "$0" ]; then
+        cp -a "$0" "$CODE_DIR/install.sh"
+    fi
     if [ -f "$TMP_DIR/src/check_update.sh" ]; then
         cp -a "$TMP_DIR/src/check_update.sh" "$CODE_DIR/check_update.sh"
     fi
@@ -225,6 +240,9 @@ main() {
     find "$CODE_DIR" -type d ! -path "*/venv/*" ! -path "*/.git/*" -exec chmod 755 {} +
     find "$CODE_DIR" -type f ! -path "*/venv/*" ! -path "*/.git/*" -exec chmod 644 {} +
     chmod +x "$CODE_DIR/update.sh"
+    if [ -f "$CODE_DIR/install.sh" ]; then
+        chmod +x "$CODE_DIR/install.sh"
+    fi
     if [ -f "$CODE_DIR/check_update.sh" ]; then
         chmod +x "$CODE_DIR/check_update.sh"
     fi
@@ -232,16 +250,14 @@ main() {
         chmod +x "$CODE_DIR/uninstall.sh"
     fi
 
-    if [ -f "$CODE_DIR/.env.example" ] && [ ! -f "$DATA_DIR/.env.bak" ]; then
-        cp "$CODE_DIR/.env.example" "$DATA_DIR/.env.bak"
+    if [ -f "$CODE_DIR/.env.example" ]; then
+        cp -f "$CODE_DIR/.env.example" "$DATA_DIR/.env.example"
+        chmod 644 "$DATA_DIR/.env.example"
     fi
 
     chown -R syncpk:syncpk "$DATA_DIR"
     find "$DATA_DIR" -type d -exec chmod 750 {} +
     find "$DATA_DIR" -type f -exec chmod 640 {} +
-    if [ -f "$DATA_DIR/.env.bak" ]; then
-        chmod 600 "$DATA_DIR/.env.bak"
-    fi
 
     # SELinux context restoration if present
     if command -v restorecon >/dev/null 2>&1; then
@@ -268,7 +284,9 @@ main() {
             echo
             if [[ ! $REPLY =~ ^[Yy]$ ]]; then
                 echo "Installation aborted by user to resolve port conflict."
-                exit 1
+                ROLLED_BACK=1
+                rm -rf "$TMP_DIR"
+                exit 0
             fi
         else
             echo -e "\e[33m[Warning] Continuing installation. If port conflict persists, service may fail to start.\e[0m"

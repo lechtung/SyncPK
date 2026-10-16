@@ -18,6 +18,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Package Kodi Addon and Upload Assets to Release Immediately
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.event.release.tag_name }}
+        run: |
+          cp -r kodi_addon script.syncpk
+          zip -r kodi_addon.zip script.syncpk
+          sha256sum install.sh install_proxmox.sh kodi_addon.zip > checksums.sha256
+          gh release upload "$TAG_NAME" \
+            install.sh install_proxmox.sh kodi_addon.zip checksums.sha256 --clobber \
+            --repo ${{ github.repository }}
+          rm -rf script.syncpk kodi_addon.zip checksums.sha256
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
         
@@ -39,6 +52,7 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
@@ -51,16 +65,3 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Package Kodi Addon and Upload Assets to Release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG_NAME: ${{ github.event.release.tag_name }}
-        run: |
-          cp -r kodi_addon script.syncpk
-          zip -r kodi_addon.zip script.syncpk
-          sha256sum install.sh install_proxmox.sh kodi_addon.zip > checksums.sha256
-          gh release upload "$TAG_NAME" \
-            install.sh install_proxmox.sh kodi_addon.zip checksums.sha256 --clobber \
-            --repo ${{ github.repository }}
-          rm -rf script.syncpk kodi_addon.zip checksums.sha256

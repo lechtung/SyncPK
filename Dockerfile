@@ -25,7 +25,7 @@ COPY server/requirements.txt .
 # Install python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy all application files to workdir (Punto 14 - copiar todo server/)
+# Copy all application files to workdir
 COPY server/ ./
 
 # We do not copy update.sh or check_update.sh because they are useless in Docker.
@@ -33,8 +33,8 @@ COPY server/ ./
 ARG VERSION=0.0.0
 RUN echo "${VERSION#v}" > .ver
 
-# Create cache directories and set ownership of /app
-RUN mkdir -p /app/data/cache/posters /app/data/cache/fanarts && chown -R syncpkuser:syncpkuser /app
+# Create cache directories and set ownership of /app/data
+RUN mkdir -p /app/data/cache/posters /app/data/cache/fanarts && chown -R syncpkuser:syncpkuser /app/data
 
 # Copy entrypoint script and make it executable
 COPY entrypoint.sh /entrypoint.sh

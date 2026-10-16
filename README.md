@@ -78,16 +78,14 @@ For the standard self-hosted stack, SyncPK can be deployed seamlessly using Dock
        container_name: syncpk-server
        restart: unless-stopped
        environment:
-         # Optional: Uncomment and set if you want to override the container timezone manually,
-         # or if running on Windows where /etc/localtime is not available.
-         # - TZ=Europe/Madrid
+         # Set your local timezone (e.g. Europe/Madrid, America/New_York, UTC)
+         - TZ=Etc/UTC
          # - PUID=1000 # Uncomment if running on a NAS (e.g. Synology, Unraid)
          # - PGID=1000
        ports:
          - "8000:8000"
        volumes:
          - ./data:/app/data
-         - /etc/localtime:/etc/localtime:ro
    ```
 
    > 💡 **Portainer / Dockge Note:** When using web managers like Portainer, relative paths like `./data` are stored in the engine's internal stack folder. If you prefer to store data in a specific host path, replace `./data` with an absolute path (e.g. `/opt/syncpk-data:/app/data`).

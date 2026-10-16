@@ -33,7 +33,7 @@ echo -e "\e[31m======================================================\e[0m"
 
 echo "This will permanently delete:"
 echo " - The application code (/opt/syncpk)"
-echo " - Systemd services and timers"
+echo " - Systemd services, timers, and configuration drop-ins"
 
 if [ "$PURGE" -eq 1 ]; then
     echo -e "\e[31m - The syncpk user\e[0m"
@@ -89,11 +89,8 @@ if [ "$PURGE" -eq 1 ]; then
     fi
 fi
 
-# Clean MOTD if present (e.g. created by Proxmox installer)
+# Clean MOTD if present (created by Proxmox installer)
 rm -f /etc/profile.d/syncpk-motd.sh
-if [ -f "/etc/motd" ]; then
-    sed -i '/SyncPK/d' /etc/motd 2>/dev/null || true
-fi
 
 echo "======================================================"
 echo -e "\e[32mSyncPK has been uninstalled successfully.\e[0m"
