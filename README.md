@@ -65,6 +65,14 @@ bash -c "$(curl -fsSL https://github.com/lechtung/SyncPK/releases/latest/downloa
 bash -c "$(curl -fsSL https://github.com/lechtung/SyncPK/releases/latest/download/install.sh)" _ --force
 ```
 
+*(Optional)* To manually verify download integrity prior to running, releases provide a `checksums.sha256` file:
+```bash
+curl -fsSLO https://github.com/lechtung/SyncPK/releases/latest/download/checksums.sha256
+curl -fsSLO https://github.com/lechtung/SyncPK/releases/latest/download/install.sh
+sha256sum -c checksums.sha256 --ignore-missing
+sudo bash install.sh
+```
+
 **Next step:** Open your browser and go to `http://<YOUR_SERVER_IP>:8000` to start the Web Setup.
 
 ### Option C: Docker Compose (r/selfhosted)

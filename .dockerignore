@@ -12,7 +12,8 @@
 # Database and Data persistence
 **/*.db
 **/*.db-*
-**/data/
+data/
+server/data/
 **/sync.db
 
 # Logs

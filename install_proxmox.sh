@@ -217,10 +217,11 @@ fi
 
 # Create container with 1024MB RAM during install to prevent OOM killer during pip builds
 echo "[Info] Creating CT container $CTID ($CT_ARCH) with 1024MB RAM for installation..."
-pct create $CTID "$LATEST_TEMPLATE" -storage "$TARGET_STORAGE" -rootfs "$TARGET_STORAGE:8" -password "$ROOT_PASSWORD" -arch "$CT_ARCH" -hostname syncpk -cores 1 -memory 1024 -net0 name=eth0,bridge="$BRIDGE",$NET_CONFIG -unprivileged 1 -features nesting=1 -timezone host -onboot 1 || error "Failed to create LXC container (pct create failed)."
+pct create $CTID "$LATEST_TEMPLATE" -storage "$TARGET_STORAGE" -rootfs "$TARGET_STORAGE:8" -arch "$CT_ARCH" -hostname syncpk -cores 1 -memory 1024 -net0 name=eth0,bridge="$BRIDGE",$NET_CONFIG -unprivileged 1 -features nesting=1 -timezone host -onboot 1 || error "Failed to create LXC container (pct create failed)."
 CT_CREATED=1
 
 pct start $CTID || error "Failed to start container $CTID."
+printf '%s\n' "root:$ROOT_PASSWORD" | pct exec $CTID -- chpasswd || error "Failed to set container root password."
 
 echo "[Info] Waiting for the container to get network access..."
 NET_OK=0
@@ -243,27 +244,6 @@ else
     CT_IP=$(pct exec $CTID -- ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n 1)
     echo "[Info] DHCP-assigned IP: $CT_IP"
 fi
-
-echo "[Info] Configuring Welcome Message (MOTD)..."
-pct exec $CTID -- bash -c "cat << 'EOF' > /etc/profile.d/syncpk-motd.sh
-case \$- in *i*) ;; *) return ;; esac
-LOCAL_IP=\$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if(\$i==\"src\") print \$(i+1)}')
-if [ -z \"\$LOCAL_IP\" ]; then LOCAL_IP=\$(hostname -I 2>/dev/null | awk '{print \$1}'); fi
-if [ -z \"\$LOCAL_IP\" ]; then LOCAL_IP=\"127.0.0.1\"; fi
-PORT=\$(systemctl cat syncpk-server 2>/dev/null | grep -oP -- '--port[=\\s]+\\K[0-9]+' | tail -n1)
-PORT=\${PORT:-8000}
-echo \"\"
-echo \"================================================================\"
-echo -e \" \e[32m\e[1mSyncPK - Two-Way Kodi & Plex Sync Server\e[0m\"
-echo \"================================================================\"
-echo -e \" \e[1mWeb Dashboard:\e[0m http://\$LOCAL_IP:\$PORT\"
-echo -e \" \e[1mKodi Webhook:\e[0m  http://\$LOCAL_IP:\$PORT/webhook/kodi\"
-echo -e \" \e[1mPlex Webhook:\e[0m  http://\$LOCAL_IP:\$PORT/webhook/plex\"
-echo \"(Make sure to append your ?token=... in Plex/Kodi if configured)\"
-echo \"================================================================\"
-echo \"\"
-EOF"
-pct exec $CTID -- chmod +x /etc/profile.d/syncpk-motd.sh
 
 echo "[Info] Launching automated system installer inside LXC..."
 pct exec $CTID -- bash -c "set -euo pipefail; apt-get update && apt-get install -y curl ca-certificates && curl -fsSL https://github.com/$GITHUB_USER/$GITHUB_REPO/releases/latest/download/install.sh > install.sh && bash install.sh && rm -f install.sh" || error "install.sh failed inside LXC."

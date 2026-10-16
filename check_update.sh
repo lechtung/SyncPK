@@ -45,7 +45,7 @@ if [ "$REMOTE_VER" != "$LOCAL_VER" ] && [ "$(printf '%s\n%s\n' "$LOCAL_VER" "$RE
         if echo "$CLEAN_ENV" | grep -q -E -i '^[[:space:]]*(export[[:space:]]+)?NOTIFY_UPDATES[[:space:]]*=[[:space:]]*["'\'']?false["'\'']?[[:space:]]*$'; then
             NOTIFY_UPDATES="false"
         fi
-        IGN_MATCH=$(echo "$CLEAN_ENV" | grep -E '^[[:space:]]*(export[[:space:]]+)?IGNORED_UPDATE_VERSION[[:space:]]*=' | tail -n1 | cut -d= -f2- | tr -d '"'\'' ')
+        IGN_MATCH=$(echo "$CLEAN_ENV" | { grep -E '^[[:space:]]*(export[[:space:]]+)?IGNORED_UPDATE_VERSION[[:space:]]*=' || true; } | tail -n1 | cut -d= -f2- | tr -d '"'\'' ')
         IGNORED_VER=$(echo "$IGN_MATCH" | sed 's/^[vV]//')
     fi
 

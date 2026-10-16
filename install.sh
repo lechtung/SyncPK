@@ -42,6 +42,20 @@ main() {
         echo "${p:-8000}"
     }
 
+    # Extract effective listening host for healthcheck (fallback to 127.0.0.1 for 0.0.0.0 or default)
+    get_host() {
+        local h
+        h=$(systemctl cat syncpk-server 2>/dev/null | grep -oP -- '--host[=\s]+\K[^\s]+' | tail -n1)
+        h=$(echo "$h" | tr -d '"'\'' ')
+        if [ -z "$h" ] || [ "$h" = "0.0.0.0" ] || [ "$h" = "::" ]; then
+            echo "127.0.0.1"
+        elif [[ "$h" == *:* ]]; then
+            echo "[$h]"
+        else
+            echo "$h"
+        fi
+    }
+
     check_port_in_use() {
         local port="$1"
         local in_use=0
@@ -84,6 +98,7 @@ main() {
 
     INSTALL_SUCCESS=0
     ROLLED_BACK=0
+    ABORTED_BY_USER=0
     TMP_DIR=$(mktemp -d)
 
     cleanup() { 
@@ -95,7 +110,11 @@ main() {
 
         rm -rf "$TMP_DIR"
         if [ "$INSTALL_SUCCESS" -eq 0 ]; then
-            echo -e "\e[31m[ERROR] Installation failed. Rolling back partial changes...\e[0m"
+            if [ "$ABORTED_BY_USER" -eq 1 ]; then
+                echo -e "\e[33m[Info] Installation aborted by user. Reverting changes...\e[0m"
+            else
+                echo -e "\e[31m[ERROR] Installation failed. Rolling back partial changes...\e[0m"
+            fi
             systemctl disable --now syncpk-server syncpk-checker.timer syncpk-updater.path 2>/dev/null || true
             rm -f /etc/systemd/system/syncpk-*.service /etc/systemd/system/syncpk-*.timer /etc/systemd/system/syncpk-*.path 2>/dev/null || true
             systemctl daemon-reload 2>/dev/null || true
@@ -161,9 +180,9 @@ main() {
             exit 1
         }
     elif command -v pacman >/dev/null 2>&1; then
-        pacman -Sy --needed --noconfirm curl python ca-certificates > /var/log/syncpk-install.log 2>&1 || {
+        pacman -S --needed --noconfirm curl python ca-certificates > /var/log/syncpk-install.log 2>&1 || {
             tail -n 20 /var/log/syncpk-install.log
-            echo -e "\e[31m[ERROR] pacman install failed. Check /var/log/syncpk-install.log\e[0m"
+            echo -e "\e[31m[ERROR] pacman install failed. If repositories are out of date, run 'pacman -Syu' and retry.\e[0m"
             exit 1
         }
     else
@@ -213,8 +232,6 @@ main() {
     cp -a "$TMP_DIR/src/update.sh" "$CODE_DIR/update.sh"
     if [ -f "$TMP_DIR/src/install.sh" ]; then
         cp -a "$TMP_DIR/src/install.sh" "$CODE_DIR/install.sh"
-    elif [ -f "$0" ]; then
-        cp -a "$0" "$CODE_DIR/install.sh"
     fi
     if [ -f "$TMP_DIR/src/check_update.sh" ]; then
         cp -a "$TMP_DIR/src/check_update.sh" "$CODE_DIR/check_update.sh"
@@ -283,10 +300,8 @@ main() {
             read -p "Do you want to proceed anyway? (y/N) " -r REPLY < /dev/tty
             echo
             if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-                echo "Installation aborted by user to resolve port conflict."
-                ROLLED_BACK=1
-                rm -rf "$TMP_DIR"
-                exit 0
+                ABORTED_BY_USER=1
+                exit 1
             fi
         else
             echo -e "\e[33m[Warning] Continuing installation. If port conflict persists, service may fail to start.\e[0m"
@@ -310,9 +325,10 @@ main() {
     fi
 
     echo "[Info] Checking service health (up to 90s)..."
+    HEALTH_HOST=$(get_host)
     HEALTH_OK=0
     for i in $(seq 1 45); do
-        if curl -fsSL --max-time 5 "http://127.0.0.1:${PORT}/api/time" >/dev/null 2>&1; then
+        if curl -fsSL --max-time 5 "http://${HEALTH_HOST}:${PORT}/api/time" >/dev/null 2>&1; then
             HEALTH_OK=1
             break
         fi
@@ -333,8 +349,44 @@ main() {
 
     INSTALL_SUCCESS=1
 
+    # Setup Welcome Message (MOTD) for interactive logins
+    if [ -d "/etc/profile.d" ]; then
+        {
+            cat << 'EOF' | sed 's/^[ ]\{12\}//' > /etc/profile.d/syncpk-motd.sh
+            case $- in *i*) ;; *) return ;; esac
+            _syncpk_motd() {
+                local LOCAL_IP PORT
+                LOCAL_IP=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1); exit}')
+                if [ -z "$LOCAL_IP" ]; then LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}'); fi
+                if [ -z "$LOCAL_IP" ]; then LOCAL_IP="127.0.0.1"; fi
+                PORT=$(systemctl cat syncpk-server 2>/dev/null | grep -oP -- '--port[=\s]+\K[0-9]+' | tail -n1)
+                PORT=${PORT:-8000}
+                echo ""
+                echo "================================================================"
+                echo -e " \e[32m\e[1mSyncPK - Two-Way Kodi & Plex Sync Server\e[0m"
+                echo "================================================================"
+                echo -e " \e[1mWeb Dashboard:\e[0m http://${LOCAL_IP}:${PORT}"
+                echo -e " \e[1mKodi Webhook:\e[0m  http://${LOCAL_IP}:${PORT}/webhook/kodi"
+                echo -e " \e[1mPlex Webhook:\e[0m  http://${LOCAL_IP}:${PORT}/webhook/plex"
+                echo "(Make sure to append your ?token=... in Plex/Kodi if configured)"
+                echo "================================================================"
+                echo ""
+            }
+            _syncpk_motd
+            unset -f _syncpk_motd
+EOF
+            chmod +x /etc/profile.d/syncpk-motd.sh
+        } 2>/dev/null || true
+    fi
+
     echo "================================================================"
-    echo -e "\e[32mInstallation completed successfully!\e[0m"
+    echo -e " \e[32m\e[1mSyncPK - Installation Completed Successfully!\e[0m"
+    echo "================================================================"
+    echo -e " \e[1mWeb Dashboard:\e[0m http://${LOCAL_IP}:${PORT}"
+    echo -e " \e[1mKodi Webhook:\e[0m  http://${LOCAL_IP}:${PORT}/webhook/kodi"
+    echo -e " \e[1mPlex Webhook:\e[0m  http://${LOCAL_IP}:${PORT}/webhook/plex"
+    echo "(Make sure to append your ?token=... in Plex/Kodi if configured)"
+    echo "----------------------------------------------------------------"
     echo -e "Open your browser to launch the Web Setup Wizard:"
     echo -e "➡️  \e[1mhttp://${LOCAL_IP}:${PORT}\e[0m"
 

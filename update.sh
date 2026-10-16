@@ -37,8 +37,11 @@ get_port() {
 get_host() {
     local h
     h=$(systemctl cat syncpk-server 2>/dev/null | grep -oP -- '--host[=\s]+\K[^\s]+' | tail -n1)
-    if [ -z "$h" ] || [ "$h" = "0.0.0.0" ]; then
+    h=$(echo "$h" | tr -d '"'\'' ')
+    if [ -z "$h" ] || [ "$h" = "0.0.0.0" ] || [ "$h" = "::" ]; then
         echo "127.0.0.1"
+    elif [[ "$h" == *:* ]]; then
+        echo "[$h]"
     else
         echo "$h"
     fi
@@ -98,11 +101,11 @@ cleanup() {
             # Rollback data only if the update progressed to running new code
             if [ "$BACKUP_OK" -eq 1 ] && [ -n "$CURRENT_BACKUP_FILE" ] && [ -f "$CURRENT_BACKUP_FILE" ] && { [ "$UPDATE_PHASE" = "starting" ] || [ "$UPDATE_PHASE" = "healthcheck" ]; }; then
                 echo "[Info] Restoring data from verified backup: $CURRENT_BACKUP_FILE"
-                RESTORE_TMP="$DATA_DIR.restore_tmp"
+                RESTORE_TMP="$DATA_DIR/.restore_tmp"
                 rm -rf "$RESTORE_TMP"
                 mkdir -p "$RESTORE_TMP"
                 if tar -xzf "$CURRENT_BACKUP_FILE" -C "$RESTORE_TMP" 2>/dev/null; then
-                    find "$DATA_DIR" -mindepth 1 -maxdepth 1 ! -name 'cache' -exec rm -rf {} +
+                    find "$DATA_DIR" -mindepth 1 -maxdepth 1 ! -name 'cache' ! -name '.restore_tmp' -exec rm -rf {} +
                     cp -a "$RESTORE_TMP/." "$DATA_DIR/"
                 else
                     echo "[Warning] Staged data extraction failed. Retaining existing data."
@@ -124,6 +127,7 @@ cleanup() {
         if ! systemctl is-active -q syncpk-server; then
             systemctl start syncpk-server || true
         fi
+        systemctl restart syncpk-checker.timer syncpk-updater.path 2>/dev/null || true
         echo "[Info] Update completed successfully."
         rm -f "$DATA_DIR/update_status.json" "$DATA_DIR/.trigger_update"
     fi
@@ -183,7 +187,7 @@ SNAPSHOT_OK=1
 
 # Full backup with rotation (keep latest 3, delete older)
 BACKUP_FILE="$BACKUP_DIR/syncpk_data_backup_$(date +%Y%m%d_%H%M%S).tar.gz"
-if ! tar -czf "$BACKUP_FILE" --exclude="./cache" -C "$DATA_DIR" . || ! tar -tzf "$BACKUP_FILE" >/dev/null 2>&1; then
+if ! tar -czf "$BACKUP_FILE" --exclude="./cache" --exclude="./.restore_tmp" -C "$DATA_DIR" . || ! tar -tzf "$BACKUP_FILE" >/dev/null 2>&1; then
     echo "[Error] Data backup creation or verification failed."
     rm -f "$BACKUP_FILE"
     exit 1
@@ -219,7 +223,6 @@ if [ -d "$TMP_DIR/src/server/systemd" ]; then
         restorecon -R /etc/systemd/system/syncpk-* 2>/dev/null || true
     fi
     systemctl daemon-reload
-    systemctl restart syncpk-checker.timer syncpk-updater.path 2>/dev/null || true
 fi
 
 echo "[Info] Installing new dependencies offline..."
