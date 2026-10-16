@@ -259,7 +259,13 @@ async function loadTranslations() {
 
     document.querySelectorAll('[data-i18n]').forEach(el => {
         let key = el.getAttribute('data-i18n');
-        if (currentLangData[key]) el.textContent = currentLangData[key];
+        if (currentLangData[key]) {
+            if (currentLangData[key].includes('<')) {
+                el.innerHTML = currentLangData[key];
+            } else {
+                el.textContent = currentLangData[key];
+            }
+        }
     });
     document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
         let key = el.getAttribute('data-i18n-placeholder');

@@ -200,7 +200,11 @@
             document.querySelectorAll('[data-i18n]').forEach(el => {
                 const k = el.getAttribute('data-i18n');
                 if (currentLangData[k]) {
-                    el.textContent = currentLangData[k];
+                    if (currentLangData[k].includes('<')) {
+                        el.innerHTML = currentLangData[k];
+                    } else {
+                        el.textContent = currentLangData[k];
+                    }
                 }
             });
             updateStepText(); // Re-apply variables to the active step text

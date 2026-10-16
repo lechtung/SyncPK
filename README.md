@@ -10,6 +10,24 @@ SyncPK is a self-hosted, lightweight two-way synchronization tool designed to ke
 
 Whether you watch a movie on your TV using Kodi or catch up on a series on your phone using Plex, SyncPK ensures both platforms instantly reflect the watched status without infinite synchronization loops.
 
+<p align="center">
+  <img src="screenshots/dashboard_general.png" alt="SyncPK Dashboard" width="100%">
+</p>
+
+## ✨ Key Features
+
+- 🔄 **Real-Time Two-Way Sync:** Instant synchronization between Kodi and Plex with loop prevention.
+- 📅 **Batch Date Editing & Advanced Scopes:** Change watch dates per episode, season, or entire series with smart distribution (fixed, random, or between dates).
+- 🎨 **Modern Dark Web UI:** High-performance dashboard with watch metrics, calendar filtering, and local TMDB poster caching.
+- ⚙️ **Automated Webhooks & Background Polling:** Instant webhooks with automatic background fallback polling for Plex Pass and non-Plex Pass setups.
+- 🌐 **Multilingual Support:** Fully localized in 8 languages (English, Spanish, German, French, Italian, Portuguese, Chinese, Japanese).
+
+<p align="center">
+  <img src="screenshots/dashboard_change_date.png" alt="Change Watch Date & Scopes" width="49%">
+  &nbsp;
+  <img src="screenshots/dashboard_config.png" alt="System Configuration" width="49%">
+</p>
+
 ## 🚀 How it works
 
 The project is divided into two main components:
@@ -52,6 +70,12 @@ bash -c "$(curl -fsSL https://github.com/lechtung/SyncPK/releases/latest/downloa
 **Next step:** Open your browser and go to `http://<YOUR_LXC_IP>:8000` to start the Web Setup.
 
 > ⚠️ **Note about DHCP:** If you rely on DHCP for the LXC container's IP, create a **DHCP reservation** in your router so the IP doesn't change and break your Kodi/Plex webhook URLs.
+
+<p align="center">
+  <img src="screenshots/proxmox_install.png" alt="Proxmox Template Selection" width="49%">
+  &nbsp;
+  <img src="screenshots/proxmox_finish.png" alt="Proxmox Installation Complete" width="49%">
+</p>
 
 ### Option B: Baremetal / Existing Linux Machine
 If you want to install SyncPK on a Raspberry Pi, an existing Linux server, or inside a container you already created, use this script. Run this command as **root** inside your Linux machine:
@@ -137,6 +161,58 @@ Running SyncPK natively as a Windows service is not officially supported. Howeve
    volumes:
      syncpk-data:
    ```
+
+---
+
+## 🧙‍♂️ Web Setup Wizard & Initial Import
+
+Once installed, open `http://<YOUR_SERVER_IP>:8000` in your browser. SyncPK guides you through a seamless 9-step configuration wizard and imports your historical library activity automatically:
+
+<p align="center">
+  <img src="screenshots/setup_language.png" alt="Language Selection" width="32%">
+  &nbsp;
+  <img src="screenshots/setup_preferences.png" alt="Scraping & Language Preferences" width="32%">
+  &nbsp;
+  <img src="screenshots/setup_review.png" alt="Review & Complete" width="32%">
+</p>
+
+During the first run, SyncPK scans your library, syncs cloud activity, and caches high-resolution artwork:
+
+<p align="center">
+  <img src="screenshots/import_pictures.png" alt="Downloading Artwork" width="49%">
+  &nbsp;
+  <img src="screenshots/import_complete.png" alt="Import Complete & Webhooks" width="49%">
+</p>
+
+<details>
+<summary>📸 <b>Click to expand full screenshots gallery (All 19 screens)</b></summary>
+<br>
+
+### 🖥️ Dashboard & Modals
+| General Dashboard | Batch Date Editing | Delete Modal | Settings Modal |
+|:---:|:---:|:---:|:---:|
+| [![Dashboard](screenshots/dashboard_general.png)](screenshots/dashboard_general.png) | [![Change Date](screenshots/dashboard_change_date.png)](screenshots/dashboard_change_date.png) | [![Delete](screenshots/dashboard_delete.png)](screenshots/dashboard_delete.png) | [![Settings](screenshots/dashboard_config.png)](screenshots/dashboard_config.png) |
+
+### 🛠️ Proxmox LXC Automated Installer
+| Template Selection | Installation Success |
+|:---:|:---:|
+| [![Proxmox Install](screenshots/proxmox_install.png)](screenshots/proxmox_install.png) | [![Proxmox Complete](screenshots/proxmox_finish.png)](screenshots/proxmox_finish.png) |
+
+### 🧙 Complete Setup Wizard (Steps 1–9)
+| Step 1: Language | Step 2: Plex URL | Step 3: Plex Auth |
+|:---:|:---:|:---:|
+| [![Step 1](screenshots/setup_language.png)](screenshots/setup_language.png) | [![Step 2](screenshots/setup_plex_ip.png)](screenshots/setup_plex_ip.png) | [![Step 3](screenshots/setup_plex_login.png)](screenshots/setup_plex_login.png) |
+| **Step 4: Plex Pass** | **Step 5: Password** | **Step 6: TMDB Key** |
+| [![Step 4](screenshots/setup_plex_pass.png)](screenshots/setup_plex_pass.png) | [![Step 5](screenshots/setup_password.png)](screenshots/setup_password.png) | [![Step 6](screenshots/setup_tmdb_key.png)](screenshots/setup_tmdb_key.png) |
+| **Step 7: Preferences** | **Step 8: Updates** | **Step 9: Review** |
+| [![Step 7](screenshots/setup_preferences.png)](screenshots/setup_preferences.png) | [![Step 8](screenshots/setup_updates.png)](screenshots/setup_updates.png) | [![Step 9](screenshots/setup_review.png)](screenshots/setup_review.png) |
+
+### 📥 Initial Library Import Flow
+| Local Activity Scan | Cloud Activity Sync | Artwork Caching | Import Finished |
+|:---:|:---:|:---:|:---:|
+| [![Local Scan](screenshots/import_local.png)](screenshots/import_local.png) | [![Cloud Sync](screenshots/import_cloud.png)](screenshots/import_cloud.png) | [![Artwork](screenshots/import_pictures.png)](screenshots/import_pictures.png) | [![Complete](screenshots/import_complete.png)](screenshots/import_complete.png) |
+
+</details>
 
 ---
 
