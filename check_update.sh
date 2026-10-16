@@ -10,6 +10,11 @@ LOCAL_VER_FILE="$APP_DIR/.ver"
 STATUS_FILE="$DATA_DIR/update_status.json"
 TRIGGER_FILE="$DATA_DIR/.trigger_update"
 
+PYTHON_CMD="$APP_DIR/venv/bin/python3"
+if [ ! -x "$PYTHON_CMD" ]; then
+    PYTHON_CMD="python3"
+fi
+
 TMP=$(mktemp)
 trap 'rm -f "$TMP"' EXIT
 
@@ -19,7 +24,7 @@ if ! curl -fsSL --max-time 20 -o "$TMP" "https://api.github.com/repos/lechtung/S
     exit 0
 fi
 
-REMOTE_VER=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tag_name"].lstrip("vV"))' "$TMP" 2>/dev/null || true)
+REMOTE_VER=$("$PYTHON_CMD" -c 'import json,sys; print(json.load(open(sys.argv[1]))["tag_name"].lstrip("vV"))' "$TMP" 2>/dev/null || true)
 
 if [ -z "$REMOTE_VER" ]; then
     echo "Error: Invalid remote version ($REMOTE_VER)"
@@ -51,7 +56,7 @@ if [ "$REMOTE_VER" != "$LOCAL_VER" ] && [ "$(printf '%s\n%s\n' "$LOCAL_VER" "$RE
 
     if [ -n "$IGNORED_VER" ] && [ "$REMOTE_VER" = "$IGNORED_VER" ]; then
         echo "Version $REMOTE_VER is ignored by user configuration. Skipping."
-        python3 -c "import json; print(json.dumps({'update_available': False}))" > "$STATUS_FILE"
+        "$PYTHON_CMD" -c "import json; print(json.dumps({'update_available': False}))" > "$STATUS_FILE"
         chmod 644 "$STATUS_FILE"
         exit 0
     fi
@@ -62,16 +67,16 @@ if [ "$REMOTE_VER" != "$LOCAL_VER" ] && [ "$(printf '%s\n%s\n' "$LOCAL_VER" "$RE
     else
         if [ "$NOTIFY_UPDATES" = "true" ]; then
             echo "Auto-update disabled. Notifying UI."
-            python3 -c "import json, sys; print(json.dumps({'update_available': sys.argv[1]}))" "$REMOTE_VER" > "$STATUS_FILE"
+            "$PYTHON_CMD" -c "import json, sys; print(json.dumps({'update_available': sys.argv[1]}))" "$REMOTE_VER" > "$STATUS_FILE"
             chmod 644 "$STATUS_FILE"
         else
             echo "Update notifications disabled. Skipping UI alert."
-            python3 -c "import json; print(json.dumps({'update_available': False}))" > "$STATUS_FILE"
+            "$PYTHON_CMD" -c "import json; print(json.dumps({'update_available': False}))" > "$STATUS_FILE"
             chmod 644 "$STATUS_FILE"
         fi
     fi
 else
     echo "SyncPK is up to date."
-    python3 -c "import json; print(json.dumps({'update_available': False}))" > "$STATUS_FILE"
+    "$PYTHON_CMD" -c "import json; print(json.dumps({'update_available': False}))" > "$STATUS_FILE"
     chmod 644 "$STATUS_FILE"
 fi

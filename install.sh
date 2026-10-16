@@ -71,6 +71,46 @@ main() {
         echo "$in_use"
     }
 
+    find_best_python() {
+        # 1. If standard 'python3' binary exists and satisfies >= 3.10, prefer it directly
+        if command -v python3 >/dev/null 2>&1; then
+            if python3 -c 'import sys; exit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null; then
+                echo "python3"
+                return 0
+            fi
+        fi
+
+        # 2. Otherwise (e.g. python3 is < 3.10 or not yet aliased), dynamically discover
+        # any python3.<minor> in PATH that satisfies >= 3.10 without hardcoding version numbers
+        local best_cmd=""
+        local best_minor=9  # We require at least Python 3.10
+
+        local IFS=':'
+        local dir candidate name minor
+        for dir in $PATH; do
+            [ -d "$dir" ] || continue
+            for candidate in "$dir"/python3.[0-9]*; do
+                [ -x "$candidate" ] || continue
+                name="${candidate##*/}"
+                # Strictly match 'python3.<digits>' to ignore tools like python3.11-config
+                if [[ "$name" =~ ^python3\.[0-9]+$ ]]; then
+                    minor=$("$candidate" -c 'import sys; print(sys.version_info.minor if sys.version_info.major == 3 else -1)' 2>/dev/null || echo -1)
+                    if [[ "$minor" =~ ^[0-9]+$ ]] && [ "$minor" -gt "$best_minor" ]; then
+                        best_minor="$minor"
+                        best_cmd="$name"
+                    fi
+                fi
+            done
+        done
+
+        if [ -n "$best_cmd" ]; then
+            echo "$best_cmd"
+            return 0
+        fi
+
+        return 1
+    }
+
     if [ -d "$CODE_DIR" ] && [ "$FORCE" -eq 0 ]; then
         echo -e "\e[33m[Warning] SyncPK seems to be already installed on this system.\e[0m"
         echo "If you want to update, run: sudo $CODE_DIR/update.sh"
@@ -85,16 +125,7 @@ main() {
         exit 1
     fi
 
-    PYTHON_CMD="python3"
-    if command -v python3 >/dev/null 2>&1; then
-        if python3 -c 'import sys; exit(0) if sys.version_info >= (3,10) else exit(1)' 2>/dev/null; then
-            PYTHON_CMD="python3"
-        elif command -v python3.11 >/dev/null 2>&1; then
-            PYTHON_CMD="python3.11"
-        elif command -v python3.12 >/dev/null 2>&1; then
-            PYTHON_CMD="python3.12"
-        fi
-    fi
+    PYTHON_CMD=$(find_best_python || true)
 
     INSTALL_SUCCESS=0
     ROLLED_BACK=0
@@ -166,10 +197,13 @@ main() {
             exit 1
         }
     elif command -v dnf >/dev/null 2>&1; then
-        # On RHEL 9 / AlmaLinux 9, default python3 is 3.9. Install python3.11 if python3 is < 3.10
+        # On RHEL 9 / AlmaLinux 9 / Rocky 9, default python3 is 3.9. Install python3.11
         PY_PKG="python3"
-        if ! command -v python3 >/dev/null 2>&1 || ! python3 -c 'import sys; exit(0) if sys.version_info >= (3,10) else exit(1)' 2>/dev/null; then
-            PY_PKG="python3.11"
+        if [ -f /etc/os-release ]; then
+            OS_ID=$(grep -E '^ID=' /etc/os-release | cut -d= -f2 | tr -d '"'\'' ')
+            if [[ "$OS_ID" =~ ^(almalinux|rocky|rhel|centos)$ ]]; then
+                PY_PKG="python3.11"
+            fi
         fi
         CURL_PKG=""
         if ! command -v curl >/dev/null 2>&1; then
@@ -199,15 +233,11 @@ main() {
         exit 1
     fi
 
-    # Second check after package install to resolve best python binary (>= 3.10)
-    if command -v python3 >/dev/null 2>&1 && python3 -c 'import sys; exit(0) if sys.version_info >= (3,10) else exit(1)' 2>/dev/null; then
-        PYTHON_CMD="python3"
-    elif command -v python3.11 >/dev/null 2>&1; then
-        PYTHON_CMD="python3.11"
-    elif command -v python3.12 >/dev/null 2>&1; then
-        PYTHON_CMD="python3.12"
-    else
-        echo -e "\e[31m[ERROR] Python version must be >= 3.10. Installed version is $($PYTHON_CMD --version 2>/dev/null || echo 'unknown').\e[0m"
+    # Resolve best python binary (>= 3.10) dynamically without hardcoding versions
+    PYTHON_CMD=$(find_best_python || true)
+    if [ -z "$PYTHON_CMD" ]; then
+        DETECTED_VER=$( (command -v python3 >/dev/null 2>&1 && python3 --version 2>&1) || echo "none" )
+        echo -e "\e[31m[ERROR] Python version must be >= 3.10. Detected version: ${DETECTED_VER}.\e[0m"
         exit 1
     fi
 
@@ -222,8 +252,8 @@ main() {
 
     echo "[Info] Fetching latest version from GitHub..."
     curl -fsSL --max-time 30 "$API_URL" > "$TMP_DIR/release.json" || { echo -e "\e[31m[ERROR] Could not fetch release info\e[0m"; exit 1; }
-    TAR_URL=$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("tarball_url", ""))' < "$TMP_DIR/release.json")
-    RELEASE_TAG=$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("tag_name", "unknown"))' < "$TMP_DIR/release.json")
+    TAR_URL=$("$PYTHON_CMD" -c 'import json,sys; print(json.load(sys.stdin).get("tarball_url", ""))' < "$TMP_DIR/release.json")
+    RELEASE_TAG=$("$PYTHON_CMD" -c 'import json,sys; print(json.load(sys.stdin).get("tag_name", "unknown"))' < "$TMP_DIR/release.json")
 
     if [ -z "$TAR_URL" ]; then
         echo -e "\e[31m[ERROR] Download URL is empty.\e[0m"

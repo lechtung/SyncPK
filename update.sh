@@ -142,8 +142,12 @@ if [ "${1:-}" != "--exec-new" ]; then
     echo "[Info] Fetching latest version from GitHub..."
     curl -fsSL --max-time 30 "$API_URL" > "$TMP_DIR/api_resp.json" || { echo "[Error] Could not fetch release info"; exit 1; }
 
-    # Prefer system python3 for release parsing in case venv is damaged
-    SYS_PYTHON=$(command -v python3 2>/dev/null || echo "$PYTHON_BIN")
+    # Prefer venv python binary, fallback to system python
+    if [ -x "$PYTHON_BIN" ]; then
+        SYS_PYTHON="$PYTHON_BIN"
+    else
+        SYS_PYTHON=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || echo "python3")
+    fi
     TAR_URL=$("$SYS_PYTHON" -c 'import json,sys; print(json.load(sys.stdin).get("tarball_url", ""))' < "$TMP_DIR/api_resp.json")
     RELEASE_TAG=$("$SYS_PYTHON" -c 'import json,sys; print(json.load(sys.stdin).get("tag_name", "unknown"))' < "$TMP_DIR/api_resp.json")
 
