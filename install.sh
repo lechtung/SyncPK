@@ -429,6 +429,7 @@ main() {
 
                 echo ""
                 echo -e "\e[1;33m${APP_TITLE}\e[0m"
+                echo ""
                 echo -e "  \e[33m🌐  Provided by:\e[0m \e[32mSyncPK\e[0m \e[33m| GitHub:\e[0m \e[32mhttps://github.com/lechtung/SyncPK\e[0m"
                 echo ""
                 echo -e "  \e[33m🖥️  OS:\e[0m \e[32m${OS_STR}\e[0m"
