@@ -253,14 +253,14 @@ PVE_VER=$(pveversion 2>/dev/null | cut -d/ -f2 | awk '{print $1}' || echo "PVE")
 KERNEL=$(uname -r 2>/dev/null || echo "unknown")
 
 echo -e " \e[36m⚙️  Using Configuration on node \e[1;32m${NODE}\e[0m"
-echo -e " \e[36m💡 PVE Version \e[1;32m${PVE_VER}\e[0m \e[36m(Kernel: \e[1;32m${KERNEL}\e[0m\e[36m)\e[0m"
-echo -e " \e[36m🆔 Container ID: \e[1;32m${CTID}\e[0m"
-echo -e " \e[36m📦 Operating System: \e[4;32m${DISTRO_NAME}\e[0m"
+echo -e " \e[36m💡  PVE Version \e[1;32m${PVE_VER}\e[0m \e[36m(Kernel: \e[1;32m${KERNEL}\e[0m\e[36m)\e[0m"
+echo -e " \e[36m🆔  Container ID: \e[1;32m${CTID}\e[0m"
+echo -e " \e[36m📦  Operating System: \e[4;32m${DISTRO_NAME}\e[0m"
 echo -e " \e[36m🖥️  Container Type: \e[4;32mUnprivileged\e[0m"
-echo -e " \e[36m💾 Disk Size: \e[1;32m8 GB\e[0m"
-echo -e " \e[36m🧠 CPU Cores: \e[1;32m1\e[0m"
+echo -e " \e[36m💾  Disk Size: \e[1;32m8 GB\e[0m"
+echo -e " \e[36m🧠  CPU Cores: \e[1;32m1\e[0m"
 echo -e " \e[36m🛠️  RAM Size: \e[1;32m1024 MiB\e[0m \e[36m(512 MiB operational)\e[0m"
-echo -e " \e[36m🚀 Creating SyncPK LXC using the above settings\e[0m"
+echo -e " \e[36m🚀  Creating SyncPK LXC using the above settings\e[0m"
 echo ""
 
 msg_ok "Storage '${TARGET_STORAGE}' validated"
@@ -313,36 +313,44 @@ if [ -z "$CT_IP" ]; then
 fi
 msg_ok "Network connection established (IP: ${CT_IP:-unknown})"
 
-msg_ok "Launching automated system installer inside LXC"
-echo ""
-
+msg_info "Updating container packages..."
 pct exec $CTID -- bash -c "
 set -euo pipefail
 if command -v apt-get >/dev/null 2>&1; then
     export DEBIAN_FRONTEND=noninteractive
-    apt-get update && apt-get install -y curl ca-certificates
+    apt-get update &>/dev/null && apt-get install -y curl ca-certificates &>/dev/null
 elif command -v pacman >/dev/null 2>&1; then
     if ! command -v curl >/dev/null 2>&1; then
         if [ ! -d /etc/pacman.d/gnupg ]; then
-            pacman-key --init
-            pacman-key --populate archlinux 2>/dev/null || true
+            pacman-key --init &>/dev/null
+            pacman-key --populate archlinux &>/dev/null || true
         fi
         if [ -f /etc/pacman.conf ]; then
             sed -i 's/^#DisableSandbox/DisableSandbox/' /etc/pacman.conf 2>/dev/null || true
-            grep -q "^DisableSandbox" /etc/pacman.conf || sed -i '/\[options\]/a DisableSandbox' /etc/pacman.conf 2>/dev/null || true
+            grep -q '^DisableSandbox' /etc/pacman.conf || sed -i '/\[options\]/a DisableSandbox' /etc/pacman.conf 2>/dev/null || true
         fi
-        pacman -Syu --noconfirm --needed curl ca-certificates
+        pacman -Syu --noconfirm --needed curl ca-certificates &>/dev/null
     fi
 elif command -v dnf >/dev/null 2>&1; then
-    dnf install -y curl ca-certificates
+    dnf install -y curl ca-certificates &>/dev/null
 fi
+" || error "Failed to prepare container dependencies."
+msg_ok "Container packages updated"
+
+msg_info "Installing SyncPK and dependencies..."
+pct exec $CTID -- bash -c "
+set -euo pipefail
+export SYNCPK_PROXMOX=1
 curl -fsSL https://github.com/$GITHUB_USER/$GITHUB_REPO/releases/latest/download/install.sh > install.sh
-bash install.sh
+bash install.sh > /var/log/syncpk-install.log 2>&1
 rm -f install.sh
-" || error "install.sh failed inside LXC."
+" || {
+    pct exec $CTID -- tail -n 25 /var/log/syncpk-install.log 2>/dev/null || true
+    error "install.sh failed inside LXC. Check /var/log/syncpk-install.log inside container."
+}
+msg_ok "SyncPK successfully installed"
 
 pct set $CTID -memory 512 &>/dev/null || true
-echo ""
 msg_ok "Optimized container memory to 512 MiB"
 
 # Refresh CT_IP if not already known

@@ -444,23 +444,25 @@ EOF
         } 2>/dev/null || true
     fi
 
-    echo ""
-    echo -e " \e[1;32m✔ Installation Completed Successfully!\e[0m"
-    echo ""
-    echo -e " \e[36m🚀 SyncPK is ready! Access the Web Dashboard at:\e[0m"
-    echo -e "   \e[1;32mhttp://${LOCAL_IP}:${PORT}\e[0m"
+    if [ "${SYNCPK_PROXMOX:-0}" != "1" ]; then
+        echo ""
+        echo -e " \e[1;32m✔ Installation Completed Successfully!\e[0m"
+        echo ""
+        echo -e " \e[36m🚀 SyncPK is ready! Access the Web Dashboard at:\e[0m"
+        echo -e "   \e[1;32mhttp://${LOCAL_IP}:${PORT}\e[0m"
 
-    # Firewall friendly notices (capture in variable to prevent SIGPIPE under pipefail)
-    UFW_STATUS=$(ufw status 2>/dev/null || true)
-    FW_STATE=$(firewall-cmd --state 2>/dev/null || true)
-    if command -v ufw >/dev/null 2>&1 && echo "$UFW_STATUS" | grep -qw "active"; then
+        # Firewall friendly notices (capture in variable to prevent SIGPIPE under pipefail)
+        UFW_STATUS=$(ufw status 2>/dev/null || true)
+        FW_STATE=$(firewall-cmd --state 2>/dev/null || true)
+        if command -v ufw >/dev/null 2>&1 && echo "$UFW_STATUS" | grep -qw "active"; then
+            echo ""
+            echo -e "   \e[33m💡 Note: UFW firewall is active. If needed, allow port ${PORT}: sudo ufw allow ${PORT}/tcp\e[0m"
+        elif command -v firewall-cmd >/dev/null 2>&1 && echo "$FW_STATE" | grep -qw "running"; then
+            echo ""
+            echo -e "   \e[33m💡 Note: firewalld is active. Allow port ${PORT}: sudo firewall-cmd --add-port=${PORT}/tcp --permanent && sudo firewall-cmd --reload\e[0m"
+        fi
         echo ""
-        echo -e "   \e[33m💡 Note: UFW firewall is active. If needed, allow port ${PORT}: sudo ufw allow ${PORT}/tcp\e[0m"
-    elif command -v firewall-cmd >/dev/null 2>&1 && echo "$FW_STATE" | grep -qw "running"; then
-        echo ""
-        echo -e "   \e[33m💡 Note: firewalld is active. Allow port ${PORT}: sudo firewall-cmd --add-port=${PORT}/tcp --permanent && sudo firewall-cmd --reload\e[0m"
     fi
-    echo ""
 }
 
 main "$@"
