@@ -117,8 +117,8 @@
                     <div id="add-manual-menu-btn"
                         style="cursor: pointer; flex: 1; background: var(--panel-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; display: flex; justify-content: center; align-items: center; padding: 12px; transition: background 0.2s;">
                         <i class="fas fa-plus" style="font-size: 1.2rem; color: var(--text-primary);"></i>
-                        <span style="margin-left: 8px; font-size: 0.9rem;" data-i18n="fab_add_manual">Añadir
-                            manual</span>
+                        <span style="margin-left: 8px; font-size: 0.9rem;" data-i18n="fab_add_manual">Add
+                            Manual</span>
                     </div>
                     <div id="settings-menu-btn"
                         style="cursor: pointer; flex: 1; background: var(--panel-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; display: flex; justify-content: center; align-items: center; padding: 12px; transition: background 0.2s;">
@@ -213,8 +213,8 @@
             </h3>
             <input type="datetime-local" id="edit-date-input" style="margin-bottom: 24px;">
             <!-- Custom scope dropdown -->
-            <label style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;"
-                data-i18n="edit_scope_title">Alcance</label>
+            <label id="editScope-title" class="hidden" style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;"
+                data-i18n="edit_scope_title">Scope</label>
             <div class="c-dropdown hidden" id="editScope-dd" style="margin-bottom: 24px;">
                 <div class="c-dropdown-trigger" id="editScope-trigger">
                     <div class="c-dropdown-bottom">
@@ -361,7 +361,7 @@
             </p>
             <div class="modal-separator"></div>
             <div class="modal-buttons" style="justify-content: center;">
-                <button id="generic-confirm-yes" data-i18n="btn_yes">Sí</button>
+                <button id="generic-confirm-yes" data-i18n="btn_yes">Yes</button>
                 <button id="generic-confirm-no" data-i18n="btn_no">No</button>
             </div>
         </div>
@@ -374,7 +374,7 @@
             <p id="confirm-message" style="margin-bottom:24px; color:#fff; font-size:1rem;" data-i18n="confirm_delete">
                 Delete this item from history?</p>
             <label id="deleteScope-title" style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem;"
-                data-i18n="edit_scope_title" class="field-label">Alcance</label>
+                data-i18n="edit_scope_title" class="field-label">Scope</label>
             <div class="c-dropdown hidden" id="deleteScope-dd" style="margin-bottom: 24px;">
                 <div class="c-dropdown-trigger" id="deleteScope-trigger">
                     <div class="c-dropdown-bottom">
@@ -780,12 +780,12 @@
                     <div class="input-group"
                         style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.1);">
                         <label style="margin-bottom: 12px; color: #aaa; font-size: 0.85rem; display:block;"
-                            data-i18n="config_cache_title">Caché de Imágenes:</label>
+                            data-i18n="config_cache_title">Image Cache:</label>
                         <button type="button" class="btn"
                             style="background: var(--danger); color: white; width: 100%; justify-content: center;"
                             id="btn-clean-cache">
                             <i class="fas fa-trash-alt" style="margin-right:8px;"></i> <span
-                                data-i18n="btn_clean_cache">Limpiar Imágenes No Usadas</span>
+                                data-i18n="btn_clean_cache">Clean Unused Images</span>
                         </button>
                     </div>
 

@@ -249,11 +249,11 @@ async function loadTranslations() {
     }
     activeLang = lang;
     try {
-        let res = await fetch(`locales/${lang}.json`);
+        let res = await fetch(`locales/${lang}.json?v=${Date.now()}`);
         if (!res.ok) throw new Error("Not found");
         currentLangData = await res.json();
     } catch (e) {
-        let res = await fetch(`locales/en.json`);
+        let res = await fetch(`locales/en.json?v=${Date.now()}`);
         currentLangData = await res.json();
     }
 
@@ -947,6 +947,7 @@ window.openEditModal = function (id, dateStr, mediaType) {
     // Show scope selector only for episodes
     let scopeSelect = document.getElementById('editScope-dd');
     let scopeValEl = document.getElementById('editScope-val');
+    let scopeTitle = document.getElementById('editScope-title');
 
     // Reset selection to default (episode)
     scopeSelect.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected'));
@@ -955,10 +956,12 @@ window.openEditModal = function (id, dateStr, mediaType) {
 
     if (mediaType === 'episode') {
         scopeSelect.classList.remove('hidden');
+        if (scopeTitle) scopeTitle.classList.remove('hidden');
         scopeSelect.dataset.currentValue = 'episode';
         if (currentLangData.edit_scope_episode) scopeValEl.textContent = currentLangData.edit_scope_episode;
     } else {
         scopeSelect.classList.add('hidden');
+        if (scopeTitle) scopeTitle.classList.add('hidden');
         scopeSelect.dataset.currentValue = 'episode';
     }
 
