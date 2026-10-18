@@ -38,14 +38,14 @@ main() {
     # Extract effective listening port from systemd unit and drop-in overrides
     get_port() {
         local p
-        p=$(systemctl cat syncpk-server 2>/dev/null | grep -oP -- '--port[=\s]+\K[0-9]+' | tail -n1)
+        p=$(systemctl cat syncpk-server 2>/dev/null | grep -E '^\s*ExecStart=' | grep -oP -- '--port[=\s]+\K[0-9]+' | tail -n1)
         echo "${p:-8000}"
     }
 
     # Extract effective listening host for healthcheck (fallback to 127.0.0.1 for 0.0.0.0 or default)
     get_host() {
         local h
-        h=$(systemctl cat syncpk-server 2>/dev/null | grep -oP -- '--host[=\s]+\K[^\s]+' | tail -n1)
+        h=$(systemctl cat syncpk-server 2>/dev/null | grep -E '^\s*ExecStart=' | grep -oP -- '--host[=\s]+\K[^\s]+' | tail -n1)
         h=$(echo "$h" | tr -d '"'\'' ')
         if [ -z "$h" ] || [ "$h" = "0.0.0.0" ] || [ "$h" = "::" ]; then
             echo "127.0.0.1"
@@ -60,7 +60,7 @@ main() {
         local port="$1"
         local in_use=0
         if command -v ss >/dev/null 2>&1; then
-            if ss -tuln 2>/dev/null | grep -qE "[: ]${port}\b"; then
+            if ss -tln 2>/dev/null | grep -qE "[: ]${port}\b"; then
                 in_use=1
             fi
         elif command -v lsof >/dev/null 2>&1; then
@@ -124,8 +124,6 @@ main() {
         echo "Baremetal installation requires systemd. For containers or WSL without systemd, please use Docker."
         exit 1
     fi
-
-    PYTHON_CMD=$(find_best_python || true)
 
     INSTALL_SUCCESS=0
     ROLLED_BACK=0
@@ -197,11 +195,13 @@ main() {
             exit 1
         }
     elif command -v dnf >/dev/null 2>&1; then
-        # On RHEL 9 / AlmaLinux 9 / Rocky 9, default python3 is 3.9. Install python3.11
+        # On RHEL 9 / AlmaLinux 9 / Rocky 9, default python3 is 3.9. Install python3.11.
+        # On EL 10+ and Fedora, default python3 is already >= 3.10 (3.12+).
         PY_PKG="python3"
         if [ -f /etc/os-release ]; then
             OS_ID=$(grep -E '^ID=' /etc/os-release | cut -d= -f2 | tr -d '"'\'' ')
-            if [[ "$OS_ID" =~ ^(almalinux|rocky|rhel|centos)$ ]]; then
+            OS_VER=$(grep -E '^VERSION_ID=' /etc/os-release | cut -d= -f2 | tr -d '"'\'' ' | cut -d. -f1)
+            if [[ "$OS_ID" =~ ^(almalinux|rocky|rhel|centos)$ ]] && [ "$OS_VER" = "9" ]; then
                 PY_PKG="python3.11"
             fi
         fi
@@ -223,11 +223,11 @@ main() {
             pacman-key --init > /var/log/syncpk-install.log 2>&1 || true
             pacman-key --populate archlinux >> /var/log/syncpk-install.log 2>&1 || true
         fi
-        if [ -f /etc/pacman.conf ]; then
-            sed -i 's/^#DisableSandbox/DisableSandbox/' /etc/pacman.conf 2>/dev/null || true
-            grep -q "^DisableSandbox" /etc/pacman.conf || sed -i '/\[options\]/a DisableSandbox' /etc/pacman.conf 2>/dev/null || true
+        PACMAN_CMD="pacman -S --needed --noconfirm"
+        if [ "${SYNCPK_PROXMOX:-0}" = "1" ] || systemd-detect-virt --container 2>/dev/null | grep -qi "lxc" || [ -f /run/systemd/container ]; then
+            PACMAN_CMD="pacman -Syu --needed --noconfirm"
         fi
-        pacman -Syu --needed --noconfirm curl python ca-certificates tar > /var/log/syncpk-install.log 2>&1 || {
+        $PACMAN_CMD curl python ca-certificates tar > /var/log/syncpk-install.log 2>&1 || {
             tail -n 20 /var/log/syncpk-install.log
             echo -e "\e[31m[ERROR] pacman install failed. If repositories are out of date, run 'pacman -Syu' and retry.\e[0m"
             exit 1
@@ -392,8 +392,13 @@ main() {
 
     INSTALL_SUCCESS=1
 
-    # Setup Welcome Message (MOTD) for interactive logins
-    if [ -d "/etc/profile.d" ]; then
+    # Setup Welcome Message (MOTD) for interactive logins in container environments
+    IS_CONTAINER=0
+    if systemd-detect-virt --container 2>/dev/null | grep -qi "lxc" || [ -f /run/systemd/container ] || [ "${SYNCPK_PROXMOX:-0}" = "1" ]; then
+        IS_CONTAINER=1
+    fi
+
+    if [ "$IS_CONTAINER" -eq 1 ] && [ -d "/etc/profile.d" ]; then
         {
             cat << 'EOF' | sed 's/^[ ]\{12\}//' > /etc/profile.d/syncpk-motd.sh
             case $- in *i*) ;; *) return ;; esac
@@ -405,26 +410,28 @@ main() {
                     APP_TITLE="SyncPK Server"
                 fi
 
-                if [ -f /etc/os-release ]; then
-                    # shellcheck disable=SC1091
-                    . /etc/os-release
-                    if [ -n "${NAME:-}" ] && [ -n "${VERSION_ID:-}" ]; then
-                        OS_STR="${NAME} - Version: ${VERSION_ID}"
-                    elif [ -n "${PRETTY_NAME:-}" ]; then
-                        OS_STR="${PRETTY_NAME}"
+                OS_STR=$(
+                    if [ -f /etc/os-release ]; then
+                        # shellcheck disable=SC1091
+                        . /etc/os-release
+                        if [ -n "${NAME:-}" ] && [ -n "${VERSION_ID:-}" ]; then
+                            echo "${NAME} - Version: ${VERSION_ID}"
+                        elif [ -n "${PRETTY_NAME:-}" ]; then
+                            echo "${PRETTY_NAME}"
+                        else
+                            echo "Linux"
+                        fi
                     else
-                        OS_STR="Linux"
+                        echo "Linux"
                     fi
-                else
-                    OS_STR="Linux"
-                fi
+                )
 
                 HOST_NAME=$(hostname 2>/dev/null || echo "syncpk")
                 LOCAL_IP=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1); exit}')
                 if [ -z "$LOCAL_IP" ]; then LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}'); fi
                 if [ -z "$LOCAL_IP" ]; then LOCAL_IP="127.0.0.1"; fi
 
-                PORT=$(systemctl cat syncpk-server 2>/dev/null | grep -oP -- '--port[=\s]+\K[0-9]+' | tail -n1)
+                PORT=$(systemctl cat syncpk-server 2>/dev/null | grep -E '^\s*ExecStart=' | grep -oP -- '--port[=\s]+\K[0-9]+' | tail -n1)
                 PORT=${PORT:-8000}
 
                 echo ""
@@ -458,7 +465,7 @@ EOF
         if command -v ufw >/dev/null 2>&1 && echo "$UFW_STATUS" | grep -qw "active"; then
             echo ""
             echo -e "   \e[33m💡 Note: UFW firewall is active. If needed, allow port ${PORT}: sudo ufw allow ${PORT}/tcp\e[0m"
-        elif command -v firewall-cmd >/dev/null 2>&1 && echo "$FW_STATE" | grep -qw "running"; then
+        elif command -v firewall-cmd >/dev/null 2>&1 && [ "$FW_STATE" = "running" ]; then
             echo ""
             echo -e "   \e[33m💡 Note: firewalld is active. Allow port ${PORT}: sudo firewall-cmd --add-port=${PORT}/tcp --permanent && sudo firewall-cmd --reload\e[0m"
         fi

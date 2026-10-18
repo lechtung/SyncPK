@@ -10,14 +10,18 @@ if [ "$(id -u)" = "0" ]; then
     DETECTED_UID=$(stat -c '%u' /app/data 2>/dev/null || echo 1000)
     DETECTED_GID=$(stat -c '%g' /app/data 2>/dev/null || echo 1000)
     
-    # Avoid running service as root (UID 0) if no PUID was set
+    # Avoid running service as root (UID 0 or GID 0) if no custom IDs were set
     if [ "$DETECTED_UID" = "0" ]; then
         DETECTED_UID=1000
+    fi
+    if [ "$DETECTED_GID" = "0" ]; then
         DETECTED_GID=1000
     fi
 
     TARGET_UID="${PUID:-$DETECTED_UID}"
     TARGET_GID="${PGID:-$DETECTED_GID}"
+    if [ -z "$PUID" ] && [ "$TARGET_UID" = "0" ]; then TARGET_UID=1000; fi
+    if [ -z "$PGID" ] && [ "$TARGET_GID" = "0" ]; then TARGET_GID=1000; fi
 
     # Ensure cache directories exist before adjusting permissions
     mkdir -p /app/data/cache/posters /app/data/cache/fanarts 2>/dev/null || true

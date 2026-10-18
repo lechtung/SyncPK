@@ -27,6 +27,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy all application files to workdir
 COPY server/ ./
+COPY LICENSE .
 
 # We do not copy update.sh or check_update.sh because they are useless in Docker.
 

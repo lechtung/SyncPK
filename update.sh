@@ -29,14 +29,14 @@ install -d -m 700 -o root -g root "$BACKUP_DIR"
 # Extract effective listening port from systemd unit and drop-in overrides
 get_port() {
     local p
-    p=$(systemctl cat syncpk-server 2>/dev/null | grep -oP -- '--port[=\s]+\K[0-9]+' | tail -n1)
+    p=$(systemctl cat syncpk-server 2>/dev/null | grep -E '^\s*ExecStart=' | grep -oP -- '--port[=\s]+\K[0-9]+' | tail -n1)
     echo "${p:-8000}"
 }
 
 # Extract effective listening host for healthcheck (fallback to 127.0.0.1 for 0.0.0.0 or default)
 get_host() {
     local h
-    h=$(systemctl cat syncpk-server 2>/dev/null | grep -oP -- '--host[=\s]+\K[^\s]+' | tail -n1)
+    h=$(systemctl cat syncpk-server 2>/dev/null | grep -E '^\s*ExecStart=' | grep -oP -- '--host[=\s]+\K[^\s]+' | tail -n1)
     h=$(echo "$h" | tr -d '"'\'' ')
     if [ -z "$h" ] || [ "$h" = "0.0.0.0" ] || [ "$h" = "::" ]; then
         echo "127.0.0.1"
@@ -106,7 +106,11 @@ cleanup() {
                 mkdir -p "$RESTORE_TMP"
                 if tar -xzf "$CURRENT_BACKUP_FILE" -C "$RESTORE_TMP" 2>/dev/null; then
                     find "$DATA_DIR" -mindepth 1 -maxdepth 1 ! -name 'cache' ! -name '.restore_tmp' -exec rm -rf {} +
-                    cp -a "$RESTORE_TMP/." "$DATA_DIR/"
+                    if ! cp -a "$RESTORE_TMP/." "$DATA_DIR/"; then
+                        echo "[CRITICAL] Data restoration copy failed. Do NOT start service to avoid empty database. Backup preserved at $CURRENT_BACKUP_FILE"
+                        rm -rf "$RESTORE_TMP"
+                        exit 1
+                    fi
                 else
                     echo "[Warning] Staged data extraction failed. Retaining existing data."
                 fi

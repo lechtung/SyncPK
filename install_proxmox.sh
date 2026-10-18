@@ -195,11 +195,11 @@ DOWNLOADED_TEMPLATES=$(pvesm list $TEMPLATE_STORAGE --content vztmpl | awk 'NR>1
 PVEAM_SYSTEM=$(pveam available 2>/dev/null | awk '$1=="system" {print $2}')
 AVAILABLE_TEMPLATES=()
 for tpl in \
-    $(echo "$PVEAM_SYSTEM" | grep -E '^debian-(1[2-9]|[2-9][0-9])-standard' | sort -V | tail -n 1) \
-    $(echo "$PVEAM_SYSTEM" | grep -E '^ubuntu-(2[2468]\.04)-standard' | sort -V | tail -n 1) \
+    $(echo "$PVEAM_SYSTEM" | grep -E '^debian-(1[2-9]|[2-9][0-9])-standard' | sort -V) \
+    $(echo "$PVEAM_SYSTEM" | grep -E '^ubuntu-(2[2468]\.04)-standard' | sort -V) \
     $(echo "$PVEAM_SYSTEM" | grep -E '^fedora-(3[8-9]|[4-9][0-9])-default' | sort -V | tail -n 1) \
-    $(echo "$PVEAM_SYSTEM" | grep -E '^almalinux-([9-9]|[1-9][0-9])-default' | sort -V | tail -n 1) \
-    $(echo "$PVEAM_SYSTEM" | grep -E '^rockylinux-([9-9]|[1-9][0-9])-default' | sort -V | tail -n 1) \
+    $(echo "$PVEAM_SYSTEM" | grep -E '^almalinux-([9-9]|[1-9][0-9])-default' | sort -V) \
+    $(echo "$PVEAM_SYSTEM" | grep -E '^rockylinux-([9-9]|[1-9][0-9])-default' | sort -V) \
     $(echo "$PVEAM_SYSTEM" | grep -E '^archlinux-base' | sort -V | tail -n 1); do
     [ -n "$tpl" ] && AVAILABLE_TEMPLATES+=("$tpl")
 done
@@ -290,7 +290,13 @@ msg_ok "Storage '${TARGET_STORAGE}' validated"
 
 if ! pvesm list "$TEMPLATE_STORAGE" --content vztmpl | grep -q "$LATEST_TEMPLATE_FILE"; then
     msg_info "Downloading template (${LATEST_TEMPLATE_FILE})..."
-    pveam download "$TEMPLATE_STORAGE" "$LATEST_TEMPLATE_FILE" &>/dev/null || error "Failed to download the template."
+    HOST_LOG=$(mktemp)
+    if ! pveam download "$TEMPLATE_STORAGE" "$LATEST_TEMPLATE_FILE" > "$HOST_LOG" 2>&1; then
+        tail -n 15 "$HOST_LOG"
+        rm -f "$HOST_LOG"
+        error "Failed to download the template."
+    fi
+    rm -f "$HOST_LOG"
     msg_ok "Template downloaded (${LATEST_TEMPLATE_FILE})"
 else
     msg_ok "Template ready (${LATEST_TEMPLATE_FILE})"
@@ -307,14 +313,32 @@ else
 fi
 
 # Create container with temporary memory if needed to prevent OOM killer during pip builds
-pct create $CTID "$LATEST_TEMPLATE" -storage "$TARGET_STORAGE" -rootfs "$TARGET_STORAGE:8" -arch "$CT_ARCH" -hostname syncpk -cores 1 -memory "$BUILD_RAM" -net0 name=eth0,bridge="$BRIDGE",$NET_CONFIG -unprivileged 1 -features nesting=1 -timezone host -onboot 1 &>/dev/null || error "Failed to create LXC container (pct create failed)."
+HOST_LOG=$(mktemp)
+if ! pct create $CTID "$LATEST_TEMPLATE" -storage "$TARGET_STORAGE" -rootfs "$TARGET_STORAGE:8" -arch "$CT_ARCH" -hostname syncpk -cores 1 -memory "$BUILD_RAM" -net0 name=eth0,bridge="$BRIDGE",$NET_CONFIG -unprivileged 1 -features nesting=1 -timezone host -onboot 1 > "$HOST_LOG" 2>&1; then
+    tail -n 15 "$HOST_LOG"
+    rm -f "$HOST_LOG"
+    error "Failed to create LXC container (pct create failed)."
+fi
+rm -f "$HOST_LOG"
 CT_CREATED=1
 msg_ok "Created LXC container ${CTID} (${CT_ARCH})"
 
-pct start $CTID &>/dev/null || error "Failed to start container $CTID."
+HOST_LOG=$(mktemp)
+if ! pct start $CTID > "$HOST_LOG" 2>&1; then
+    tail -n 15 "$HOST_LOG"
+    rm -f "$HOST_LOG"
+    error "Failed to start container $CTID."
+fi
+rm -f "$HOST_LOG"
 msg_ok "Container ${CTID} started"
 
-printf '%s\n' "root:$ROOT_PASSWORD" | pct exec $CTID -- chpasswd &>/dev/null || error "Failed to set container root password."
+HOST_LOG=$(mktemp)
+if ! printf '%s\n' "root:$ROOT_PASSWORD" | pct exec $CTID -- chpasswd > "$HOST_LOG" 2>&1; then
+    tail -n 15 "$HOST_LOG"
+    rm -f "$HOST_LOG"
+    error "Failed to set container root password."
+fi
+rm -f "$HOST_LOG"
 msg_ok "Root password configured"
 
 NET_OK=0
@@ -365,11 +389,11 @@ pct exec $CTID -- bash -c "
 set -euo pipefail
 export SYNCPK_PROXMOX=1
 curl -fsSL https://github.com/$GITHUB_USER/$GITHUB_REPO/releases/latest/download/install.sh > install.sh
-bash install.sh > /var/log/syncpk-install.log 2>&1
+bash install.sh > /var/log/syncpk-lxc-install.log 2>&1
 rm -f install.sh
 " || {
-    pct exec $CTID -- tail -n 25 /var/log/syncpk-install.log 2>/dev/null || true
-    error "install.sh failed inside LXC. Check /var/log/syncpk-install.log inside container."
+    pct exec $CTID -- tail -n 25 /var/log/syncpk-lxc-install.log 2>/dev/null || true
+    error "install.sh failed inside LXC. Check /var/log/syncpk-lxc-install.log inside container."
 }
 msg_ok "SyncPK successfully installed"
 

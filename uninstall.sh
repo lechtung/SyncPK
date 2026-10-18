@@ -76,7 +76,7 @@ systemctl daemon-reload
 
 echo "[Info] Deleting application code and temporary directories..."
 rm -rf /opt/syncpk /opt/syncpk.prev /opt/syncpk.prev.tmp /opt/syncpk.old
-rm -f /var/log/syncpk-install.log
+rm -f /var/log/syncpk-install.log /var/log/syncpk-lxc-install.log
 
 if [ "$PURGE" -eq 1 ]; then
     echo "[Info] Purging all data and backups..."

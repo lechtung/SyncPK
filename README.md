@@ -138,9 +138,12 @@ For the standard self-hosted stack, SyncPK can be deployed seamlessly using Dock
      ```
    - The Web Setup Wizard and Dashboard will be available at `http://<YOUR_SERVER_IP>:8000` (unless you modified the host port mapping in `docker-compose.yml`).
 
-> 💡 **Proxmox LXC Note:** If you choose to run Docker inside an **unprivileged LXC container** on Proxmox, AppArmor may block the Docker container runtime (`runc: open sysctl net.ipv4.ip_unprivileged_port_start: permission denied`). To resolve this, run this directly in your **Proxmox Host Shell** (replace `<CTID>` with your container ID):
+> ⚠️ **Proxmox Note (Option A Recommended):** On Proxmox, we strongly recommend using the **Native LXC installer (Option A)** instead of nested Docker. If you specifically need Docker inside an **unprivileged LXC container**, AppArmor may block the container runtime (`runc: open sysctl net.ipv4.ip_unprivileged_port_start: permission denied`).
+> 
+> *Security notice:* Disabling AppArmor (`unconfined`) reduces container isolation. For full isolation with Docker, consider using a standard VM instead. If you proceed with LXC:
+> - The configuration line must be placed in the header of `/etc/pve/lxc/<CTID>.conf` before any `[snapshot]` blocks (using `>>` on a container with snapshots would append inside the snapshot section and be ignored):
 > ```bash
-> echo "lxc.apparmor.profile: unconfined" >> /etc/pve/lxc/<CTID>.conf && pct reboot <CTID>
+> sed -i '1i lxc.apparmor.profile: unconfined' /etc/pve/lxc/<CTID>.conf && pct reboot <CTID>
 > ```
 
 #### 🪟 Windows Users (Docker Desktop / Podman)
@@ -257,6 +260,19 @@ Once the server is running, you need to install the Kodi addon on your media pla
 - **UI Auto-Update**: If you enabled auto-updates in the Web Setup (Baremetal/LXC), the server updates itself automatically via systemd timer.
 - **Manual Baremetal Update**: If auto-update is disabled, run `sudo /opt/syncpk/update.sh`.
 - **Docker Updates**: Run `docker compose pull && docker compose up -d`.
+- **Rollback Application Code**: During an update, SyncPK preserves the previous working application release in `/opt/syncpk.prev`. If an update causes an unexpected issue, you can immediately revert to the previous code version:
+  ```bash
+  sudo systemctl stop syncpk-server
+  sudo rm -rf /opt/syncpk && sudo mv /opt/syncpk.prev /opt/syncpk
+  sudo install -m 644 /opt/syncpk/systemd/* /etc/systemd/system/ && sudo systemctl daemon-reload
+  sudo systemctl start syncpk-server
+  ```
+  *(Note: In Proxmox LXC or when running directly as root, omit 'sudo' as commands already run with root privileges)*.
+
+  > 💡 **Important Rollback Notes:**
+  > - `/opt/syncpk.prev` is temporary and gets overwritten during the next update execution.
+  > - If the update introduced database schema migrations, you must also restore the database backup created before the update from `/var/backups/syncpk/` (see Restore section below).
+  > - If automatic updates are enabled, temporarily disable them or configure the version in dashboard settings to prevent the scheduled updater from immediately upgrading again.
 - **View Logs**: To troubleshoot, run `journalctl -u syncpk-server -f` (Baremetal/LXC) or `docker compose logs -f` (Docker).
 - **Custom Port/Host (Baremetal)**: To change the listening port or IP, create a systemd drop-in override:
   ```bash

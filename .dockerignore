@@ -36,3 +36,8 @@ server/systemd/
 
 # Plans and docs
 *.md
+
+# Non-server directories (reduce build context size)
+screenshots/
+kodi_addon/
+tools/
