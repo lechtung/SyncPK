@@ -225,6 +225,10 @@ main() {
         fi
         PACMAN_CMD="pacman -S --needed --noconfirm"
         if [ "${SYNCPK_PROXMOX:-0}" = "1" ] || systemd-detect-virt --container 2>/dev/null | grep -qi "lxc" || [ -f /run/systemd/container ]; then
+            if [ -f /etc/pacman.conf ]; then
+                sed -i 's/^#DisableSandbox/DisableSandbox/' /etc/pacman.conf 2>/dev/null || true
+                grep -q "^DisableSandbox" /etc/pacman.conf || sed -i '/\[options\]/a DisableSandbox' /etc/pacman.conf 2>/dev/null || true
+            fi
             PACMAN_CMD="pacman -Syu --needed --noconfirm"
         fi
         $PACMAN_CMD curl python ca-certificates tar > /var/log/syncpk-install.log 2>&1 || {
