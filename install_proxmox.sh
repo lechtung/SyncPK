@@ -6,19 +6,45 @@ GITHUB_REPO="SyncPK"
 CTID=""
 CT_CREATED=0
 
-    msg_ok() {
-        echo -e " \e[35m✔\e[0m \e[32m$1\e[0m"
+    SPINNER_PID=""
+
+    stop_spinner() {
+        if [ -n "$SPINNER_PID" ] && kill -0 "$SPINNER_PID" 2>/dev/null; then
+            kill "$SPINNER_PID" 2>/dev/null
+            wait "$SPINNER_PID" 2>/dev/null || true
+            SPINNER_PID=""
+        fi
+        printf "\e[?25h" # restore cursor
     }
 
     msg_info() {
-        echo -e " \e[34mℹ\e[0m \e[36m$1\e[0m"
+        stop_spinner
+        local msg="$1"
+        printf "\e[?25l" # hide cursor
+        (
+            local chars=( ". " ": " ":." "::" ".:" " ." )
+            local i=0
+            while true; do
+                printf "\r \e[33m%s\e[0m \e[33m%s\e[0m" "${chars[i]}" "$msg"
+                i=$(( (i + 1) % ${#chars[@]} ))
+                sleep 0.15
+            done
+        ) &
+        SPINNER_PID=$!
+    }
+
+    msg_ok() {
+        stop_spinner
+        printf "\r\e[K \e[35m✔\e[0m \e[32m%s\e[0m\n" "$1"
     }
 
     msg_err() {
-        echo -e " \e[31m✖\e[0m \e[31m$1\e[0m"
+        stop_spinner
+        printf "\r\e[K \e[31m✖\e[0m \e[31m%s\e[0m\n" "$1"
     }
 
     cleanup_on_error() {
+        stop_spinner
         if [ "$CT_CREATED" -eq 1 ] && [ -n "$CTID" ] && pvesm status &>/dev/null; then
             echo -e "\n \e[31m✖\e[0m \e[1;31mInstallation failed.\e[0m"
             if whiptail --title "SyncPK - Installation Failed" --yesno "An error occurred during the installation.\n\nDo you want to destroy the incomplete LXC container ($CTID)?" 10 60; then
@@ -28,18 +54,21 @@ CT_CREATED=0
                 msg_ok "Container destroyed."
             else
                 msg_info "Container $CTID kept as-is."
+                stop_spinner
+                echo ""
             fi
         fi
         exit 1
     }
 
     error() {
+        stop_spinner
         echo ""
         msg_err "$1"
         cleanup_on_error
     }
 
-trap cleanup_on_error INT TERM
+trap 'stop_spinner; cleanup_on_error' INT TERM
 
 if [ "$EUID" -ne 0 ]; then
     echo -e "\e[31m[ERROR] This script must be run as root (administrator privileges).\e[0m"
@@ -313,6 +342,7 @@ else
 fi
 
 # Create container with temporary memory if needed to prevent OOM killer during pip builds
+msg_info "Creating LXC container ${CTID} (${CT_ARCH})..."
 HOST_LOG=$(mktemp)
 if ! pct create $CTID "$LATEST_TEMPLATE" -storage "$TARGET_STORAGE" -rootfs "$TARGET_STORAGE:8" -arch "$CT_ARCH" -hostname syncpk -cores 1 -memory "$BUILD_RAM" -net0 name=eth0,bridge="$BRIDGE",$NET_CONFIG -unprivileged 1 -features nesting=1 -timezone host -onboot 1 > "$HOST_LOG" 2>&1; then
     tail -n 15 "$HOST_LOG"
@@ -323,6 +353,7 @@ rm -f "$HOST_LOG"
 CT_CREATED=1
 msg_ok "Created LXC container ${CTID} (${CT_ARCH})"
 
+msg_info "Starting container ${CTID}..."
 HOST_LOG=$(mktemp)
 if ! pct start $CTID > "$HOST_LOG" 2>&1; then
     tail -n 15 "$HOST_LOG"
@@ -332,6 +363,7 @@ fi
 rm -f "$HOST_LOG"
 msg_ok "Container ${CTID} started"
 
+msg_info "Configuring root password..."
 HOST_LOG=$(mktemp)
 if ! printf '%s\n' "root:$ROOT_PASSWORD" | pct exec $CTID -- chpasswd > "$HOST_LOG" 2>&1; then
     tail -n 15 "$HOST_LOG"
@@ -341,6 +373,7 @@ fi
 rm -f "$HOST_LOG"
 msg_ok "Root password configured"
 
+msg_info "Waiting for network connection..."
 NET_OK=0
 for i in $(seq 1 30); do
     if pct exec $CTID -- getent hosts github.com >/dev/null 2>&1; then
@@ -398,6 +431,7 @@ rm -f install.sh
 msg_ok "SyncPK successfully installed"
 
 if [ "$DO_DOWNGRADE" -eq 1 ]; then
+    msg_info "Optimizing container memory to ${RAM_SIZE} MiB..."
     pct set $CTID -memory "$RAM_SIZE" &>/dev/null || true
     msg_ok "Optimized container memory to ${RAM_SIZE} MiB"
 fi
@@ -407,8 +441,9 @@ if [ -z "$CT_IP" ] || [ "$CT_IP" = "unknown" ]; then
     CT_IP=$(pct exec $CTID -- ip -4 addr show eth0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n 1 || echo "")
 fi
 
-echo ""
-echo -e " \e[1;32m✔ Completed Successfully!\e[0m"
+    stop_spinner
+    echo ""
+    echo -e " \e[1;32m✔ Completed Successfully!\e[0m"
 echo ""
 echo -e " \e[36m🚀  SyncPK is ready! Access the Web Dashboard at:\e[0m"
 echo -e "   \e[1;32mhttp://${CT_IP:-<container-ip>}:8000\e[0m"
