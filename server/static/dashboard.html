@@ -73,7 +73,7 @@
                         <div class="c-dropdown-bottom">
                             <span class="c-dropdown-value" id="dd-type-val" data-i18n="filter_type_all">All watch
                                 history</span>
-                            <span class="c-dropdown-arrow">▾</span>
+                            <span class="c-dropdown-arrow"><i class="fa-solid fa-chevron-down"></i></span>
                         </div>
                     </div>
                     <div class="c-dropdown-menu glass-panel">
@@ -90,7 +90,7 @@
                         <span class="c-dropdown-label" data-i18n="filter_label_year">Year</span>
                         <div class="c-dropdown-bottom">
                             <span class="c-dropdown-value" id="dd-year-val" data-i18n="filter_year_all">All</span>
-                            <span class="c-dropdown-arrow">▾</span>
+                            <span class="c-dropdown-arrow"><i class="fa-solid fa-chevron-down"></i></span>
                         </div>
                     </div>
                     <div class="c-dropdown-menu glass-panel" id="dd-year-menu">
@@ -104,7 +104,7 @@
                         <span class="c-dropdown-label" data-i18n="filter_label_month">Month</span>
                         <div class="c-dropdown-bottom">
                             <span class="c-dropdown-value" id="dd-month-val" data-i18n="filter_month_all">All</span>
-                            <span class="c-dropdown-arrow">▾</span>
+                            <span class="c-dropdown-arrow"><i class="fa-solid fa-chevron-down"></i></span>
                         </div>
                     </div>
                     <div class="c-dropdown-menu glass-panel" id="dd-month-menu">
@@ -220,7 +220,7 @@
                     <div class="c-dropdown-bottom">
                         <span class="c-dropdown-value" id="editScope-val" data-i18n="edit_scope_episode">Only this
                             episode</span>
-                        <span class="c-dropdown-arrow">▾</span>
+                        <span class="c-dropdown-arrow"><i class="fa-solid fa-chevron-down"></i></span>
                     </div>
                 </div>
                 <div class="c-dropdown-menu glass-panel" id="editScope-menu">
@@ -245,7 +245,7 @@
                         <div class="c-dropdown-bottom">
                             <span class="c-dropdown-value" id="editDistMode-val" data-i18n="dist_mode_same">Same
                                 date</span>
-                            <span class="c-dropdown-arrow">▾</span>
+                            <span class="c-dropdown-arrow"><i class="fa-solid fa-chevron-down"></i></span>
                         </div>
                     </div>
                     <div class="c-dropdown-menu glass-panel" id="editDistMode-menu">
@@ -319,6 +319,118 @@
         </div>
     </div>
 
+    <!-- REFRESH METADATA MODAL -->
+    <div id="refresh-modal" class="overlay hidden">
+        <div class="login-box glass-panel" style="max-width: 420px;">
+            <h3 data-i18n="refresh_modal_title" style="margin-top:0; margin-bottom:16px; text-align:center;">Refresh Metadata</h3>
+
+            <div id="refresh-item-preview" style="margin-bottom: 20px; text-align: center; font-size: 0.95rem; color: #fff; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
+
+            <!-- Custom scope dropdown -->
+            <label style="margin-bottom: 8px; color: #aaa; font-size: 0.85rem; display: block;" data-i18n="refresh_scope_label">Apply to:</label>
+            <div class="c-dropdown" id="refreshScope-dd" style="margin-bottom: 20px;">
+                <div class="c-dropdown-trigger" id="refreshScope-trigger">
+                    <div class="c-dropdown-bottom">
+                        <span class="c-dropdown-value" id="refreshScope-val" data-i18n="refresh_scope_item">This item</span>
+                        <span class="c-dropdown-arrow"><i class="fa-solid fa-chevron-down"></i></span>
+                    </div>
+                </div>
+                <div class="c-dropdown-menu glass-panel" id="refreshScope-menu">
+                    <div class="c-dropdown-item selected" data-value="item" data-i18n="refresh_scope_item">This item</div>
+                    <div class="c-dropdown-item hidden" id="refreshScope-series-item" data-value="series" data-i18n="refresh_scope_series">Entire series</div>
+                    <div class="c-dropdown-item" data-value="day" data-i18n="refresh_scope_day">Entire day</div>
+                    <div class="c-dropdown-item" data-value="days" data-i18n="refresh_scope_days">Recent days</div>
+                </div>
+            </div>
+
+            <!-- Days input container (hidden by default) -->
+            <div id="refresh-days-container" class="hidden" style="margin-bottom: 20px;">
+                <label style="margin-bottom: 6px; color: #aaa; font-size: 0.85rem; display: block;" data-i18n="refresh_days_label">Days</label>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <input type="number" id="refresh-days-input" min="1" max="365" value="7" style="width: 80px; padding: 8px 12px; margin: 0; text-align: center;">
+                    <span style="color: #888; font-size: 0.8rem;" data-i18n="refresh_days_hint">(From X days ago until today)</span>
+                </div>
+            </div>
+
+            <div class="modal-separator"></div>
+            <div class="modal-buttons">
+                <button id="refresh-cancel-btn" data-i18n="btn_cancel">Cancel</button>
+                <button id="refresh-confirm-btn" data-i18n="btn_refresh">Refresh</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FIX MATCH MODAL -->
+    <div id="fix-match-modal" class="overlay hidden">
+        <div class="login-box glass-panel" style="max-width: 500px; width: 90%;">
+            <h3 data-i18n="fix_match_title" style="margin-top:0; margin-bottom: 16px; text-align: center;">Fix Match</h3>
+
+            <!-- Current item banner -->
+            <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); padding: 10px 14px; border-radius: 8px; margin-bottom: 18px; text-align: left;">
+                <div style="font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;" data-i18n="fix_match_current">Current item:</div>
+                <div id="fix-current-title" style="font-weight: 600; color: #fff; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
+            </div>
+
+            <!-- Search input -->
+            <div style="text-align: left; margin-bottom: 16px;">
+                <label data-i18n="fix_match_search_label" style="margin-bottom: 6px; color: #aaa; font-size: 0.85rem; display: block;">Search TMDB:</label>
+                <div style="position: relative;">
+                    <input type="text" id="fix-search-input" style="width: 100%;" data-i18n-placeholder="manual_search_ph" placeholder="Movie or show name..." autocomplete="off">
+                    <div id="fix-search-results" class="glass-panel hidden" style="position: absolute; top: 48px; left: 0; width: 100%; max-height: 240px; overflow-y: auto; z-index: 100; padding: 6px; border-radius: 8px;"></div>
+                </div>
+            </div>
+
+            <!-- Selected Candidate preview -->
+            <div id="fix-selected-item" class="hidden" style="margin-bottom: 16px; background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px; display: flex; gap: 12px; align-items: center; text-align: left;">
+                <img id="fix-selected-poster" style="width: 48px; height: 72px; object-fit: cover; border-radius: 4px; background: #222;" />
+                <div style="flex: 1; min-width: 0;">
+                    <div id="fix-selected-title" style="font-weight: bold; font-size: 1rem; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
+                    <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px;">
+                        <span id="fix-selected-year" style="color: #aaa; font-size: 0.85rem;"></span>
+                        <span id="fix-selected-type" style="color: var(--accent); font-size: 0.8rem; font-weight: 500;"></span>
+                    </div>
+                    <input type="hidden" id="fix-tmdb-id">
+                    <input type="hidden" id="fix-media-type">
+                </div>
+            </div>
+
+            <!-- Episode fields (if TV) -->
+            <div id="fix-episode-fields" class="hidden" style="margin-bottom: 16px; display: flex; gap: 12px; text-align: left;">
+                <div style="flex: 1;">
+                    <label data-i18n="manual_season" style="margin-bottom: 6px; color: #aaa; font-size: 0.85rem; display: block;">Season:</label>
+                    <input type="number" id="fix-season-input" min="1" value="1" style="width: 100%; padding: 8px 12px;">
+                </div>
+                <div style="flex: 1;">
+                    <label data-i18n="manual_episode" style="margin-bottom: 6px; color: #aaa; font-size: 0.85rem; display: block;">Episode:</label>
+                    <input type="number" id="fix-episode-input" min="1" value="1" style="width: 100%; padding: 8px 12px;">
+                </div>
+            </div>
+
+            <!-- Scope (if TV) -->
+            <div id="fix-scope-container" class="hidden" style="margin-bottom: 16px; text-align: left;">
+                <label data-i18n="refresh_scope_label" style="margin-bottom: 6px; color: #aaa; font-size: 0.85rem; display: block;">Apply to:</label>
+                <div class="c-dropdown" id="fixScope-dd">
+                    <div class="c-dropdown-trigger" id="fixScope-trigger">
+                        <div class="c-dropdown-bottom">
+                            <span class="c-dropdown-value" id="fixScope-val" data-i18n="fix_match_scope_item">Only this item</span>
+                            <span class="c-dropdown-arrow"><i class="fa-solid fa-chevron-down"></i></span>
+                        </div>
+                    </div>
+                    <div class="c-dropdown-menu glass-panel" id="fixScope-menu">
+                        <div class="c-dropdown-item selected" data-value="item" data-i18n="fix_match_scope_item">Only this item</div>
+                        <div class="c-dropdown-item" data-value="series" data-i18n="fix_match_scope_series">Entire series (all episodes)</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-separator"></div>
+            <div class="modal-buttons">
+                <button id="fix-cancel-btn" data-i18n="action_cancel">Cancel</button>
+                <button id="fix-save-btn" data-i18n="fix_match_btn_assign" class="btn-disabled">Assign Match</button>
+            </div>
+        </div>
+    </div>
+
     <!-- BULK PROGRESS MODAL -->
     <div id="bulk-progress-modal" class="overlay hidden" style="z-index: 3000;">
         <div class="login-box glass-panel" style="max-width: 450px;">
@@ -380,7 +492,7 @@
                     <div class="c-dropdown-bottom">
                         <span class="c-dropdown-value" id="deleteScope-val" data-i18n="edit_scope_episode">Only this
                             episode</span>
-                        <span class="c-dropdown-arrow">▾</span>
+                        <span class="c-dropdown-arrow"><i class="fa-solid fa-chevron-down"></i></span>
                     </div>
                 </div>
                 <div class="c-dropdown-menu glass-panel" id="deleteScope-menu">
@@ -640,7 +752,7 @@
                                 <div class="c-dropdown-bottom">
                                     <span class="c-dropdown-value" id="configDashboardLang-val"
                                         data-i18n="lang_auto">Browser Default</span>
-                                    <span class="c-dropdown-arrow">▾</span>
+                                    <span class="c-dropdown-arrow"><i class="fa-solid fa-chevron-down"></i></span>
                                 </div>
                             </div>
                             <div class="c-dropdown-menu glass-panel" id="configDashboardLang-menu">
@@ -666,7 +778,7 @@
                                 <div class="c-dropdown-bottom">
                                     <span class="c-dropdown-value" id="configLang-val"
                                         data-i18n="lang_en">English</span>
-                                    <span class="c-dropdown-arrow">▾</span>
+                                    <span class="c-dropdown-arrow"><i class="fa-solid fa-chevron-down"></i></span>
                                 </div>
                             </div>
                             <div class="c-dropdown-menu glass-panel" id="configLang-menu">
@@ -695,7 +807,7 @@
                                 <div class="c-dropdown-bottom">
                                     <span class="c-dropdown-value" id="configFanartPref-val"
                                         data-i18n="fanart_pref_episode">Fanart del episodio</span>
-                                    <span class="c-dropdown-arrow">▾</span>
+                                    <span class="c-dropdown-arrow"><i class="fa-solid fa-chevron-down"></i></span>
                                 </div>
                             </div>
                             <div class="c-dropdown-menu glass-panel" id="configFanartPref-menu">
@@ -714,7 +826,7 @@
                                 <div class="c-dropdown-bottom">
                                     <span class="c-dropdown-value" id="configFanartQuality-val"
                                         data-i18n="quality_w342">300px (Medium)</span>
-                                    <span class="c-dropdown-arrow">▼</span>
+                                    <span class="c-dropdown-arrow"><i class="fa-solid fa-chevron-down"></i></span>
                                 </div>
                             </div>
                             <div class="c-dropdown-menu glass-panel" id="configFanartQuality-menu">
@@ -740,7 +852,7 @@
                                 <div class="c-dropdown-bottom">
                                     <span class="c-dropdown-value" id="configPosterPref-val"
                                         data-i18n="poster_pref_show">Poster de la serie</span>
-                                    <span class="c-dropdown-arrow">▾</span>
+                                    <span class="c-dropdown-arrow"><i class="fa-solid fa-chevron-down"></i></span>
                                 </div>
                             </div>
                             <div class="c-dropdown-menu glass-panel" id="configPosterPref-menu">
@@ -759,7 +871,7 @@
                                 <div class="c-dropdown-bottom">
                                     <span class="c-dropdown-value" id="configPosterQuality-val"
                                         data-i18n="quality_w185">185px (Low)</span>
-                                    <span class="c-dropdown-arrow">▼</span>
+                                    <span class="c-dropdown-arrow"><i class="fa-solid fa-chevron-down"></i></span>
                                 </div>
                             </div>
                             <div class="c-dropdown-menu glass-panel" id="configPosterQuality-menu">
@@ -1033,7 +1145,7 @@
                                 <div class="c-dropdown-trigger" id="configFont-trigger">
                                     <div class="c-dropdown-bottom">
                                         <span class="c-dropdown-value" id="configFont-val">Inter</span>
-                                        <span class="c-dropdown-arrow">▾</span>
+                                        <span class="c-dropdown-arrow"><i class="fa-solid fa-chevron-down"></i></span>
                                     </div>
                                 </div>
                                 <div class="c-dropdown-menu glass-panel" id="configFont-menu">
@@ -1071,6 +1183,8 @@
                                     data-i18n="config_show_watch_time">Show watch time</span></label>
                             <label class="check-group"><input type="checkbox" id="config-show-duration" checked> <span
                                     data-i18n="config_show_duration">Show duration</span></label>
+                            <label class="check-group"><input type="checkbox" id="config-show-daily-duration" checked> <span
+                                    data-i18n="config_show_daily_duration">Show daily watch time</span></label>
                             <label class="check-group"><input type="checkbox" id="config-show-title" checked> <span
                                     data-i18n="config_show_title">Show episode title</span></label>
                         </div>

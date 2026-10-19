@@ -500,31 +500,41 @@ button:disabled {
 
 .c-dropdown-arrow {
     position: absolute;
-    right: 16px;
+    right: 14px;
     top: 50%;
-    transform: translateY(-40%);
+    transform: translateY(-50%);
     color: var(--text-secondary);
-    transition: transform 0.2s;
+    font-size: 0.75rem;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s ease, color 0.2s ease;
     pointer-events: none;
 }
 
-.c-dropdown.open .c-dropdown-arrow {
-    transform: translateY(-60%) rotate(180deg);
+.c-dropdown:hover .c-dropdown-arrow {
+    color: var(--text-primary);
 }
 
-.c-dropdown-menu {
+.c-dropdown.open .c-dropdown-arrow {
+    transform: translateY(-50%) rotate(180deg);
+    color: var(--accent);
+}
+
+.c-dropdown-menu,
+.c-dropdown-menu.glass-panel {
     position: absolute;
     top: calc(100% + 6px);
     left: 0;
     min-width: 100%;
-    z-index: 300;
+    z-index: 500;
     display: none;
     padding: 6px 0;
     border-radius: 10px;
-    background: rgba(13, 17, 23, 0.95);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    background: #161b22 !important;
     border: 1px solid var(--glass-border);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.8), 0 2px 8px rgba(0, 0, 0, 0.5);
     max-height: 260px;
     overflow-y: auto;
     scrollbar-width: thin;
@@ -644,6 +654,21 @@ button:disabled {
     margin-bottom: 16px;
     border-bottom: 1px solid var(--glass-border);
     padding-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.history-group-duration {
+    background: rgba(10, 10, 10, 0.7);
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
 }
 
 .cards-grid {
@@ -670,6 +695,18 @@ button:disabled {
     transition: transform 0.2s, border-color 0.2s;
 }
 
+.c-card:has(.kebab-dropdown.show),
+.c-card.dropdown-open {
+    overflow: visible !important;
+    z-index: 60 !important;
+}
+
+.history-group:has(.kebab-dropdown.show),
+.history-group.has-open-dropdown {
+    position: relative;
+    z-index: 20;
+}
+
 .c-card:hover {
     transform: translateY(-2px);
     border-color: var(--text-secondary);
@@ -683,6 +720,8 @@ button:disabled {
     background-size: cover;
     background-position: center top;
     box-shadow: 4px 0 10px rgba(0, 0, 0, 0.5);
+    border-top-left-radius: var(--card-radius, 12px);
+    border-bottom-left-radius: var(--card-radius, 12px);
     z-index: 2;
 }
 
@@ -693,6 +732,8 @@ button:disabled {
     height: calc(var(--poster-w) * 1.5);
     background-size: cover;
     background-position: center;
+    border-top-right-radius: var(--card-radius, 12px);
+    border-bottom-right-radius: var(--card-radius, 12px);
     position: relative;
 }
 
@@ -703,6 +744,8 @@ button:disabled {
     right: 0;
     bottom: 0;
     background-color: rgba(0, 0, 0, var(--fanart-mask-opacity, 0.5));
+    border-top-right-radius: var(--card-radius, 12px);
+    border-bottom-right-radius: var(--card-radius, 12px);
     z-index: 0;
 }
 
@@ -713,6 +756,8 @@ button:disabled {
     right: 0;
     bottom: 0;
     background: linear-gradient(to right, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.4) 100%);
+    border-top-right-radius: var(--card-radius, 12px);
+    border-bottom-right-radius: var(--card-radius, 12px);
     z-index: 1;
 }
 
@@ -795,13 +840,18 @@ button:disabled {
     background: rgba(255, 255, 255, 0.2);
 }
 
-.kebab-dropdown {
+.kebab-dropdown,
+.kebab-dropdown.glass-panel {
     position: absolute;
-    top: 40px;
+    top: 36px;
     right: 8px;
-    z-index: 4;
-    min-width: max-content;
-    padding: 8px 0;
+    z-index: 100;
+    min-width: 190px;
+    padding: 6px 0;
+    background: #161b22 !important;
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.8), 0 2px 8px rgba(0, 0, 0, 0.5);
     display: none;
 }
 
@@ -815,6 +865,7 @@ button:disabled {
     cursor: pointer;
     font-size: 0.9rem;
     white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
 }
 
 .dropdown-item:hover {
@@ -823,6 +874,11 @@ button:disabled {
 
 .dropdown-item.danger {
     color: var(--danger);
+}
+
+.dropdown-item.danger:hover {
+    background: rgba(248, 81, 73, 0.15);
+    color: #ff7b72;
 }
 
 /* Spinner */
@@ -1570,6 +1626,11 @@ button:disabled {
         right: 4px !important;
         width: 24px !important;
         height: 24px !important;
+    }
+
+    .kebab-dropdown {
+        top: 28px !important;
+        right: 4px !important;
     }
 
     .fab-container {

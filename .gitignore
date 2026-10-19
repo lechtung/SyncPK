@@ -34,11 +34,13 @@ server/.conf
 server/cache/
 AGENTS.md
 
-
-
-
 # Agent configurations
 .agents/
 
 # Version tracking
 .ver
+
+# Diffs and patches for AI reviews
+*.diff
+*.patch
+diffs/

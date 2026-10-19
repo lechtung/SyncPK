@@ -14,6 +14,21 @@ Whether you watch a movie on your TV using Kodi or catch up on a series on your 
   <img src="screenshots/dashboard_general.png" alt="SyncPK Dashboard" width="100%">
 </p>
 
+## 💡 Why SyncPK?
+
+For years, keeping your watch history synchronized between **Kodi** and **Plex** meant relying on third-party cloud platforms like **Trakt.tv**. But cloud trackers come with significant friction:
+
+- 💸 **Subscription Paywalls:** Achieving true, seamless bi-directional synchronization between media centers has increasingly been locked behind recurring monthly or annual VIP subscriptions.
+- 📉 **Unpredictable Policy Changes:** Third-party cloud services frequently alter their criteria, API rate limits, and feature availability without notice.
+- ☁️ **Cloud Dependency & Privacy:** Your personal viewing history and media habits reside on external servers, leaving you vulnerable to outages, rate limits, and cloud privacy concerns.
+
+### 🛡️ Local Freedom & True Ownership
+SyncPK was created to eliminate these compromises completely:
+- **100% Self-Hosted & Local:** Runs on your own hardware (Proxmox LXC, Docker, Raspberry Pi, or any baremetal Linux server).
+- **Two-Way Sync for Life:** Instant, automated bidirectional synchronization between your Kodi media center and Plex library without a single cent in subscription fees.
+- **Yours Forever:** You never have to worry about third-party criteria changes, sudden paywalls, or feature tiering. Because SyncPK is deployed locally on your own infrastructure, **it is yours forever**.
+- **Complete Privacy:** Your watch history, database, and cached artwork stay strictly inside your own home network.
+
 ## ✨ Key Features
 
 - 🔄 **Real-Time Two-Way Sync:** Instant synchronization between Kodi and Plex with loop prevention.
@@ -361,6 +376,22 @@ sudo /opt/syncpk/uninstall.sh --purge -y
 docker compose down -v
 rm -rf data
 ```
+
+---
+
+## 🌍 Localization & Contributing Translations
+
+SyncPK currently supports **8 languages**: English, Spanish, German, French, Italian, Portuguese, Japanese, and Chinese.
+
+> 💡 **Drop-in Language Architecture:**  
+> SyncPK uses a completely decoupled JSON localization system. When the Dashboard Language is set to **Browser Default** (`DASHBOARD_LANGUAGE="auto"`), SyncPK detects the visitor's browser language code (e.g. `nl` for Dutch, `pl` for Polish) and automatically attempts to load `server/static/locales/<lang_code>.json`.  
+> This means **anyone can add a brand-new language without touching a single line of Python or JavaScript source code**—simply create `<lang_code>.json` inside [`server/static/locales/`](server/static/locales/) using [`en.json`](server/static/locales/en.json) as a template!
+
+> ℹ️ **AI Translation Note & Community Contributions:**  
+> The localization files for languages other than Spanish and English were initially generated with the help of AI. While they provide comprehensive coverage, some phrases or nuances might not be 100% accurate.  
+> 
+> If you are a native speaker of any of these languages (or would like to contribute a new language!), **contributions are warmly welcome!**  
+> Feel free to review or add locale files in [`server/static/locales/`](server/static/locales/) and open a Pull Request.
 
 ---
 

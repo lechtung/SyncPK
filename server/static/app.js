@@ -234,6 +234,7 @@ async function loadUIConfig() {
             if (data.ui_text_secondary) document.documentElement.style.setProperty('--text-secondary', data.ui_text_secondary);
             if (data.ui_glass_blur) document.documentElement.style.setProperty('--glass-blur', `blur(${data.ui_glass_blur}px)`);
             if (data.ui_show_duration !== undefined) window.UI_SHOW_DURATION = data.ui_show_duration;
+            if (data.ui_show_daily_duration !== undefined) window.UI_SHOW_DAILY_DURATION = data.ui_show_daily_duration;
             if (data.ui_show_watch_time !== undefined) window.UI_SHOW_WATCH_TIME = data.ui_show_watch_time;
             if (data.ui_show_title !== undefined) window.UI_SHOW_TITLE = data.ui_show_title;
         }
@@ -304,8 +305,9 @@ function setupEventListeners() {
         if (!e.target.closest('.c-dropdown')) {
             document.querySelectorAll('.c-dropdown').forEach(d => d.classList.remove('open'));
         }
-        if (!e.target.closest('.kebab-menu-btn')) {
-            document.querySelectorAll('.kebab-dropdown').forEach(d => d.classList.remove('show'));
+        if (!e.target.closest('.kebab-menu-btn') && !e.target.closest('.kebab-dropdown')) {
+            if (typeof closeAllKebabDropdowns === 'function') closeAllKebabDropdowns();
+            else document.querySelectorAll('.kebab-dropdown').forEach(d => d.classList.remove('show'));
         }
         if (!e.target.closest('#manual-search-results') && !e.target.closest('#manual-search-input')) {
             let resBox = document.getElementById('manual-search-results');
@@ -320,9 +322,23 @@ function setupEventListeners() {
         document.getElementById('edit-modal').classList.add('hidden');
     });
 
+    const refreshCancelBtn = document.getElementById('refresh-cancel-btn');
+    if (refreshCancelBtn) {
+        refreshCancelBtn.addEventListener('click', () => {
+            document.getElementById('refresh-modal').classList.add('hidden');
+        });
+    }
+
+    const fixCancelBtn = document.getElementById('fix-cancel-btn');
+    if (fixCancelBtn) {
+        fixCancelBtn.addEventListener('click', () => {
+            document.getElementById('fix-match-modal').classList.add('hidden');
+        });
+    }
+
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-            ['edit-modal', 'manual-modal', 'confirm-modal', 'config-modal', 'log-modal', 'update-modal', 'about-modal'].forEach(id => {
+            ['edit-modal', 'refresh-modal', 'fix-match-modal', 'manual-modal', 'confirm-modal', 'config-modal', 'log-modal', 'update-modal', 'about-modal'].forEach(id => {
                 const modal = document.getElementById(id);
                 if (modal && !modal.classList.contains('hidden')) {
                     if (id === 'update-modal') {
@@ -449,25 +465,9 @@ function initDropdowns() {
             let wasOpen = dd.classList.contains('open');
             document.querySelectorAll('.c-dropdown').forEach(other => {
                 other.classList.remove('open');
-                let modal = other.closest('.login-box');
-                if (modal) modal.style.paddingBottom = '';
             });
             if (!wasOpen) {
                 dd.classList.add('open');
-                let menu = dd.querySelector('.c-dropdown-menu');
-                let modal = dd.closest('.login-box');
-                if (modal && menu) {
-                    // Small delay to allow DOM to render the menu and get height
-                    setTimeout(() => {
-                        let rect = menu.getBoundingClientRect();
-                        let modalRect = modal.getBoundingClientRect();
-                        if (rect.bottom > modalRect.bottom) {
-                            let diff = rect.bottom - modalRect.bottom;
-                            // Add diff + some margin to the base padding (32px)
-                            modal.style.paddingBottom = (32 + diff + 10) + 'px';
-                        }
-                    }, 10);
-                }
             }
         });
 
@@ -484,8 +484,6 @@ function initDropdowns() {
                 item.classList.add('selected');
                 if (valEl) valEl.textContent = item.textContent;
                 dd.classList.remove('open');
-                let modal = dd.closest('.login-box');
-                if (modal) modal.style.paddingBottom = '';
 
                 // Update filter and reload if applicable
                 if (filterId) {
@@ -496,6 +494,13 @@ function initDropdowns() {
                     if (dd.id === 'editScope-dd' || dd.id === 'editDistMode-dd') {
                         if (window.updateBulkOptionsUI) window.updateBulkOptionsUI();
                     }
+                    if (dd.id === 'refreshScope-dd') {
+                        const daysContainer = document.getElementById('refresh-days-container');
+                        if (daysContainer) {
+                            if (value === 'days') daysContainer.classList.remove('hidden');
+                            else daysContainer.classList.add('hidden');
+                        }
+                    }
                 }
             });
         });
@@ -505,8 +510,6 @@ function initDropdowns() {
     document.addEventListener('click', (e) => {
         document.querySelectorAll('.c-dropdown.open').forEach(dd => {
             dd.classList.remove('open');
-            let modal = dd.closest('.login-box');
-            if (modal) modal.style.paddingBottom = '';
         });
     });
 }
@@ -740,6 +743,41 @@ function logout() {
 }
 
 
+function updateGroupDuration(groupDiv) {
+    if (!groupDiv) return;
+    let titleEl = groupDiv.querySelector('.history-group-title');
+    if (!titleEl) return;
+    let pill = titleEl.querySelector('.history-group-duration');
+
+    if (window.UI_SHOW_DAILY_DURATION === false) {
+        if (pill) pill.remove();
+        return;
+    }
+
+    const cards = groupDiv.querySelectorAll('.cards-grid .media-card');
+    let totalMinutes = 0;
+    cards.forEach(c => {
+        let d = parseInt(c.dataset.duration, 10);
+        if (!isNaN(d) && d > 0) totalMinutes += d;
+    });
+
+    if (totalMinutes <= 0) {
+        if (pill) pill.remove();
+        return;
+    }
+
+    let h = Math.floor(totalMinutes / 60);
+    let m = totalMinutes % 60;
+    let formatted = (h > 0 ? `${h}h ` : "") + `${m}m`;
+
+    if (!pill) {
+        pill = document.createElement('span');
+        pill.className = 'history-group-duration';
+        titleEl.appendChild(pill);
+    }
+    pill.textContent = formatted;
+}
+
 // --- RENDER ---
 async function renderHistory(items) {
     const feed = document.getElementById('history-feed');
@@ -767,7 +805,7 @@ async function renderHistory(items) {
             if (dayItems.length > 0) {
                 groupDiv.dataset.date = new Date(dayItems[0].watched_at).toDateString();
             }
-            groupDiv.innerHTML = `<div class="history-group-title">${dayString}</div><div class="cards-grid"></div>`;
+            groupDiv.innerHTML = `<div class="history-group-title"><span class="history-group-date">${dayString}</span></div><div class="cards-grid"></div>`;
             feed.appendChild(groupDiv);
         }
         cardsGrid = groupDiv.querySelector('.cards-grid');
@@ -779,6 +817,7 @@ async function renderHistory(items) {
             let card = document.createElement('div');
             card.className = 'media-card c-card';
             card.id = `card-${item.id}`;
+            card.dataset.duration = item.duration || 0;
             card.style.cursor = 'pointer';
 
             card.onclick = (e) => {
@@ -842,30 +881,66 @@ async function renderHistory(items) {
                     ${durationHtml}
                     <button class="kebab-menu-btn">⋮</button>
                     <div class="kebab-dropdown glass-panel" id="dropdown-${item.id}">
-                        <div class="dropdown-item danger btn-del" data-i18n="action_delete">${currentLangData.action_delete || 'Delete'}</div>
+                        <div class="dropdown-item btn-refresh" data-i18n="action_refresh_metadata">${currentLangData.action_refresh_metadata || 'Refresh metadata...'}</div>
+                        <div class="dropdown-item btn-fix-match" data-i18n="action_fix_match">${currentLangData.action_fix_match || 'Fix match...'}</div>
                         <div class="dropdown-item btn-edit" data-i18n="action_edit">${currentLangData.action_edit || 'Edit'}</div>
+                        <div class="dropdown-item danger btn-del" data-i18n="action_delete">${currentLangData.action_delete || 'Delete'}</div>
                     </div>
                 </div>
             `;
 
             // Event Listeners instead of inline onclicks
             card.querySelector('.kebab-menu-btn').addEventListener('click', (e) => toggleDropdown(item.id, e));
-            card.querySelector('.btn-del').addEventListener('click', () => deleteItem(item.id, item.media_type));
-            card.querySelector('.btn-edit').addEventListener('click', () => openEditModal(item.id, item.watched_at, item.media_type));
+            card.querySelector('.btn-refresh').addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleDropdown(item.id, e);
+                openRefreshModal(item);
+            });
+            card.querySelector('.btn-fix-match').addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleDropdown(item.id, e);
+                openFixMatchModal(item);
+            });
+            card.querySelector('.btn-edit').addEventListener('click', () => {
+                closeAllKebabDropdowns();
+                openEditModal(item.id, item.watched_at, item.media_type);
+            });
+            card.querySelector('.btn-del').addEventListener('click', () => {
+                closeAllKebabDropdowns();
+                deleteItem(item.id, item.media_type);
+            });
 
             cardsGrid.appendChild(card);
         }
+        updateGroupDuration(groupDiv);
     }
 }
 
 // --- ACTIONS ---
+function closeAllKebabDropdowns() {
+    document.querySelectorAll('.kebab-dropdown').forEach(d => d.classList.remove('show'));
+    document.querySelectorAll('.c-card.dropdown-open').forEach(c => c.classList.remove('dropdown-open'));
+    document.querySelectorAll('.history-group.has-open-dropdown').forEach(g => g.classList.remove('has-open-dropdown'));
+}
+window.closeAllKebabDropdowns = closeAllKebabDropdowns;
+
 window.toggleDropdown = function (id, e) {
     e.stopPropagation();
-    document.querySelectorAll('.kebab-dropdown').forEach(d => {
-        if (d.id !== `dropdown-${id}`) d.classList.remove('show');
-    });
-    document.getElementById(`dropdown-${id}`).classList.toggle('show');
-}
+    const targetDd = document.getElementById(`dropdown-${id}`);
+    const isShowing = targetDd ? targetDd.classList.contains('show') : false;
+
+    closeAllKebabDropdowns();
+
+    if (!isShowing && targetDd) {
+        targetDd.classList.add('show');
+        const card = targetDd.closest('.c-card');
+        if (card) {
+            card.classList.add('dropdown-open');
+            const group = card.closest('.history-group');
+            if (group) group.classList.add('has-open-dropdown');
+        }
+    }
+};
 
 window.deleteItem = function (id, mediaType) {
     let modal = document.getElementById('confirm-modal');
@@ -924,6 +999,8 @@ window.deleteItem = function (id, mediaType) {
                         if (grid && grid.children.length === 0) {
                             group.remove();
                             if (typeof generateTimeline === 'function') generateTimeline();
+                        } else {
+                            updateGroupDuration(group);
                         }
                     }
                 }
@@ -1128,6 +1205,332 @@ document.getElementById('edit-save-btn').addEventListener('click', async () => {
         document.getElementById('edit-modal').classList.remove('hidden');
     }
 });
+
+// --- REFRESH METADATA MODAL ---
+let currentRefreshItem = null;
+
+window.openRefreshModal = function (item) {
+    currentRefreshItem = item;
+    const modal = document.getElementById('refresh-modal');
+    if (!modal) return;
+
+    closeAllKebabDropdowns();
+
+    const previewEl = document.getElementById('refresh-item-preview');
+    if (previewEl) {
+        const titleText = item.media_type === 'movie' ? item.title : `${item.show_title || ''} (T${item.season} · E${item.episode})`;
+        previewEl.textContent = titleText;
+    }
+
+    const scopeDd = document.getElementById('refreshScope-dd');
+    const scopeVal = document.getElementById('refreshScope-val');
+    const seriesOpt = document.getElementById('refreshScope-series-item');
+    const daysContainer = document.getElementById('refresh-days-container');
+    const daysInput = document.getElementById('refresh-days-input');
+
+    if (daysInput) daysInput.value = 7;
+    if (daysContainer) daysContainer.classList.add('hidden');
+
+    if (seriesOpt) {
+        if (item.media_type === 'episode') {
+            seriesOpt.classList.remove('hidden');
+        } else {
+            seriesOpt.classList.add('hidden');
+        }
+    }
+
+    if (scopeDd) {
+        scopeDd.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected'));
+        const defaultOpt = scopeDd.querySelector('.c-dropdown-item[data-value="item"]');
+        if (defaultOpt) defaultOpt.classList.add('selected');
+        scopeDd.dataset.currentValue = 'item';
+    }
+    if (scopeVal) scopeVal.textContent = currentLangData.refresh_scope_item || 'This item';
+
+    modal.classList.remove('hidden');
+};
+
+const refreshConfirmBtn = document.getElementById('refresh-confirm-btn');
+if (refreshConfirmBtn) {
+    refreshConfirmBtn.addEventListener('click', async () => {
+        if (!currentRefreshItem) return;
+        const scopeDd = document.getElementById('refreshScope-dd');
+        const scope = scopeDd ? (scopeDd.dataset.currentValue || 'item') : 'item';
+        const daysInput = document.getElementById('refresh-days-input');
+        const days = daysInput ? (parseInt(daysInput.value) || 7) : 7;
+
+        document.getElementById('refresh-modal').classList.add('hidden');
+
+        showProcessingOverlay(
+            currentLangData.overlay_refreshing_metadata || 'Refreshing metadata...',
+            currentLangData.overlay_wait || 'Please wait...'
+        );
+
+        try {
+            const res = await apiFetch('/api/history/refresh_metadata', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: currentRefreshItem.id,
+                    scope: scope,
+                    days: days
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                const countMsg = data.updated ? `${data.updated} ${currentLangData.items_updated || 'items updated'}` : '';
+                updateOverlayResult(
+                    'success',
+                    currentLangData.refresh_success || 'Metadata refreshed successfully.',
+                    countMsg
+                );
+                hideOverlay(1500);
+            } else {
+                const err = await res.json().catch(() => ({}));
+                updateOverlayResult('error', err.message || currentLangData.refresh_error || 'Error refreshing metadata.', '');
+                hideOverlay(3000);
+            }
+        } catch (e) {
+            console.error(e);
+            updateOverlayResult('error', currentLangData.network_error || 'Network error.', '');
+            hideOverlay(3000);
+        }
+    });
+}
+
+// --- FIX MATCH MODAL ---
+let currentFixMatchItem = null;
+let fixSearchTimeout = null;
+
+window.openFixMatchModal = function (item) {
+    currentFixMatchItem = item;
+    const modal = document.getElementById('fix-match-modal');
+    if (!modal) return;
+
+    closeAllKebabDropdowns();
+
+    const currentTitleEl = document.getElementById('fix-current-title');
+    if (currentTitleEl) {
+        const titleText = item.media_type === 'movie' ? item.title : `${item.show_title || item.title || ''} (T${item.season} · E${item.episode})`;
+        currentTitleEl.textContent = titleText;
+    }
+
+    const searchInput = document.getElementById('fix-search-input');
+    const searchResults = document.getElementById('fix-search-results');
+    const selectedItemEl = document.getElementById('fix-selected-item');
+    const epFields = document.getElementById('fix-episode-fields');
+    const scopeContainer = document.getElementById('fix-scope-container');
+    const saveBtn = document.getElementById('fix-save-btn');
+    const tmdbIdInput = document.getElementById('fix-tmdb-id');
+    const mediaTypeInput = document.getElementById('fix-media-type');
+
+    if (searchResults) { searchResults.innerHTML = ''; searchResults.classList.add('hidden'); }
+    if (selectedItemEl) selectedItemEl.classList.add('hidden');
+    if (epFields) epFields.classList.add('hidden');
+    if (scopeContainer) scopeContainer.classList.add('hidden');
+    if (saveBtn) saveBtn.classList.add('btn-disabled');
+    if (tmdbIdInput) tmdbIdInput.value = '';
+    if (mediaTypeInput) mediaTypeInput.value = '';
+
+    const initialQuery = item.media_type === 'movie' ? item.title : (item.show_title || item.title || '');
+    if (searchInput) {
+        searchInput.value = initialQuery;
+        modal.classList.remove('hidden');
+        if (initialQuery && initialQuery.length >= 3) {
+            triggerFixSearch(initialQuery);
+        }
+    } else {
+        modal.classList.remove('hidden');
+    }
+};
+
+async function triggerFixSearch(query) {
+    const searchResults = document.getElementById('fix-search-results');
+    if (!searchResults) return;
+    try {
+        const lang = navigator.language.split('-')[0] || 'en';
+        const res = await apiFetch(`/api/tmdb/search?q=${encodeURIComponent(query)}&lang=${lang}`);
+        if (res.ok) {
+            const data = await res.json();
+            renderFixTMDBResults(data.results || []);
+        }
+    } catch (err) {
+        console.error("Error searching TMDB for fix match", err);
+    }
+}
+
+function renderFixTMDBResults(results) {
+    const searchResults = document.getElementById('fix-search-results');
+    if (!searchResults) return;
+    searchResults.innerHTML = '';
+
+    if (results.length === 0) {
+        searchResults.innerHTML = `<div style="padding:10px; color:#aaa;">${currentLangData.no_results || 'No results found'}</div>`;
+    } else {
+        results.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'tmdb-search-item';
+
+            const title = item.title || item.name;
+            const year = (item.release_date || item.first_air_date || "").split('-')[0];
+            const poster = item.poster_path ? `https://image.tmdb.org/t/p/w92${item.poster_path}` : '';
+            const type = item.media_type === 'tv' ? (currentLangData.type_series || 'Series') : (currentLangData.type_movie || 'Movie');
+
+            div.innerHTML = `
+                <img src="${poster}" alt="poster" style="width:36px; height:54px; object-fit:cover; border-radius:3px; background:#222;">
+                <div style="flex:1; min-width:0; text-align:left;">
+                    <div style="font-weight:bold; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHTML(title)} <span style="color:#aaa; font-size:0.8rem; font-weight:normal;">(${year})</span></div>
+                    <div style="color:var(--accent); font-size:0.8rem;">${type}</div>
+                </div>
+            `;
+
+            div.addEventListener('click', () => selectFixTMDBItem(item, title, year, poster));
+            searchResults.appendChild(div);
+        });
+    }
+    searchResults.classList.remove('hidden');
+}
+
+function selectFixTMDBItem(item, title, year, poster) {
+    const searchResults = document.getElementById('fix-search-results');
+    const searchInput = document.getElementById('fix-search-input');
+    const selectedItemEl = document.getElementById('fix-selected-item');
+    const epFields = document.getElementById('fix-episode-fields');
+    const scopeContainer = document.getElementById('fix-scope-container');
+    const saveBtn = document.getElementById('fix-save-btn');
+
+    if (searchResults) searchResults.classList.add('hidden');
+    if (searchInput) searchInput.value = title;
+
+    document.getElementById('fix-selected-title').textContent = title;
+    document.getElementById('fix-selected-year').textContent = year ? `(${year})` : '';
+    document.getElementById('fix-selected-type').textContent = item.media_type === 'tv' ? (currentLangData.type_series || 'Series') : (currentLangData.type_movie || 'Movie');
+    const posterImg = document.getElementById('fix-selected-poster');
+    if (posterImg) {
+        if (poster) {
+            posterImg.src = poster;
+            posterImg.style.display = 'block';
+        } else {
+            posterImg.style.display = 'none';
+        }
+    }
+    document.getElementById('fix-tmdb-id').value = item.id;
+    document.getElementById('fix-media-type').value = item.media_type;
+
+    if (selectedItemEl) selectedItemEl.classList.remove('hidden');
+
+    if (item.media_type === 'tv') {
+        if (epFields) epFields.classList.remove('hidden');
+        if (scopeContainer) scopeContainer.classList.remove('hidden');
+        const sInput = document.getElementById('fix-season-input');
+        const eInput = document.getElementById('fix-episode-input');
+        if (sInput) sInput.value = (currentFixMatchItem && currentFixMatchItem.season) ? currentFixMatchItem.season : 1;
+        if (eInput) eInput.value = (currentFixMatchItem && currentFixMatchItem.episode) ? currentFixMatchItem.episode : 1;
+
+        const scopeDd = document.getElementById('fixScope-dd');
+        const scopeVal = document.getElementById('fixScope-val');
+        if (scopeDd) {
+            scopeDd.querySelectorAll('.c-dropdown-item').forEach(i => i.classList.remove('selected'));
+            const defaultOpt = scopeDd.querySelector('.c-dropdown-item[data-value="item"]');
+            if (defaultOpt) defaultOpt.classList.add('selected');
+            scopeDd.dataset.currentValue = 'item';
+        }
+        if (scopeVal) scopeVal.textContent = currentLangData.fix_match_scope_item || 'Only this item';
+    } else {
+        if (epFields) epFields.classList.add('hidden');
+        if (scopeContainer) scopeContainer.classList.add('hidden');
+    }
+
+    if (saveBtn) saveBtn.classList.remove('btn-disabled');
+}
+
+const fixSearchInput = document.getElementById('fix-search-input');
+if (fixSearchInput) {
+    fixSearchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            const res = document.getElementById('fix-search-results');
+            if (res) res.classList.add('hidden');
+        }
+    });
+
+    fixSearchInput.addEventListener('input', (e) => {
+        clearTimeout(fixSearchTimeout);
+        const query = e.target.value.trim();
+        const resEl = document.getElementById('fix-search-results');
+
+        if (query.length < 3) {
+            if (resEl) resEl.classList.add('hidden');
+            return;
+        }
+
+        fixSearchTimeout = setTimeout(() => {
+            triggerFixSearch(query);
+        }, 400);
+    });
+}
+
+const fixSaveBtn = document.getElementById('fix-save-btn');
+if (fixSaveBtn) {
+    fixSaveBtn.addEventListener('click', async () => {
+        if (!currentFixMatchItem) return;
+        const newTmdbId = document.getElementById('fix-tmdb-id').value;
+        const mediaType = document.getElementById('fix-media-type').value;
+
+        if (!newTmdbId || !mediaType) {
+            showToast(currentLangData.manual_missing_fields || 'Please select a title before saving.', 'info');
+            return;
+        }
+
+        const seasonInput = document.getElementById('fix-season-input');
+        const episodeInput = document.getElementById('fix-episode-input');
+        const scopeDd = document.getElementById('fixScope-dd');
+        const scope = scopeDd ? (scopeDd.dataset.currentValue || 'item') : 'item';
+
+        const payload = {
+            id: currentFixMatchItem.id,
+            new_tmdb_id: parseInt(newTmdbId),
+            media_type: mediaType,
+            season: seasonInput ? parseInt(seasonInput.value) || 1 : 1,
+            episode: episodeInput ? parseInt(episodeInput.value) || 1 : 1,
+            scope: scope
+        };
+
+        document.getElementById('fix-match-modal').classList.add('hidden');
+
+        showProcessingOverlay(
+            currentLangData.overlay_fixing_match || 'Fixing match...',
+            currentLangData.overlay_wait || 'Please wait...'
+        );
+
+        try {
+            const res = await apiFetch('/api/history/fix_match', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                updateOverlayResult(
+                    'success',
+                    currentLangData.fix_match_success || 'Match fixed successfully.',
+                    data.updated ? `${data.updated} ${currentLangData.items_updated || 'items updated'}` : ''
+                );
+                hideOverlay(1500);
+            } else {
+                const err = await res.json().catch(() => ({}));
+                updateOverlayResult('error', err.message || 'Error fixing match.', '');
+                hideOverlay(3000);
+            }
+        } catch (e) {
+            console.error(e);
+            updateOverlayResult('error', currentLangData.network_error || 'Network error.', '');
+            hideOverlay(3000);
+        }
+    });
+}
 
 // --- TIMELINE NAVIGATOR ---
 let currentWeekStart = null;
@@ -1403,6 +1806,7 @@ function setupConfigModal() {
                 document.getElementById('config-fanart-opacity').value = data.fanart_mask_opacity !== undefined ? data.fanart_mask_opacity : 0.3;
                 document.getElementById('val-mask-opacity').innerText = data.fanart_mask_opacity !== undefined ? data.fanart_mask_opacity : 0.3;
                 document.getElementById('config-show-duration').checked = data.ui_show_duration !== false;
+                document.getElementById('config-show-daily-duration').checked = data.ui_show_daily_duration !== false;
                 document.getElementById('config-show-watch-time').checked = data.ui_show_watch_time !== false;
                 document.getElementById('config-show-title').checked = data.ui_show_title !== false;
 
@@ -1574,6 +1978,7 @@ function setupConfigModal() {
             ui_text_primary: document.getElementById('config-text-primary').value,
             ui_text_secondary: document.getElementById('config-text-secondary').value,
             ui_show_duration: document.getElementById('config-show-duration').checked,
+            ui_show_daily_duration: document.getElementById('config-show-daily-duration').checked,
             ui_show_watch_time: document.getElementById('config-show-watch-time').checked,
             ui_show_title: document.getElementById('config-show-title').checked,
             fanart_mask_opacity: document.getElementById('config-fanart-opacity').value
@@ -1635,6 +2040,7 @@ function setupConfigModal() {
 
                             let visualChanged = (
                                 window.UI_SHOW_DURATION !== payload.ui_show_duration ||
+                                window.UI_SHOW_DAILY_DURATION !== payload.ui_show_daily_duration ||
                                 window.UI_SHOW_WATCH_TIME !== payload.ui_show_watch_time ||
                                 window.UI_SHOW_TITLE !== payload.ui_show_title
                             );

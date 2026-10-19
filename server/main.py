@@ -664,15 +664,6 @@ async def download_artwork_async(client, media_type, tmdb_id, show_tmdb_id, seas
     poster_ok = has_poster
     fanart_ok = has_fanart
     
-    # If both poster and fanart exist on disk, return immediately
-    if has_poster and has_fanart:
-        return {
-            "title": title,
-            "show_title": show_title,
-            "poster_path": p_filename,
-            "fanart_path": f_filename
-        }
-        
     if not TMDB_API_KEY:
         print("[TMDB] TMDB_API_KEY is not configured. Skipping artwork download.", flush=True)
         return {
@@ -692,7 +683,7 @@ async def download_artwork_async(client, media_type, tmdb_id, show_tmdb_id, seas
     if media_type == "movie" and tmdb_id:
         data = await fetch_json(client, f"https://api.themoviedb.org/3/movie/{tmdb_id}?{auth_param}language={sync_lang}", headers=tmdb_headers)
         if data:
-            current_title = data.get("title", title)
+            current_title = data.get("title") or title
             if not has_poster:
                 poster_ok = await _download_single_image(client, data.get("poster_path"), p_filename, "posters", p_size)
             if not has_fanart:
@@ -702,14 +693,14 @@ async def download_artwork_async(client, media_type, tmdb_id, show_tmdb_id, seas
         ep_data, show_data, season_data = await asyncio.gather(
             fetch_json(client, f"https://api.themoviedb.org/3/tv/{show_tmdb_id}/season/{season}/episode/{episode}?{auth_param}language={sync_lang}", headers=tmdb_headers),
             fetch_json(client, f"https://api.themoviedb.org/3/tv/{show_tmdb_id}?{auth_param}language={sync_lang}", headers=tmdb_headers),
-            fetch_json(client, f"https://api.themoviedb.org/3/tv/{show_tmdb_id}/season/{season}?{auth_param}language={sync_lang}", headers=tmdb_headers) if poster_pref == "season" else asyncio.sleep(0)
+            fetch_json(client, f"https://api.themoviedb.org/3/tv/{show_tmdb_id}/season/{season}?{auth_param}language={sync_lang}", headers=tmdb_headers) if (poster_pref == "season" and not has_poster) else asyncio.sleep(0)
         )
         
         if show_data:
-            current_show_title = show_data.get("name", show_title)
+            current_show_title = show_data.get("name") or show_title
             
         if ep_data:
-            current_title = ep_data.get("name", title)
+            current_title = ep_data.get("name") or title
             if not has_fanart:
                 f_url = ep_data.get("still_path")
                 if fanart_pref == "show" and show_data:
@@ -1053,12 +1044,20 @@ def process_plex_payload(payload, cursor, is_bulk=False):
             updated_info = download_artwork_sync(
                 media_type, target_movie, target_show, season, episode, title, show_title
             )
-            p_path = updated_info.get("poster_path")
-            f_path = updated_info.get("fanart_path")
+            p_path = updated_info.get("poster_path") or None
+            f_path = updated_info.get("fanart_path") or None
+            u_title = updated_info.get("title") or None
+            u_show_title = updated_info.get("show_title") or None
             
-            if p_path or f_path:
-                cursor.execute("UPDATE watch_history SET poster_path=COALESCE(?, poster_path), fanart_path=COALESCE(?, fanart_path) WHERE id=?", (p_path, f_path, db_id))
-                cursor.connection.commit()
+            cursor.execute("""
+                UPDATE watch_history 
+                SET poster_path=COALESCE(?, poster_path), 
+                    fanart_path=COALESCE(?, fanart_path),
+                    title=COALESCE(?, title),
+                    show_title=COALESCE(?, show_title)
+                WHERE id=?
+            """, (p_path, f_path, u_title, u_show_title, db_id))
+            cursor.connection.commit()
                 
     except Exception as e:
         print(f"Error asignando carátulas Plex: {e}")
@@ -1274,12 +1273,20 @@ def process_kodi_payload(payload, cursor, is_bulk=False):
             updated_info = download_artwork_sync(
                 media_type, target_movie, target_show, season, episode, title, show_title
             )
-            p_path = updated_info.get("poster_path")
-            f_path = updated_info.get("fanart_path")
+            p_path = updated_info.get("poster_path") or None
+            f_path = updated_info.get("fanart_path") or None
+            u_title = updated_info.get("title") or None
+            u_show_title = updated_info.get("show_title") or None
             
-            if p_path or f_path:
-                cursor.execute("UPDATE watch_history SET poster_path=COALESCE(?, poster_path), fanart_path=COALESCE(?, fanart_path) WHERE id=?", (p_path, f_path, db_id))
-                cursor.connection.commit()
+            cursor.execute("""
+                UPDATE watch_history 
+                SET poster_path=COALESCE(?, poster_path), 
+                    fanart_path=COALESCE(?, fanart_path),
+                    title=COALESCE(?, title),
+                    show_title=COALESCE(?, show_title)
+                WHERE id=?
+            """, (p_path, f_path, u_title, u_show_title, db_id))
+            cursor.connection.commit()
         except Exception as e:
             print(f"Error asignando carátulas Kodi: {e}")
             
@@ -2401,10 +2408,18 @@ def _update_in_background(item_id: int, req: UpdateHistoryRequest, main_loop=Non
                         updated_info = download_artwork_sync(
                             "episode", tmdb_id, target_show, item.get("season"), item.get("episode"), item.get("title"), item.get("show_title")
                         )
-                        p_art = updated_info.get("poster_path")
-                        f_art = updated_info.get("fanart_path")
-                        if p_art or f_art:
-                            c_update.execute("UPDATE watch_history SET poster_path = COALESCE(?, poster_path), fanart_path = COALESCE(?, fanart_path) WHERE id = ?", (p_art, f_art, new_id))
+                        p_art = updated_info.get("poster_path") or None
+                        f_art = updated_info.get("fanart_path") or None
+                        u_title = updated_info.get("title") or None
+                        u_show_title = updated_info.get("show_title") or None
+                        c_update.execute("""
+                            UPDATE watch_history 
+                            SET poster_path = COALESCE(?, poster_path), 
+                                fanart_path = COALESCE(?, fanart_path),
+                                title = COALESCE(?, title),
+                                show_title = COALESCE(?, show_title)
+                            WHERE id = ?
+                        """, (p_art, f_art, u_title, u_show_title, new_id))
                 except Exception as e:
                     print(f"Error descargando carátulas TMDB para episodio {item.get('title')}: {e}")
             
@@ -2437,6 +2452,235 @@ async def update_history_item(item_id: int, req: UpdateHistoryRequest, backgroun
     loop = asyncio.get_running_loop()
     background_tasks.add_task(_update_in_background, item_id, req, loop)
     return {"success": True, "status": "success", "message": "Procesando en segundo plano..."}
+
+
+class RefreshMetadataRequest(BaseModel):
+    id: int
+    scope: Optional[str] = "item"
+    days: Optional[int] = 7
+
+
+@app.post("/api/history/refresh_metadata")
+async def refresh_history_metadata(req: RefreshMetadataRequest, authorization: str = Depends(verify_api_key)):
+    conn = get_db_connection()
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM watch_history WHERE id = ?", (req.id,))
+    target_row = cursor.fetchone()
+    if not target_row:
+        conn.close()
+        return JSONResponse(status_code=404, content={"status": "error", "message": "Item not found"})
+
+    target_item = dict(target_row)
+
+    if req.scope == "item":
+        cursor.execute("SELECT id, tmdb_id, show_tmdb_id, media_type, season, episode, title, show_title, poster_path, fanart_path FROM watch_history WHERE id = ?", (req.id,))
+    elif req.scope == "series" and target_item.get("media_type") == "episode":
+        s_id = target_item.get("show_tmdb_id")
+        s_title = target_item.get("show_title")
+        if s_id:
+            cursor.execute("SELECT id, tmdb_id, show_tmdb_id, media_type, season, episode, title, show_title, poster_path, fanart_path FROM watch_history WHERE media_type = 'episode' AND (show_tmdb_id = ? OR show_title = ?)", (s_id, s_title))
+        else:
+            cursor.execute("SELECT id, tmdb_id, show_tmdb_id, media_type, season, episode, title, show_title, poster_path, fanart_path FROM watch_history WHERE media_type = 'episode' AND show_title = ?", (s_title,))
+    elif req.scope == "day":
+        day_str = (target_item.get("watched_at") or "")[:10]
+        cursor.execute("SELECT id, tmdb_id, show_tmdb_id, media_type, season, episode, title, show_title, poster_path, fanart_path FROM watch_history WHERE substr(watched_at, 1, 10) = ?", (day_str,))
+    elif req.scope == "days":
+        d_val = max(1, min(365, int(req.days or 7)))
+        cutoff = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=d_val)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        cursor.execute("SELECT id, tmdb_id, show_tmdb_id, media_type, season, episode, title, show_title, poster_path, fanart_path FROM watch_history WHERE watched_at >= ?", (cutoff,))
+    else:
+        cursor.execute("SELECT id, tmdb_id, show_tmdb_id, media_type, season, episode, title, show_title, poster_path, fanart_path FROM watch_history WHERE id = ?", (req.id,))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    total = len(rows)
+    if total == 0:
+        return {"status": "success", "updated": 0, "total": 0}
+
+    updated_count = 0
+    async with httpx.AsyncClient() as client:
+        # Pre-warm DNS cache for TMDB hosts
+        for tmdb_host in ("api.themoviedb.org", "image.tmdb.org"):
+            try: socket.getaddrinfo(tmdb_host, 443)
+            except Exception: pass
+
+        chunk_size = 10
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        for i in range(0, total, chunk_size):
+            chunk = rows[i:i + chunk_size]
+            tasks = []
+            for r in chunk:
+                r_id, m_tmdb, s_tmdb, m_type, season, episode, title, show_title, p_path, f_path = r
+                t_movie = m_tmdb if m_type == "movie" else None
+                t_show = (s_tmdb or m_tmdb) if m_type == "episode" else None
+                tasks.append(download_artwork_async(client, m_type, t_movie, t_show, season, episode, title, show_title))
+
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            for r, res in zip(chunk, results):
+                if isinstance(res, Exception) or not isinstance(res, dict):
+                    continue
+                r_id = r[0]
+                p_p = res.get("poster_path") or None
+                f_p = res.get("fanart_path") or None
+                u_t = res.get("title") or None
+                u_st = res.get("show_title") or None
+
+                cursor.execute("""
+                    UPDATE watch_history
+                    SET poster_path = COALESCE(?, poster_path),
+                        fanart_path = COALESCE(?, fanart_path),
+                        title = COALESCE(?, title),
+                        show_title = COALESCE(?, show_title)
+                    WHERE id = ?
+                """, (p_p, f_p, u_t, u_st, r_id))
+                updated_count += 1
+
+            conn.commit()
+
+            if total > 1:
+                try:
+                    await manager.broadcast(json.dumps({
+                        "type": "bulk_update_progress",
+                        "current": min(i + chunk_size, total),
+                        "total": total
+                    }))
+                except Exception:
+                    pass
+            await asyncio.sleep(0.1)
+
+        conn.close()
+
+    try:
+        await manager.broadcast(json.dumps({"type": "reload_history"}))
+    except Exception:
+        pass
+
+    return {"status": "success", "updated": updated_count, "total": total}
+
+
+class FixMatchRequest(BaseModel):
+    id: int
+    new_tmdb_id: int
+    media_type: str # "movie" or "tv" / "episode"
+    season: Optional[int] = None
+    episode: Optional[int] = None
+    scope: Optional[str] = "item" # "item" or "series"
+
+
+@app.post("/api/history/fix_match")
+async def fix_history_match(req: FixMatchRequest, authorization: str = Depends(verify_api_key)):
+    conn = get_db_connection()
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM watch_history WHERE id = ?", (req.id,))
+    target_row = cursor.fetchone()
+    if not target_row:
+        conn.close()
+        return JSONResponse(status_code=404, content={"status": "error", "message": "Item not found"})
+
+    target_item = dict(target_row)
+    sync_lang = os.getenv("SYNC_LANGUAGE", "en")
+    target_media_type = "episode" if req.media_type in ["tv", "episode"] else "movie"
+
+    updated_count = 0
+    async with httpx.AsyncClient() as client:
+        # Pre-warm DNS cache for TMDB hosts
+        for tmdb_host in ("api.themoviedb.org", "image.tmdb.org"):
+            try: socket.getaddrinfo(tmdb_host, 443)
+            except Exception: pass
+
+        if target_media_type == "movie":
+            updated_info = await download_artwork_async(
+                client, "movie", req.new_tmdb_id, None, None, None, "", ""
+            )
+            tmdb_headers = {}
+            if len(TMDB_API_KEY) > 40:
+                tmdb_headers["Authorization"] = f"Bearer {TMDB_API_KEY}"
+                auth_param = ""
+            else:
+                auth_param = f"api_key={TMDB_API_KEY}&"
+
+            m_data = await fetch_json(client, f"https://api.themoviedb.org/3/movie/{req.new_tmdb_id}?{auth_param}language={sync_lang}", headers=tmdb_headers)
+            new_year = None
+            if m_data and m_data.get("release_date"):
+                try: new_year = int(m_data["release_date"].split("-")[0])
+                except Exception: pass
+
+            p_p = updated_info.get("poster_path")
+            f_p = updated_info.get("fanart_path")
+            new_title = updated_info.get("title") or (m_data.get("title") if m_data else None) or target_item.get("title")
+
+            cursor.execute("""
+                UPDATE watch_history
+                SET media_type = 'movie',
+                    tmdb_id = ?,
+                    show_tmdb_id = NULL,
+                    season = NULL,
+                    episode = NULL,
+                    show_title = NULL,
+                    title = ?,
+                    year = COALESCE(?, year),
+                    poster_path = COALESCE(?, poster_path),
+                    fanart_path = COALESCE(?, fanart_path)
+                WHERE id = ?
+            """, (req.new_tmdb_id, new_title, new_year, p_p, f_p, req.id))
+            conn.commit()
+            updated_count = 1
+
+        else: # episode
+            new_show_id = req.new_tmdb_id
+            new_season = req.season or target_item.get("season") or 1
+            new_episode = req.episode or target_item.get("episode") or 1
+
+            if req.scope == "series" and target_item.get("media_type") == "episode":
+                old_show_id = target_item.get("show_tmdb_id")
+                old_show_title = target_item.get("show_title")
+                if old_show_id:
+                    cursor.execute("SELECT id, season, episode, title, show_title FROM watch_history WHERE media_type = 'episode' AND (show_tmdb_id = ? OR show_title = ?)", (old_show_id, old_show_title))
+                else:
+                    cursor.execute("SELECT id, season, episode, title, show_title FROM watch_history WHERE media_type = 'episode' AND show_title = ?", (old_show_title,))
+                rows_to_update = cursor.fetchall()
+            else:
+                rows_to_update = [(req.id, new_season, new_episode, target_item.get("title"), target_item.get("show_title"))]
+
+            for r_id, s_num, e_num, old_t, old_st in rows_to_update:
+                updated_info = await download_artwork_async(
+                    client, "episode", None, new_show_id, s_num, e_num, old_t, old_st
+                )
+                p_p = updated_info.get("poster_path")
+                f_p = updated_info.get("fanart_path")
+                u_title = updated_info.get("title")
+                u_show_title = updated_info.get("show_title")
+
+                cursor.execute("""
+                    UPDATE watch_history
+                    SET media_type = 'episode',
+                        show_tmdb_id = ?,
+                        season = ?,
+                        episode = ?,
+                        title = COALESCE(?, title),
+                        show_title = COALESCE(?, show_title),
+                        poster_path = COALESCE(?, poster_path),
+                        fanart_path = COALESCE(?, fanart_path)
+                    WHERE id = ?
+                """, (new_show_id, s_num, e_num, u_title, u_show_title, p_p, f_p, r_id))
+                updated_count += 1
+
+            conn.commit()
+
+    conn.close()
+
+    try:
+        await manager.broadcast(json.dumps({"type": "reload_history"}))
+    except Exception:
+        pass
+
+    return {"status": "success", "updated": updated_count}
 
 
 
@@ -2742,7 +2986,7 @@ def push_all_to_db(main_loop=None):
     _notify_step1(total_items_to_process, "Finished")
     print(f"✅ Initial Sync completed! {count} items processed.")
     
-def push_recent_to_db(last_sync_utc_str):
+def push_recent_to_db(last_sync_utc_str, main_loop=None):
     print("Starting INCREMENTAL PUSH from Plex to local DB...")
     try:
         last_sync_dt = datetime.datetime.strptime(last_sync_utc_str, '%Y-%m-%dT%H:%M:%SZ')
@@ -2816,6 +3060,12 @@ def push_recent_to_db(last_sync_utc_str):
         conn.commit()
         conn.close()
         print(f"🚀 Incremental items processed.")
+        if main_loop:
+            try:
+                msg = json.dumps({"type": "reload_history"})
+                asyncio.run_coroutine_threadsafe(manager.broadcast(msg), main_loop)
+            except Exception:
+                pass
     return True
 
 _plex_items_cache = {"data": None, "ts": 0}
@@ -3326,7 +3576,7 @@ def run_sync(main_loop=None):
             res2 = push_cloud_orphans_to_db(main_loop)
             sync_ok = (res1 is not False and res2 is not False)
         else:
-            res = push_recent_to_db(last_sync)
+            res = push_recent_to_db(last_sync, main_loop=main_loop)
             sync_ok = (res is not False)
     except Exception as e:
         print(f"❌ Error during sync execution: {e}")
@@ -3705,16 +3955,18 @@ def manual_add(req: ManualAddRequest, authorization: str = Depends(verify_api_ke
         final_origin = "manual" if req.sync_remote else "kodi"
 
         if req.media_type == "movie":
+            m_title = (updated_info.get("title") if updated_info else None) or req.title
             cursor.execute("""
                 INSERT INTO watch_history (origin, title, media_type, tmdb_id, watched_at, poster_path, fanart_path, plex_guid, duration, year)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (final_origin, req.title, req.media_type, req.tmdb_id, final_watched_at, poster_path, fanart_path, plex_guid, found_duration, target_year))
+            """, (final_origin, m_title, req.media_type, req.tmdb_id, final_watched_at, poster_path, fanart_path, plex_guid, found_duration, target_year))
         else:
-            ep_title = f"Episode {req.episode}"
+            ep_title = (updated_info.get("title") if updated_info else None) or f"Episode {req.episode}"
+            s_title = (updated_info.get("show_title") if updated_info else None) or req.title
             cursor.execute("""
                 INSERT INTO watch_history (origin, title, show_title, media_type, show_tmdb_id, season, episode, watched_at, poster_path, fanart_path, plex_guid, plex_show_guid, duration, show_year)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (final_origin, ep_title, req.title, req.media_type, req.tmdb_id, req.season, req.episode, final_watched_at, poster_path, fanart_path, plex_guid, found_show_guid, found_duration, target_year))
+            """, (final_origin, ep_title, s_title, req.media_type, req.tmdb_id, req.season, req.episode, final_watched_at, poster_path, fanart_path, plex_guid, found_show_guid, found_duration, target_year))
 
         conn.commit()
         conn.close()
@@ -3754,6 +4006,7 @@ def get_ui_config():
         "ui_show_duration": os.getenv("UI_SHOW_DURATION", "true") == "true",
         "ui_show_watch_time": os.getenv("UI_SHOW_WATCH_TIME", "true") == "true",
         "ui_show_title": os.getenv("UI_SHOW_TITLE", "true") == "true",
+        "ui_show_daily_duration": os.getenv("UI_SHOW_DAILY_DURATION", "true") == "true",
     }
 
 # --- CONFIGURATION ---
@@ -3804,6 +4057,7 @@ def get_config():
         "ui_show_duration": os.getenv("UI_SHOW_DURATION", "true") == "true",
         "ui_show_watch_time": os.getenv("UI_SHOW_WATCH_TIME", "true") == "true",
         "ui_show_title": os.getenv("UI_SHOW_TITLE", "true") == "true",
+        "ui_show_daily_duration": os.getenv("UI_SHOW_DAILY_DURATION", "true") == "true",
         "fanart_mask_opacity": os.getenv("FANART_MASK_OPACITY", "0.3")
     }
 
@@ -3847,6 +4101,7 @@ class ConfigPayload(BaseModel):
     ui_show_duration: Optional[bool] = True
     ui_show_watch_time: Optional[bool] = True
     ui_show_title: Optional[bool] = True
+    ui_show_daily_duration: Optional[bool] = True
     fanart_mask_opacity: Optional[str] = "0.3"
 
 @app.post("/api/config", dependencies=[Depends(verify_api_key)])
@@ -3954,6 +4209,7 @@ async def save_config(payload: ConfigPayload):
             "UI_SHOW_DURATION": "true" if payload.ui_show_duration else "false",
             "UI_SHOW_WATCH_TIME": "true" if payload.ui_show_watch_time else "false",
             "UI_SHOW_TITLE": "true" if payload.ui_show_title else "false",
+            "UI_SHOW_DAILY_DURATION": "true" if payload.ui_show_daily_duration else "false",
             "FANART_MASK_OPACITY": payload.fanart_mask_opacity
         }
         if payload.master_password:
