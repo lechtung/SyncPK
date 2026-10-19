@@ -25,7 +25,7 @@ CT_CREATED=0
             local chars=( ". " ": " ":." "::" ".:" " ." )
             local i=0
             while true; do
-                printf "\r \e[33m%s\e[0m \e[33m%s\e[0m" "${chars[i]}" "$msg"
+                printf "\r \e[93m%s\e[0m \e[93m%s\e[0m" "${chars[i]}" "$msg"
                 i=$(( (i + 1) % ${#chars[@]} ))
                 sleep 0.15
             done
@@ -208,6 +208,20 @@ else
     RAM_SUMMARY=" \e[36m🛠️  RAM Size: \e[1;32m${RAM_SIZE} MiB\e[0m"
 fi
 
+DISK_SIZE=4
+while true; do
+    DISK_INPUT=$(whiptail --title "SyncPK - Disk Allocation" \
+        --inputbox "Enter container disk size in GB (minimum 2 GB):" 10 60 "4" 3>&1 1>&2 2>&3)
+    if [ $? -ne 0 ]; then exit 1; fi
+    if [[ "$DISK_INPUT" =~ ^[0-9]+$ ]] && [ "$DISK_INPUT" -ge 2 ]; then
+        DISK_SIZE="$DISK_INPUT"
+        break
+    else
+        whiptail --title "Error - Invalid Disk Size" \
+            --msgbox "Invalid disk size: '$DISK_INPUT'. Please enter a numeric value greater than or equal to 2 GB." 10 60
+    fi
+done
+
 CTID=$(pvesh get /cluster/nextid)
 TEMPLATE_STORAGE=$(pvesm status -content vztmpl | awk 'NR>1 {print $1}' | head -n 1)
 
@@ -307,7 +321,7 @@ echo -e " \e[36m💡  PVE Version \e[1;32m${PVE_VER}\e[0m \e[36m(Kernel: \e[1;32
 echo -e " \e[36m🆔  Container ID: \e[1;32m${CTID}\e[0m"
 echo -e " \e[36m📦  Operating System: \e[4;32m${DISTRO_NAME}\e[0m"
 echo -e " \e[36m🖥️  Container Type: \e[4;32mUnprivileged\e[0m"
-echo -e " \e[36m💾  Disk Size: \e[1;32m8 GB\e[0m"
+echo -e " \e[36m💾  Disk Size: \e[1;32m${DISK_SIZE} GB\e[0m"
 echo -e " \e[36m🧠  CPU Cores: \e[1;32m1\e[0m"
 echo -e "$RAM_SUMMARY"
 echo -e " \e[36m🚀  Creating SyncPK LXC using the above settings\e[0m"
@@ -342,7 +356,7 @@ fi
 # Create container with temporary memory if needed to prevent OOM killer during pip builds
 msg_info "Creating LXC container ${CTID} (${CT_ARCH})..."
 HOST_LOG=$(mktemp)
-if ! pct create $CTID "$LATEST_TEMPLATE" -storage "$TARGET_STORAGE" -rootfs "$TARGET_STORAGE:8" -arch "$CT_ARCH" -hostname syncpk -cores 1 -memory "$BUILD_RAM" -net0 name=eth0,bridge="$BRIDGE",$NET_CONFIG -unprivileged 1 -features nesting=1 -timezone host -onboot 1 > "$HOST_LOG" 2>&1; then
+if ! pct create $CTID "$LATEST_TEMPLATE" -storage "$TARGET_STORAGE" -rootfs "$TARGET_STORAGE:$DISK_SIZE" -arch "$CT_ARCH" -hostname syncpk -cores 1 -memory "$BUILD_RAM" -net0 name=eth0,bridge="$BRIDGE",$NET_CONFIG -unprivileged 1 -features nesting=1 -timezone host -onboot 1 > "$HOST_LOG" 2>&1; then
     tail -n 15 "$HOST_LOG"
     rm -f "$HOST_LOG"
     error "Failed to create LXC container (pct create failed)."
