@@ -14,7 +14,7 @@ CT_CREATED=0
             wait "$SPINNER_PID" 2>/dev/null || true
             SPINNER_PID=""
         fi
-        printf "\e[?25h" # restore cursor
+        printf "\r\e[K\e[?25h" # clear line and restore cursor
     }
 
     msg_info() {
@@ -35,7 +35,7 @@ CT_CREATED=0
 
     msg_ok() {
         stop_spinner
-        printf "\r\e[K \e[35m✔\e[0m \e[32m%s\e[0m\n" "$1"
+        printf "\r\e[K \e[1;32m✔\e[0m \e[32m%s\e[0m\n" "$1"
     }
 
     msg_err() {
@@ -44,6 +44,7 @@ CT_CREATED=0
     }
 
     cleanup_on_error() {
+        trap - EXIT
         stop_spinner
         if [ "$CT_CREATED" -eq 1 ] && [ -n "$CTID" ] && pvesm status &>/dev/null; then
             echo -e "\n \e[31m✖\e[0m \e[1;31mInstallation failed.\e[0m"
@@ -53,9 +54,7 @@ CT_CREATED=0
                 pct destroy $CTID 2>/dev/null || true
                 msg_ok "Container destroyed."
             else
-                msg_info "Container $CTID kept as-is."
-                stop_spinner
-                echo ""
+                msg_ok "Container $CTID kept as-is."
             fi
         fi
         exit 1
@@ -68,7 +67,8 @@ CT_CREATED=0
         cleanup_on_error
     }
 
-trap 'stop_spinner; cleanup_on_error' INT TERM
+trap 'stop_spinner' EXIT
+trap 'cleanup_on_error' INT TERM
 
 if [ "$EUID" -ne 0 ]; then
     echo -e "\e[31m[ERROR] This script must be run as root (administrator privileges).\e[0m"
@@ -85,7 +85,6 @@ if ! command -v whiptail &> /dev/null || ! command -v curl &> /dev/null; then
     apt-get install -y whiptail curl &>/dev/null
 fi
 
-msg_info "Searching for storages compatible with LXC containers..."
 STORAGES=$(pvesm status -content rootdir | awk 'NR>1 {print $1}')
 if [ -z "$STORAGES" ]; then
     error "No container-compatible storage (rootdir) found."
@@ -216,7 +215,6 @@ if [ -z "$TEMPLATE_STORAGE" ]; then
     error "No storage found that supports LXC templates (vztmpl)."
 fi
 
-msg_info "Gathering local and available templates..."
 pveam update &>/dev/null
 DOWNLOADED_TEMPLATES=$(pvesm list $TEMPLATE_STORAGE --content vztmpl | awk 'NR>1 {print $1}')
 
