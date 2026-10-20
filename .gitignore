@@ -11,10 +11,10 @@ __pycache__/
 
 # Database files
 *.sqlite3
-sync.db
-sync.db-journal
-sync.db-shm
-sync.db-wal
+server/sync.db
+server/sync.db-journal
+server/sync.db-shm
+server/sync.db-wal
 
 # Environment variables and secrets
 server/.env
